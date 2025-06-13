@@ -175,11 +175,13 @@ export class FontService {
   }
 
   /**
-   * Upload a font file to Supabase Storage
+   * CRITICAL: Enhanced font upload with proper CORS and headers
    */
   static async uploadFont(file: File, userId: string): Promise<string> {
     const fileExt = file.name.split('.').pop()?.toLowerCase();
     const fileName = `${userId}/${Date.now()}-${file.name}`;
+    
+    console.log(`🚀 SUPABASE: Starting font upload: ${file.name} (${file.size} bytes)`);
     
     // Validate file format
     if (!['ttf', 'otf', 'woff', 'woff2'].includes(fileExt || '')) {
@@ -193,28 +195,62 @@ export class FontService {
 
     // Get the correct MIME type for the font file
     const contentType = this.getFontMimeType(fileExt || '');
+    console.log(`📝 SUPABASE: Using MIME type: ${contentType}`);
 
-    // Create a new Blob with the correct MIME type
+    // Create a new Blob with the correct MIME type and proper headers
     const fontBlob = new Blob([file], { type: contentType });
 
-    const { data, error } = await supabase.storage
-      .from('user-fonts')
-      .upload(fileName, fontBlob, {
-        cacheControl: '3600',
-        upsert: false,
-        contentType: contentType
-      });
+    try {
+      const { data, error } = await supabase.storage
+        .from('user-fonts')
+        .upload(fileName, fontBlob, {
+          cacheControl: '31536000', // 1 year cache for fonts
+          upsert: false,
+          contentType: contentType,
+          duplex: 'half' // Important for font files
+        });
 
-    if (error) {
-      throw new Error(`Failed to upload font: ${error.message}`);
+      if (error) {
+        console.error(`❌ SUPABASE UPLOAD ERROR:`, error);
+        throw new Error(`Failed to upload font: ${error.message}`);
+      }
+
+      console.log(`✅ SUPABASE: Font uploaded successfully: ${fileName}`);
+
+      // Get public URL with proper headers for font loading
+      const { data: urlData } = supabase.storage
+        .from('user-fonts')
+        .getPublicUrl(fileName, {
+          download: false, // Don't force download
+          transform: {
+            quality: 100 // Maintain quality
+          }
+        });
+
+      const publicUrl = urlData.publicUrl;
+      console.log(`🔗 SUPABASE: Public URL generated: ${publicUrl}`);
+
+      // CRITICAL: Test the URL immediately to ensure it's accessible
+      try {
+        const testResponse = await fetch(publicUrl, { 
+          method: 'HEAD',
+          mode: 'cors' // Important for CORS
+        });
+        
+        if (!testResponse.ok) {
+          console.warn(`⚠️ SUPABASE: Font URL test failed: ${testResponse.status} ${testResponse.statusText}`);
+        } else {
+          console.log(`✅ SUPABASE: Font URL is accessible`);
+        }
+      } catch (testError) {
+        console.warn(`⚠️ SUPABASE: Font URL test error:`, testError);
+      }
+
+      return publicUrl;
+    } catch (uploadError) {
+      console.error(`❌ SUPABASE: Font upload failed:`, uploadError);
+      throw uploadError;
     }
-
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from('user-fonts')
-      .getPublicUrl(fileName);
-
-    return urlData.publicUrl;
   }
 
   /**
@@ -419,6 +455,7 @@ export class FontService {
     const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
     
     console.log(`🚀 CRITICAL: Starting font load process for: ${font.font_name} -> ${mainFontFamily}`);
+    console.log(`🔗 FONT URL: ${font.file_url}`);
     
     // Check if font is already loaded
     if (this.loadedFonts.has(mainFontFamily)) {
@@ -457,6 +494,9 @@ export class FontService {
     console.log(`🔥 AGGRESSIVE FONT LOADING: ${font.font_name} with family: ${mainFontFamily}`);
 
     try {
+      // CRITICAL: First test if the font URL is accessible
+      await this.testFontUrlAccessibility(font.file_url);
+      
       // Step 1: Aggressive CSS injection
       await this.aggressiveInjectFontCSS(font);
       
@@ -472,6 +512,40 @@ export class FontService {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`💥 CRITICAL FONT LOADING FAILURE ${font.font_name}: ${errorMessage}`);
       throw error;
+    }
+  }
+
+  /**
+   * CRITICAL: Test font URL accessibility
+   */
+  private static async testFontUrlAccessibility(fontUrl: string): Promise<void> {
+    console.log(`🔍 TESTING FONT URL ACCESSIBILITY: ${fontUrl}`);
+    
+    try {
+      const response = await fetch(fontUrl, { 
+        method: 'HEAD',
+        mode: 'cors',
+        cache: 'no-cache'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Font URL not accessible: ${response.status} ${response.statusText}`);
+      }
+      
+      const contentType = response.headers.get('content-type');
+      console.log(`✅ FONT URL ACCESSIBLE: Content-Type: ${contentType}`);
+      
+      // Check if it's a valid font MIME type
+      const validFontTypes = ['font/', 'application/font', 'application/x-font', 'application/octet-stream'];
+      const isValidFont = validFontTypes.some(type => contentType?.includes(type));
+      
+      if (!isValidFont) {
+        console.warn(`⚠️ UNEXPECTED CONTENT TYPE: ${contentType} (continuing anyway)`);
+      }
+      
+    } catch (error) {
+      console.error(`❌ FONT URL ACCESSIBILITY TEST FAILED:`, error);
+      throw new Error(`Font file is not accessible: ${error}`);
     }
   }
 
