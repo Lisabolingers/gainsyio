@@ -304,8 +304,11 @@ const DesignSettings = () => {
   const ensureFontLoadedForKonva = async (fontFamily: string): Promise<string> => {
     const konvaFontFamily = FontService.getKonvaFontFamily(fontFamily);
     
+    console.log(`🔄 Ensuring font is loaded for Konva: ${fontFamily} -> ${konvaFontFamily}`);
+    
     // Check if font is already loaded
     if (document.fonts.check(`16px "${konvaFontFamily}"`)) {
+      console.log(`✅ Font already loaded: ${konvaFontFamily}`);
       return konvaFontFamily;
     }
     
@@ -318,11 +321,12 @@ const DesignSettings = () => {
       
       // Additional check with timeout
       let attempts = 0;
-      const maxAttempts = 10;
+      const maxAttempts = 15; // Increased attempts
       
       while (attempts < maxAttempts && !document.fonts.check(`16px "${konvaFontFamily}"`)) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 200)); // Increased wait time
         attempts++;
+        console.log(`⏳ Waiting for font to load... attempt ${attempts}/${maxAttempts}`);
       }
       
       if (attempts >= maxAttempts) {
@@ -348,6 +352,8 @@ const DesignSettings = () => {
     
     // Use fallback font while loading
     const actualFontFamily = isLoading ? 'Arial' : konvaFontFamily;
+    
+    console.log(`🎨 Rendering text with font: ${text.fontFamily} -> ${actualFontFamily}`);
     
     return (
       <Group
@@ -572,6 +578,7 @@ const DesignSettings = () => {
                 <select 
                   value={text.fontFamily} 
                   onChange={(e) => {
+                    console.log(`🔄 Font changed to: ${e.target.value}`);
                     updateTextProperty(text.id, 'fontFamily', e.target.value);
                     // Ensure font is loaded for Konva
                     ensureFontLoadedForKonva(e.target.value);

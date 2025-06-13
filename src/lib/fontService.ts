@@ -81,7 +81,6 @@ export class FontService {
    */
   private static generateFontFamilyWithFallbacks(fontName: string, cssFontFamily: string): string {
     const category = this.detectFontCategory(fontName);
-    const fallbacks = this.fontFamilyCategories[category as keyof typeof this.fontFamilyCategories];
     
     // Create a comprehensive fallback stack
     let fontStack = `"${cssFontFamily}"`;
@@ -150,10 +149,10 @@ export class FontService {
   }
 
   /**
-   * Generate CSS font family name that works reliably with Konva
-   * CRITICAL: This is the key to making fonts work properly in canvas
+   * CRITICAL: Generate CSS font family name that works with Konva
+   * This is the most important function for font rendering
    */
-  private static generateCssFontFamily(originalFileName: string, userId: string): string {
+  private static generateCssFontFamily(originalFileName: string): string {
     // Remove file extension and clean the name
     let fontFamily = originalFileName.replace(/\.[^/.]+$/, '');
     
@@ -411,8 +410,8 @@ export class FontService {
   }
 
   /**
-   * CRITICAL: Improved font loading with proper CSS injection and validation
-   * Enhanced for Konva.js compatibility
+   * CRITICAL: Enhanced font loading with proper CSS injection and validation
+   * This is the core function that makes fonts work in Konva.js
    */
   static async loadFontInBrowser(font: UserFont): Promise<void> {
     // Extract the main font family name (without fallbacks)
@@ -659,7 +658,7 @@ export class FontService {
     // Extract clean font info from file name
     const cleanFontName = this.extractCleanFontName(file.name);
     // Generate CSS font family name that preserves font identity
-    const cssFontFamily = this.generateCssFontFamily(file.name, userId);
+    const cssFontFamily = this.generateCssFontFamily(file.name);
     const fontFormat = file.name.split('.').pop()?.toLowerCase() || 'ttf';
 
     // Generate a unique font name to avoid constraint violations
