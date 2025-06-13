@@ -21,7 +21,12 @@ const LoginPage: React.FC = () => {
       await signIn(email, password);
       navigate('/admin');
     } catch (err: any) {
-      setError(err.message || 'An error occurred during sign in');
+      // Supabase'den gelen geçersiz kimlik bilgileri hatasını kontrol et
+      if (err.message && err.message.includes('Invalid login credentials')) {
+        setError('E-posta adresi veya şifre hatalı. Lütfen bilgilerinizi kontrol edin veya şifrenizi sıfırlayın.');
+      } else {
+        setError(err.message || 'Giriş yapılırken bir hata oluştu');
+      }
     } finally {
       setLoading(false);
     }
@@ -41,7 +46,7 @@ const LoginPage: React.FC = () => {
         {/* Login Form */}
         <div className="bg-white dark:bg-gray-800 rounded-lg p-8 shadow-xl">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">
-            Sign In to Your Account
+            Hesabınıza Giriş Yapın
           </h1>
 
           {error && (
@@ -53,7 +58,7 @@ const LoginPage: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Email Address
+                E-posta Adresi
               </label>
               <input
                 type="email"
@@ -61,14 +66,14 @@ const LoginPage: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                placeholder="example@email.com"
+                placeholder="ornek@email.com"
                 required
               />
             </div>
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Password
+                Şifre
               </label>
               <div className="relative">
                 <input
@@ -77,7 +82,7 @@ const LoginPage: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent pr-12"
-                  placeholder="Enter your password"
+                  placeholder="Şifrenizi girin"
                   required
                 />
                 <button
@@ -95,7 +100,7 @@ const LoginPage: React.FC = () => {
                 to="/forgot-password"
                 className="text-sm text-orange-400 hover:text-orange-300 transition-colors"
               >
-                Forgot Password?
+                Şifremi Unuttum?
               </Link>
             </div>
 
@@ -104,15 +109,15 @@ const LoginPage: React.FC = () => {
               disabled={loading}
               className="w-full px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Signing In...' : 'Sign In'}
+              {loading ? 'Giriş Yapılıyor...' : 'Giriş Yap'}
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <p className="text-gray-600 dark:text-gray-400">
-              Don't have an account?{' '}
+              Hesabınız yok mu?{' '}
               <Link to="/register" className="text-orange-400 hover:text-orange-300 transition-colors">
-                Sign Up Free
+                Ücretsiz Kayıt Ol
               </Link>
             </p>
           </div>
