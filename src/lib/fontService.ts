@@ -183,6 +183,45 @@ export class FontService {
   }
 
   /**
+   * CRITICAL: Get direct font URL, normalizing any incorrect URLs
+   * This fixes URLs that might contain '/render/image/' instead of '/object/'
+   */
+  private static getDirectFontUrl(fontUrl: string): string {
+    console.log(`🔧 NORMALIZING FONT URL: ${fontUrl}`);
+    
+    // If the URL already contains '/object/', it's correct
+    if (fontUrl.includes('/storage/v1/object/')) {
+      console.log(`✅ URL is already correct: ${fontUrl}`);
+      return fontUrl;
+    }
+    
+    // If the URL contains '/render/image/', we need to fix it
+    if (fontUrl.includes('/render/image/')) {
+      // Extract the file path from the render URL
+      const renderMatch = fontUrl.match(/\/render\/image\/public\/user-fonts\/(.+?)(?:\?|$)/);
+      if (renderMatch) {
+        const filePath = renderMatch[1];
+        const correctedUrl = `${supabaseUrl}/storage/v1/object/public/user-fonts/${filePath}`;
+        console.log(`🔧 CORRECTED URL: ${fontUrl} -> ${correctedUrl}`);
+        return correctedUrl;
+      }
+    }
+    
+    // If it's a relative path or other format, try to extract the file path
+    const pathMatch = fontUrl.match(/user-fonts\/(.+?)(?:\?|$)/);
+    if (pathMatch) {
+      const filePath = pathMatch[1];
+      const correctedUrl = `${supabaseUrl}/storage/v1/object/public/user-fonts/${filePath}`;
+      console.log(`🔧 RECONSTRUCTED URL: ${fontUrl} -> ${correctedUrl}`);
+      return correctedUrl;
+    }
+    
+    // If we can't parse it, return as-is and log a warning
+    console.warn(`⚠️ COULD NOT NORMALIZE FONT URL: ${fontUrl}`);
+    return fontUrl;
+  }
+
+  /**
    * CRITICAL: Enhanced font upload with proper CORS and headers
    */
   static async uploadFont(file: File, userId: string): Promise<string> {
@@ -493,17 +532,21 @@ export class FontService {
     console.log(`🔥 AGGRESSIVE FONT LOADING: ${font.font_name} with family: ${mainFontFamily}`);
 
     try {
+      // CRITICAL: Normalize the font URL to ensure direct access
+      const normalizedFontUrl = this.getDirectFontUrl(font.file_url);
+      const fontWithNormalizedUrl = { ...font, file_url: normalizedFontUrl };
+      
       // CRITICAL: First test if the font URL is accessible
-      await this.testFontUrlAccessibility(font.file_url);
+      await this.testFontUrlAccessibility(normalizedFontUrl);
       
       // Step 1: Aggressive CSS injection
-      await this.aggressiveInjectFontCSS(font);
+      await this.aggressiveInjectFontCSS(fontWithNormalizedUrl);
       
       // Step 2: Force FontFace loading
-      await this.forceLoadFontFace(font);
+      await this.forceLoadFontFace(fontWithNormalizedUrl);
       
       // Step 3: Canvas validation and forcing
-      await this.forceCanvasRecognition(font);
+      await this.forceCanvasRecognition(fontWithNormalizedUrl);
       
       console.log(`🎯 FONT FULLY LOADED AND READY: ${font.font_name}`);
       
