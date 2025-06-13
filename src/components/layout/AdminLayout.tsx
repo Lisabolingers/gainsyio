@@ -38,6 +38,19 @@ const AdminLayout: React.FC = () => {
     if (href === '/admin') {
       return location.pathname === '/admin';
     }
+    
+    // Special handling for Templates and Auto Text to Image
+    if (href === '/admin/templates') {
+      // Templates is active only if we're exactly on /admin/templates, not on sub-pages
+      return location.pathname === '/admin/templates';
+    }
+    
+    if (href === '/admin/templates/auto-text-to-image') {
+      // Auto Text to Image is active only if we're on this specific page
+      return location.pathname === '/admin/templates/auto-text-to-image';
+    }
+    
+    // For other routes, check if current path starts with the href
     return location.pathname.startsWith(href);
   };
 
