@@ -80,7 +80,7 @@ export const useFonts = () => {
     }
   ];
 
-  // Load user fonts on component mount
+  // Load user fonts on component mount and when user changes
   useEffect(() => {
     if (user) {
       loadUserFonts();
@@ -127,8 +127,16 @@ export const useFonts = () => {
       const savedFont = await FontService.uploadAndSaveFont(file, user.id);
       console.log(`✅ Font uploaded successfully: ${savedFont.font_name}`);
       
-      // Update local state
+      // CRITICAL: Update local state immediately for instant UI refresh
       setUserFonts(prev => [savedFont, ...prev]);
+      
+      // CRITICAL: Force reload fonts in browser for immediate canvas availability
+      try {
+        await FontService.loadFontInBrowser(savedFont);
+        console.log(`🎨 Font ${savedFont.font_name} loaded in browser for immediate use`);
+      } catch (loadError) {
+        console.warn(`⚠️ Font uploaded but failed to load in browser immediately:`, loadError);
+      }
       
       return savedFont;
     } catch (err: any) {
@@ -149,7 +157,7 @@ export const useFonts = () => {
 
       await FontService.deleteFont(fontId, user.id);
       
-      // Update local state
+      // Update local state immediately
       setUserFonts(prev => prev.filter(font => font.id !== fontId));
     } catch (err: any) {
       setError(err.message);

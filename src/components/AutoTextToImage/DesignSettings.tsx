@@ -11,7 +11,7 @@ import { useFonts } from '../../hooks/useFonts';
 import { FontService } from '../../lib/fontService';
 
 const DesignSettings = () => {
-  const { allFonts, loading: fontsLoading } = useFonts();
+  const { allFonts, loading: fontsLoading, loadUserFonts } = useFonts();
   const [canvasSize, setCanvasSize] = useState({ width: 1000, height: 1000 });
   const [templateName, setTemplateName] = useState('');
   const [texts, setTexts] = useState([
@@ -34,6 +34,7 @@ const DesignSettings = () => {
     }
   ]);
   const [selectedId, setSelectedId] = useState(1);
+  const [fontLoadingStates, setFontLoadingStates] = useState<Record<string, boolean>>({});
   const stageRef = useRef();
   const transformerRef = useRef();
   const groupRefs = useRef({});
@@ -230,10 +231,21 @@ const DesignSettings = () => {
     }
   };
 
-  const handleFontUploaded = (fontData: { display: string, value: string }) => {
-    // Update selected text to use the new font
+  // CRITICAL: Enhanced font upload handler with immediate refresh
+  const handleFontUploaded = async (fontData: { display: string, value: string }) => {
+    console.log('🎉 Font uploaded successfully:', fontData);
+    
+    // Update selected text to use the new font immediately
     if (selectedId) {
       updateTextProperty(selectedId, 'fontFamily', fontData.value);
+    }
+    
+    // Refresh the fonts list to show the new font immediately
+    try {
+      await loadUserFonts();
+      console.log('✅ Font list refreshed after upload');
+    } catch (error) {
+      console.error('❌ Failed to refresh font list:', error);
     }
   };
 
@@ -288,6 +300,150 @@ const DesignSettings = () => {
     );
   };
 
+  // CRITICAL: Enhanced font loading for Konva with proper error handling
+  const ensureFontLoadedForKonva = async (fontFamily: string): Promise<string> => {
+    const konvaFontFamily = FontService.getKonvaFontFamily(fontFamily);
+    
+    // Check if font is already loaded
+    if (document.fonts.check(`16px "${konvaFontFamily}"`)) {
+      return konvaFontFamily;
+    }
+    
+    // Set loading state
+    setFontLoadingStates(prev => ({ ...prev, [konvaFontFamily]: true }));
+    
+    try {
+      // Wait for font to be ready
+      await document.fonts.ready;
+      
+      // Additional check with timeout
+      let attempts = 0;
+      const maxAttempts = 10;
+      
+      while (attempts < maxAttempts && !document.fonts.check(`16px "${konvaFontFamily}"`)) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+      
+      if (attempts >= maxAttempts) {
+        console.warn(`⚠️ Font ${konvaFontFamily} may not be fully loaded, using fallback`);
+      } else {
+        console.log(`✅ Font ${konvaFontFamily} is ready for Konva`);
+      }
+      
+      return konvaFontFamily;
+    } catch (error) {
+      console.error(`❌ Error loading font ${konvaFontFamily}:`, error);
+      return 'Arial'; // Fallback to Arial
+    } finally {
+      // Clear loading state
+      setFontLoadingStates(prev => ({ ...prev, [konvaFontFamily]: false }));
+    }
+  };
+
+  // CRITICAL: Enhanced text rendering with proper font loading
+  const renderKonvaText = (text) => {
+    const konvaFontFamily = FontService.getKonvaFontFamily(text.fontFamily);
+    const isLoading = fontLoadingStates[konvaFontFamily];
+    
+    // Use fallback font while loading
+    const actualFontFamily = isLoading ? 'Arial' : konvaFontFamily;
+    
+    return (
+      <Group
+        key={text.id}
+        ref={(node) => (groupRefs.current[text.id] = node)}
+        x={text.x}
+        y={text.y}
+        draggable
+        onClick={() => setSelectedId(text.id)}
+        onDragEnd={(e) => handleTextDragEnd(text.id, e)}
+        onTransformEnd={(e) => handleTransformEnd(text.id, e)}
+        dragBoundFunc={(pos) => {
+          // Constrain drag position to canvas bounds
+          const halfWidth = text.width / 2;
+          const halfHeight = text.height / 2;
+          return {
+            x: Math.max(halfWidth, Math.min(canvasSize.width - halfWidth, pos.x)),
+            y: Math.max(halfHeight, Math.min(canvasSize.height - halfHeight, pos.y))
+          };
+        }}
+      >
+        {text.styleOption && text.styleOption !== 'normal'
+          ? renderTextByStyle({...text, fontFamily: actualFontFamily}, canvasSize)
+          : (
+            text.colorOption === 'letters' ? (
+              (() => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                ctx.font = `${text.maxFontSize}px ${actualFontFamily}`;
+                const filteredColors = (text.letterColors || []).filter(color => color && color.trim() !== '' && color.toLowerCase() !== '#cccccc');
+                const lines = text.text.split('\n');
+                const totalWidth = Math.max(...lines.map(line =>
+                  line.split('').reduce((acc, char) => acc + ctx.measureText(char).width + text.letterSpacing, 0)
+                ));
+                return (
+                  <Group offsetX={totalWidth / 2} offsetY={text.height / 2 - text.maxFontSize * text.lineHeight / 2 + 2}>
+                    {lines.flatMap((line, lineIdx) => {
+                      let cumulativeX = 0;
+                      const lineY = lineIdx * text.maxFontSize * text.lineHeight;
+                      return line.split('').map((char, idx) => {
+                        const metrics = ctx.measureText(char);
+                        const charWidth = metrics.width;
+                        const charX = cumulativeX;
+                        cumulativeX += charWidth + text.letterSpacing;
+                        const color = filteredColors.length > 0
+                          ? filteredColors[(idx + lineIdx * line.length) % filteredColors.length]
+                          : '#000000';
+                        return (
+                          <KonvaText
+                            key={`${lineIdx}-${idx}`}
+                            text={char}
+                            x={charX}
+                            y={lineY}
+                            fontSize={text.maxFontSize}
+                            fontFamily={actualFontFamily}
+                            fill={color}
+                            stroke={text.strokeEnabled ? text.strokeColor || '#000000' : undefined}
+                            strokeWidth={text.strokeEnabled ? text.strokeWidth || 2 : 0}
+                            fillEnabled={!text.strokeOnly}
+                            lineHeight={text.lineHeight || 1}
+                          />
+                        );
+                      });
+                    })}
+                  </Group>
+                );
+              })()
+            ) : (
+              <KonvaText
+                text={text.text}
+                fontSize={text.maxFontSize}
+                fontFamily={actualFontFamily}
+                fill={
+                  text.tempFill
+                    ? text.tempFill
+                    : text.colorOption === 'bw'
+                    ? '#000000'
+                    : text.fill || '#000000'
+                }
+                stroke={text.strokeEnabled ? text.strokeColor || '#000000' : undefined}
+                strokeWidth={text.strokeEnabled ? text.strokeWidth || 2 : 0}
+                fillEnabled={!text.strokeOnly}
+                width={text.width}
+                height={text.height}
+                align={text.align}
+                lineHeight={text.lineHeight || 1}
+                letterSpacing={text.letterSpacing}
+                offsetX={text.width / 2}
+                offsetY={text.height / 2 - text.maxFontSize * text.lineHeight / 2 + 2}
+              />
+            )
+          )}
+      </Group>
+    );
+  };
+
   return (
     <div className="flex h-full gap-[10px] p-4">
       {/* Canvas Section - Left Side */}
@@ -312,104 +468,7 @@ const DesignSettings = () => {
             }}>
               <Stage width={canvasSize.width} height={canvasSize.height} ref={stageRef} onClick={handleStageClick}>
                 <Layer>
-                  {texts.map((text) => {
-                    // CRITICAL: Get the proper font family for Konva using the new method
-                    const konvaFontFamily = FontService.getKonvaFontFamily(text.fontFamily);
-                    
-                    return (
-                      <Group
-                        key={text.id}
-                        ref={(node) => (groupRefs.current[text.id] = node)}
-                        x={text.x}
-                        y={text.y}
-                        draggable
-                        onClick={() => setSelectedId(text.id)}
-                        onDragEnd={(e) => handleTextDragEnd(text.id, e)}
-                        onTransformEnd={(e) => handleTransformEnd(text.id, e)}
-                        dragBoundFunc={(pos) => {
-                          // Constrain drag position to canvas bounds
-                          const halfWidth = text.width / 2;
-                          const halfHeight = text.height / 2;
-                          return {
-                            x: Math.max(halfWidth, Math.min(canvasSize.width - halfWidth, pos.x)),
-                            y: Math.max(halfHeight, Math.min(canvasSize.height - halfHeight, pos.y))
-                          };
-                        }}
-                      >
-                        {text.styleOption && text.styleOption !== 'normal'
-                          ? renderTextByStyle({...text, fontFamily: konvaFontFamily}, canvasSize)
-                          : (
-                            text.colorOption === 'letters' ? (
-                              (() => {
-                                const canvas = document.createElement('canvas');
-                                const ctx = canvas.getContext('2d');
-                                ctx.font = `${text.maxFontSize}px ${konvaFontFamily}`;
-                                const filteredColors = (text.letterColors || []).filter(color => color && color.trim() !== '' && color.toLowerCase() !== '#cccccc');
-                                const lines = text.text.split('\n');
-                                const totalWidth = Math.max(...lines.map(line =>
-                                  line.split('').reduce((acc, char) => acc + ctx.measureText(char).width + text.letterSpacing, 0)
-                                ));
-                                return (
-                                  <Group offsetX={totalWidth / 2} offsetY={text.height / 2 - text.maxFontSize * text.lineHeight / 2 + 2}>
-                                    {lines.flatMap((line, lineIdx) => {
-                                      let cumulativeX = 0;
-                                      const lineY = lineIdx * text.maxFontSize * text.lineHeight;
-                                      return line.split('').map((char, idx) => {
-                                        const metrics = ctx.measureText(char);
-                                        const charWidth = metrics.width;
-                                        const charX = cumulativeX;
-                                        cumulativeX += charWidth + text.letterSpacing;
-                                        const color = filteredColors.length > 0
-                                          ? filteredColors[(idx + lineIdx * line.length) % filteredColors.length]
-                                          : '#000000';
-                                        return (
-                                          <KonvaText
-                                            key={`${lineIdx}-${idx}`}
-                                            text={char}
-                                            x={charX}
-                                            y={lineY}
-                                            fontSize={text.maxFontSize}
-                                            fontFamily={konvaFontFamily}
-                                            fill={color}
-                                            stroke={text.strokeEnabled ? text.strokeColor || '#000000' : undefined}
-                                            strokeWidth={text.strokeEnabled ? text.strokeWidth || 2 : 0}
-                                            fillEnabled={!text.strokeOnly}
-                                            lineHeight={text.lineHeight || 1}
-                                          />
-                                        );
-                                      });
-                                    })}
-                                  </Group>
-                                );
-                              })()
-                            ) : (
-                              <KonvaText
-                                text={text.text}
-                                fontSize={text.maxFontSize}
-                                fontFamily={konvaFontFamily}
-                                fill={
-                                  text.tempFill
-                                    ? text.tempFill
-                                    : text.colorOption === 'bw'
-                                    ? '#000000'
-                                    : text.fill || '#000000'
-                                }
-                                stroke={text.strokeEnabled ? text.strokeColor || '#000000' : undefined}
-                                strokeWidth={text.strokeEnabled ? text.strokeWidth || 2 : 0}
-                                fillEnabled={!text.strokeOnly}
-                                width={text.width}
-                                height={text.height}
-                                align={text.align}
-                                lineHeight={text.lineHeight || 1}
-                                letterSpacing={text.letterSpacing}
-                                offsetX={text.width / 2}
-                                offsetY={text.height / 2 - text.maxFontSize * text.lineHeight / 2 + 2}
-                              />
-                            )
-                          )}
-                      </Group>
-                    );
-                  })}
+                  {texts.map((text) => renderKonvaText(text))}
 
                   {selectedId && (
                     <Transformer 
@@ -512,7 +571,11 @@ const DesignSettings = () => {
                 <label className="text-gray-700 dark:text-gray-300 text-sm">Font:</label>
                 <select 
                   value={text.fontFamily} 
-                  onChange={(e) => updateTextProperty(text.id, 'fontFamily', e.target.value)} 
+                  onChange={(e) => {
+                    updateTextProperty(text.id, 'fontFamily', e.target.value);
+                    // Ensure font is loaded for Konva
+                    ensureFontLoadedForKonva(e.target.value);
+                  }} 
                   className="w-32 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   disabled={fontsLoading}
                 >
@@ -521,7 +584,7 @@ const DesignSettings = () => {
                   ))}
                 </select>
                 
-                {/* Font Upload Button */}
+                {/* Enhanced Font Upload Button */}
                 <div className="relative">
                   <FontUploadButton onFontUploaded={handleFontUploaded} />
                 </div>
