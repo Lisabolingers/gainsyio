@@ -8,6 +8,7 @@ import ColorOptions from './ColorOptions';
 import FontUploadButton from './FontUploadButton';
 import { renderTextByStyle } from './styleOption';
 import { useFonts } from '../../hooks/useFonts';
+import { FontService } from '../../lib/fontService';
 
 const DesignSettings = () => {
   const { allFonts, loading: fontsLoading } = useFonts();
@@ -287,20 +288,6 @@ const DesignSettings = () => {
     );
   };
 
-  // CRITICAL: Extract font family name from font value for Konva
-  const getKonvaFontFamily = (fontValue: string): string => {
-    // Extract the first font family name from the CSS font stack
-    // e.g., '"Angkanya_Sebelas", Arial, sans-serif' -> 'Angkanya_Sebelas'
-    const match = fontValue.match(/^"([^"]+)"/);
-    if (match) {
-      return match[1];
-    }
-    
-    // Fallback: take the first part before comma
-    const firstFont = fontValue.split(',')[0].trim();
-    return firstFont.replace(/['"]/g, '');
-  };
-
   return (
     <div className="flex h-full gap-[10px] p-4">
       {/* Canvas Section - Left Side */}
@@ -326,8 +313,8 @@ const DesignSettings = () => {
               <Stage width={canvasSize.width} height={canvasSize.height} ref={stageRef} onClick={handleStageClick}>
                 <Layer>
                   {texts.map((text) => {
-                    // CRITICAL: Get the proper font family for Konva
-                    const konvaFontFamily = getKonvaFontFamily(text.fontFamily);
+                    // CRITICAL: Get the proper font family for Konva using the new method
+                    const konvaFontFamily = FontService.getKonvaFontFamily(text.fontFamily);
                     
                     return (
                       <Group

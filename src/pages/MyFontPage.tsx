@@ -225,25 +225,6 @@ const MyFontPage: React.FC = () => {
         </div>
       )}
 
-      {/* Font Categories Info */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-blue-800 dark:text-blue-400 mb-2">Font Categories</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 text-xs">
-          {Object.entries(fontsByCategory).map(([category, fonts]) => (
-            fonts.length > 0 && (
-              <div key={category} className="flex items-center justify-between">
-                <span className={`px-2 py-1 rounded-full ${getCategoryBadgeColor(category)}`}>
-                  {category}
-                </span>
-                <span className="text-gray-600 dark:text-gray-400">
-                  {fonts.length}
-                </span>
-              </div>
-            )
-          ))}
-        </div>
-      </div>
-
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-4 items-center">
         <div className="relative flex-1">

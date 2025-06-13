@@ -150,8 +150,8 @@ export class FontService {
   }
 
   /**
-   * Generate CSS font family name that works reliably
-   * CRITICAL: This is the key to making fonts work properly
+   * Generate CSS font family name that works reliably with Konva
+   * CRITICAL: This is the key to making fonts work properly in canvas
    */
   private static generateCssFontFamily(originalFileName: string, userId: string): string {
     // Remove file extension and clean the name
@@ -161,7 +161,7 @@ export class FontService {
     // Remove only problematic characters, preserve the font's identity
     fontFamily = fontFamily.replace(/[^\w\s-]/g, '');
     
-    // Replace spaces with underscores for CSS compatibility
+    // Replace spaces with underscores for CSS compatibility but keep readable
     fontFamily = fontFamily.replace(/\s+/g, '_');
     
     // If the name starts with a number, prefix it
@@ -412,6 +412,7 @@ export class FontService {
 
   /**
    * CRITICAL: Improved font loading with proper CSS injection and validation
+   * Enhanced for Konva.js compatibility
    */
   static async loadFontInBrowser(font: UserFont): Promise<void> {
     // Extract the main font family name (without fallbacks)
@@ -445,6 +446,7 @@ export class FontService {
 
   /**
    * CRITICAL: The actual font loading implementation
+   * Enhanced for Konva.js compatibility
    */
   private static async doLoadFont(font: UserFont): Promise<void> {
     const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
@@ -458,8 +460,8 @@ export class FontService {
       // Method 2: FontFace API (Secondary method for validation)
       await this.loadFontFace(font);
       
-      // Method 3: Font validation and preloading
-      await this.validateFontLoading(font);
+      // Method 3: Font validation and preloading for Konva
+      await this.validateFontLoadingForKonva(font);
       
       console.log(`🎉 Font loading complete: ${font.font_name}`);
       
@@ -543,22 +545,24 @@ export class FontService {
   }
 
   /**
-   * Validate font loading and force browser recognition
+   * Validate font loading and force browser recognition for Konva.js
+   * CRITICAL: Enhanced for Konva.js compatibility
    */
-  private static async validateFontLoading(font: UserFont): Promise<void> {
+  private static async validateFontLoadingForKonva(font: UserFont): Promise<void> {
     const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
     
     // Wait for fonts to be ready
     await document.fonts.ready;
     
-    // Create test element to force font loading
+    // Create test element to force font loading and measure
     const testElement = document.createElement('div');
-    testElement.style.fontFamily = font.font_family; // Use full font family with fallbacks
+    testElement.style.fontFamily = `"${mainFontFamily}", Arial, sans-serif`; // Use quoted font name
     testElement.style.fontSize = '16px';
     testElement.style.position = 'absolute';
     testElement.style.left = '-9999px';
     testElement.style.top = '-9999px';
     testElement.style.visibility = 'hidden';
+    testElement.style.whiteSpace = 'nowrap';
     testElement.textContent = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     
     document.body.appendChild(testElement);
@@ -567,14 +571,22 @@ export class FontService {
     const computedStyle = window.getComputedStyle(testElement);
     const actualFontFamily = computedStyle.fontFamily;
     
+    // Measure text with custom font vs fallback to verify loading
+    const customFontWidth = testElement.offsetWidth;
+    
+    // Test with fallback font
+    testElement.style.fontFamily = 'Arial, sans-serif';
+    const fallbackWidth = testElement.offsetWidth;
+    
     // Check if our font is actually being used
     const isFontLoaded = actualFontFamily.includes(mainFontFamily) || 
-                        document.fonts.check(`16px "${mainFontFamily}"`);
+                        document.fonts.check(`16px "${mainFontFamily}"`) ||
+                        (customFontWidth !== fallbackWidth && customFontWidth > 0);
     
     if (!isFontLoaded) {
       console.warn(`⚠️ Font validation failed for ${mainFontFamily}, but continuing...`);
     } else {
-      console.log(`✅ Font validation successful for ${mainFontFamily}`);
+      console.log(`✅ Font validation successful for ${mainFontFamily} (width: ${customFontWidth}px vs ${fallbackWidth}px)`);
     }
     
     // Clean up test element after a delay
@@ -584,8 +596,21 @@ export class FontService {
       }
     }, 1000);
     
-    // Additional delay to ensure font is fully loaded
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Additional delay to ensure font is fully loaded for Konva
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    // Force Konva to recognize the font by creating a temporary canvas test
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.font = `16px "${mainFontFamily}", Arial, sans-serif`;
+        ctx.fillText('Test', 0, 16);
+        console.log(`🎨 Konva font test completed for: ${mainFontFamily}`);
+      }
+    } catch (err) {
+      console.warn(`⚠️ Konva font test failed for ${mainFontFamily}:`, err);
+    }
   }
 
   /**
@@ -598,7 +623,7 @@ export class FontService {
     console.log(`🔄 Loading ${fonts.length} user fonts into browser...`);
 
     // Load fonts with controlled concurrency
-    const maxConcurrent = 3;
+    const maxConcurrent = 2; // Reduced for better stability
     for (let i = 0; i < fonts.length; i += maxConcurrent) {
       const batch = fonts.slice(i, i + maxConcurrent);
       
@@ -617,9 +642,9 @@ export class FontService {
       
       await Promise.all(batchPromises);
       
-      // Small delay between batches
+      // Small delay between batches for better stability
       if (i + maxConcurrent < fonts.length) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
 
@@ -735,5 +760,22 @@ export class FontService {
       description: categoryInfo[category as keyof typeof categoryInfo].description,
       fallbacks: categoryInfo[category as keyof typeof categoryInfo].fallbacks
     };
+  }
+
+  /**
+   * Get Konva-compatible font family name
+   * CRITICAL: This ensures fonts work properly in Konva.js
+   */
+  static getKonvaFontFamily(fontValue: string): string {
+    // Extract the first font family name from the CSS font stack
+    // e.g., '"Angkanya_Sebelas", Arial, sans-serif' -> 'Angkanya_Sebelas'
+    const match = fontValue.match(/^"([^"]+)"/);
+    if (match) {
+      return match[1];
+    }
+    
+    // Fallback: take the first part before comma and remove quotes
+    const firstFont = fontValue.split(',')[0].trim();
+    return firstFont.replace(/['"]/g, '');
   }
 }
