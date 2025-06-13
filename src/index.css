@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+
+  html,
+  body {
+    @apply min-h-screen bg-gradient-to-b from-black to-gray-900;
+  }
+
+  #root {
+    @apply min-h-screen flex flex-col text-white;
+  }
+}
+
+@layer utilities {
+  .perspective {
+    perspective: 1000px;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0) rotate(0);
+  }
+  50% {
+    transform: translateY(-10px) rotate(5deg);
+  }
+}
+
+@keyframes gradient-x {
+  0%, 100% {
+    background-size: 200% 200%;
+    background-position: left center;
+  }
+  50% {
+    background-size: 200% 200%;
+    background-position: right center;
+  }
+}
+
+@keyframes neon-pulse {
+  0%, 100% {
+    text-shadow: 0 0 7px #ff6b00,
+                 0 0 10px #ff6b00,
+                 0 0 21px #ff6b00,
+                 0 0 42px #ff8533,
+                 0 0 82px #ff8533,
+                 0 0 92px #ff8533,
+                 0 0 102px #ff8533,
+                 0 0 151px #ff8533;
+  }
+  50% {
+    text-shadow: 0 0 4px #ff6b00,
+                 0 0 7px #ff6b00,
+                 0 0 18px #ff6b00,
+                 0 0 38px #ff8533,
+                 0 0 73px #ff8533,
+                 0 0 80px #ff8533,
+                 0 0 94px #ff8533,
+                 0 0 140px #ff8533;
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-gradient-x {
+  animation: gradient-x 15s ease infinite;
+}
+
+.animate-neon {
+  animation: neon-pulse 1.5s ease-in-out infinite;
+}
+
+@font-face {
+  font-family: 'Handwritten';
+  src: url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&display=swap');
+}
+
+.font-handwritten {
+  font-family: 'Handwritten', cursive;
+}
