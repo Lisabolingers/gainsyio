@@ -526,8 +526,8 @@ export class FontService {
       // CRITICAL: Use the font URL as-is since it's now generated properly by getPublicUrl
       console.log(`🔗 Using font URL: ${font.file_url}`);
       
-      // CRITICAL: First test if the font URL is accessible
-      await this.testFontUrlAccessibility(font.file_url);
+      // REMOVED: Premature accessibility check that was causing false negatives
+      // The browser's native font loading mechanisms are more robust
       
       // Step 1: Aggressive CSS injection
       await this.aggressiveInjectFontCSS(font);
@@ -544,40 +544,6 @@ export class FontService {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`💥 CRITICAL FONT LOADING FAILURE ${font.font_name}: ${errorMessage}`);
       throw error;
-    }
-  }
-
-  /**
-   * CRITICAL: Test font URL accessibility
-   */
-  private static async testFontUrlAccessibility(fontUrl: string): Promise<void> {
-    console.log(`🔍 TESTING FONT URL ACCESSIBILITY: ${fontUrl}`);
-    
-    try {
-      const response = await fetch(fontUrl, { 
-        method: 'HEAD',
-        mode: 'cors',
-        cache: 'no-cache'
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Font URL not accessible: ${response.status} ${response.statusText}`);
-      }
-      
-      const contentType = response.headers.get('content-type');
-      console.log(`✅ FONT URL ACCESSIBLE: Content-Type: ${contentType}`);
-      
-      // Check if it's a valid font MIME type
-      const validFontTypes = ['font/', 'application/font', 'application/x-font', 'application/octet-stream'];
-      const isValidFont = validFontTypes.some(type => contentType?.includes(type));
-      
-      if (!isValidFont) {
-        console.warn(`⚠️ UNEXPECTED CONTENT TYPE: ${contentType} (continuing anyway)`);
-      }
-      
-    } catch (error) {
-      console.error(`❌ FONT URL ACCESSIBILITY TEST FAILED:`, error);
-      throw new Error(`Font file is not accessible: ${error}`);
     }
   }
 
