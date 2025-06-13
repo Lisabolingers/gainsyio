@@ -18,6 +18,20 @@ export class FontService {
   };
 
   /**
+   * Get correct MIME type for font files
+   */
+  private static getFontMimeType(fileExtension: string): string {
+    const mimeTypes: Record<string, string> = {
+      'ttf': 'font/ttf',
+      'otf': 'font/otf',
+      'woff': 'font/woff',
+      'woff2': 'font/woff2'
+    };
+    
+    return mimeTypes[fileExtension.toLowerCase()] || 'application/octet-stream';
+  }
+
+  /**
    * Detect font family category based on font name and characteristics
    */
   private static detectFontCategory(fontName: string): string {
@@ -174,8 +188,7 @@ export class FontService {
   }
 
   /**
-   * CRITICAL FIX: Upload font file without any content-type headers
-   * This completely avoids the MIME type issue by letting Supabase handle detection
+   * Upload font file with correct MIME type
    */
   static async uploadFont(file: File, userId: string): Promise<string> {
     const fileExt = file.name.split('.').pop()?.toLowerCase();
@@ -197,16 +210,16 @@ export class FontService {
     }
 
     try {
-      // CRITICAL FIX: Upload as raw ArrayBuffer without any headers
-      // This completely bypasses MIME type detection issues
-      const arrayBuffer = await file.arrayBuffer();
+      // Get the correct MIME type for the font file
+      const mimeType = this.getFontMimeType(fileExt || '');
+      console.log(`📝 Using MIME type: ${mimeType} for file extension: ${fileExt}`);
       
       const { data, error } = await supabase.storage
         .from('user-fonts')
-        .upload(fileName, arrayBuffer, {
+        .upload(fileName, file, {
           cacheControl: '31536000', // 1 year cache for fonts
-          upsert: false
-          // NO contentType, NO headers - let Supabase handle everything automatically
+          upsert: false,
+          contentType: mimeType // Set the correct MIME type
         });
 
       if (error) {
