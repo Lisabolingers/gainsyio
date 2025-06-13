@@ -3,14 +3,51 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+console.log('🔧 Supabase Configuration Check:');
+console.log('URL:', supabaseUrl ? '✅ Present' : '❌ Missing');
+console.log('Key:', supabaseAnonKey ? '✅ Present' : '❌ Missing');
+
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
+  console.error('❌ Missing Supabase environment variables');
+  console.error('VITE_SUPABASE_URL:', supabaseUrl);
+  console.error('VITE_SUPABASE_ANON_KEY:', supabaseAnonKey ? '[PRESENT]' : '[MISSING]');
+  throw new Error('Missing Supabase environment variables. Please check your .env file.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Create Supabase client with enhanced error handling
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+  global: {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  },
+});
 
 // Export supabaseUrl for use in other modules
 export { supabaseUrl };
+
+// Test connection function
+export const testSupabaseConnection = async () => {
+  try {
+    console.log('🔄 Testing Supabase connection...');
+    const { data, error } = await supabase.from('user_profiles').select('count').limit(1);
+    
+    if (error) {
+      console.error('❌ Supabase connection test failed:', error);
+      return false;
+    }
+    
+    console.log('✅ Supabase connection test successful');
+    return true;
+  } catch (err) {
+    console.error('❌ Supabase connection test error:', err);
+    return false;
+  }
+};
 
 // Database types
 export interface UserProfile {

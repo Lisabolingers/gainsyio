@@ -1,4 +1,4 @@
-import { supabase, supabaseUrl } from './supabase';
+import { supabase, supabaseUrl, testSupabaseConnection } from './supabase';
 import { UserFont } from './supabase';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -265,47 +265,62 @@ export class FontService {
    * Check if a font name exists for the user and generate a unique name if needed
    */
   static async generateUniqueFontName(userId: string, baseFontName: string): Promise<string> {
-    // First check if the base name is available
-    const { data: existingFont, error } = await supabase
-      .from('user_fonts')
-      .select('font_name')
-      .eq('user_id', userId)
-      .eq('font_name', baseFontName)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(`Failed to check font name availability: ${error.message}`);
-    }
-
-    // If no existing font found, the base name is available
-    if (!existingFont) {
-      return baseFontName;
-    }
-
-    // Generate a unique name by appending a number
-    let counter = 1;
-    let uniqueName = `${baseFontName} (${counter})`;
-    
-    while (true) {
-      const { data: duplicateCheck } = await supabase
+    try {
+      // First check if the base name is available
+      const { data: existingFont, error } = await supabase
         .from('user_fonts')
         .select('font_name')
         .eq('user_id', userId)
-        .eq('font_name', uniqueName)
+        .eq('font_name', baseFontName)
         .maybeSingle();
 
-      if (!duplicateCheck) {
-        return uniqueName;
+      if (error) {
+        console.error('❌ Error checking font name availability:', error);
+        throw new Error(`Failed to check font name availability: ${error.message}`);
       }
-      
-      counter++;
-      uniqueName = `${baseFontName} (${counter})`;
-      
-      // Safety check to prevent infinite loop
-      if (counter > 100) {
-        const uniqueId = uuidv4().substring(0, 8);
-        return `${baseFontName}-${uniqueId}`;
+
+      // If no existing font found, the base name is available
+      if (!existingFont) {
+        return baseFontName;
       }
+
+      // Generate a unique name by appending a number
+      let counter = 1;
+      let uniqueName = `${baseFontName} (${counter})`;
+      
+      while (true) {
+        const { data: duplicateCheck, error: checkError } = await supabase
+          .from('user_fonts')
+          .select('font_name')
+          .eq('user_id', userId)
+          .eq('font_name', uniqueName)
+          .maybeSingle();
+
+        if (checkError) {
+          console.error('❌ Error checking duplicate font name:', checkError);
+          // If we can't check, use a UUID to ensure uniqueness
+          const uniqueId = uuidv4().substring(0, 8);
+          return `${baseFontName}-${uniqueId}`;
+        }
+
+        if (!duplicateCheck) {
+          return uniqueName;
+        }
+        
+        counter++;
+        uniqueName = `${baseFontName} (${counter})`;
+        
+        // Safety check to prevent infinite loop
+        if (counter > 100) {
+          const uniqueId = uuidv4().substring(0, 8);
+          return `${baseFontName}-${uniqueId}`;
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error in generateUniqueFontName:', error);
+      // Fallback: use UUID to ensure uniqueness
+      const uniqueId = uuidv4().substring(0, 8);
+      return `${baseFontName}-${uniqueId}`;
     }
   }
 
@@ -320,107 +335,140 @@ export class FontService {
     fileSize: number,
     fontFormat: string
   ): Promise<UserFont> {
-    // Generate font family with appropriate fallbacks
-    const fontFamilyWithFallbacks = this.generateFontFamilyWithFallbacks(fontName, fontFamily);
-    
-    const { data, error } = await supabase
-      .from('user_fonts')
-      .insert({
-        user_id: userId,
-        font_name: fontName,
-        font_family: fontFamilyWithFallbacks, // Store with fallbacks
-        file_url: fileUrl,
-        file_size: fileSize,
-        font_format: fontFormat,
-        is_active: true
-      })
-      .select()
-      .single();
+    try {
+      // Generate font family with appropriate fallbacks
+      const fontFamilyWithFallbacks = this.generateFontFamilyWithFallbacks(fontName, fontFamily);
+      
+      const { data, error } = await supabase
+        .from('user_fonts')
+        .insert({
+          user_id: userId,
+          font_name: fontName,
+          font_family: fontFamilyWithFallbacks, // Store with fallbacks
+          file_url: fileUrl,
+          file_size: fileSize,
+          font_format: fontFormat,
+          is_active: true
+        })
+        .select()
+        .single();
 
-    if (error) {
-      // Check for unique constraint violation (duplicate font name)
-      if (error.code === '23505' && error.message.includes('user_fonts_user_id_font_name_key')) {
-        throw new Error('A font with this name already exists in your account. Please rename the font file or choose a different one.');
+      if (error) {
+        console.error('❌ Error saving font metadata:', error);
+        // Check for unique constraint violation (duplicate font name)
+        if (error.code === '23505' && error.message.includes('user_fonts_user_id_font_name_key')) {
+          throw new Error('A font with this name already exists in your account. Please rename the font file or choose a different one.');
+        }
+        throw new Error(`Failed to save font metadata: ${error.message}`);
       }
-      throw new Error(`Failed to save font metadata: ${error.message}`);
-    }
 
-    return data;
+      return data;
+    } catch (error) {
+      console.error('❌ Error in saveFontMetadata:', error);
+      throw error;
+    }
   }
 
   /**
-   * Get user's fonts
+   * Get user's fonts with enhanced error handling
    */
   static async getUserFonts(userId: string): Promise<UserFont[]> {
-    const { data, error } = await supabase
-      .from('user_fonts')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .order('created_at', { ascending: false });
+    try {
+      console.log('🔄 Fetching user fonts for user:', userId);
+      
+      // Test connection first
+      const connectionOk = await testSupabaseConnection();
+      if (!connectionOk) {
+        throw new Error('Supabase connection failed. Please check your internet connection and try again.');
+      }
 
-    if (error) {
-      throw new Error(`Failed to fetch fonts: ${error.message}`);
+      const { data, error } = await supabase
+        .from('user_fonts')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Error fetching user fonts:', error);
+        throw new Error(`Failed to fetch fonts: ${error.message}`);
+      }
+
+      console.log(`✅ Successfully fetched ${data?.length || 0} user fonts`);
+      return data || [];
+    } catch (error) {
+      console.error('❌ Error in getUserFonts:', error);
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('An unexpected error occurred while fetching fonts');
     }
-
-    return data || [];
   }
 
   /**
    * Delete a font
    */
   static async deleteFont(fontId: string, userId: string): Promise<void> {
-    // First get the font to get the file URL
-    const { data: font, error: fetchError } = await supabase
-      .from('user_fonts')
-      .select('file_url, font_family')
-      .eq('id', fontId)
-      .eq('user_id', userId)
-      .maybeSingle();
+    try {
+      // First get the font to get the file URL
+      const { data: font, error: fetchError } = await supabase
+        .from('user_fonts')
+        .select('file_url, font_family')
+        .eq('id', fontId)
+        .eq('user_id', userId)
+        .maybeSingle();
 
-    if (fetchError) {
-      throw new Error(`Failed to fetch font: ${fetchError.message}`);
-    }
+      if (fetchError) {
+        console.error('❌ Error fetching font for deletion:', fetchError);
+        throw new Error(`Failed to fetch font: ${fetchError.message}`);
+      }
 
-    // If font doesn't exist (already deleted or invalid ID), consider deletion successful
-    if (!font) {
-      console.log(`Font ${fontId} not found - already deleted or invalid ID`);
-      return;
-    }
+      // If font doesn't exist (already deleted or invalid ID), consider deletion successful
+      if (!font) {
+        console.log(`Font ${fontId} not found - already deleted or invalid ID`);
+        return;
+      }
 
-    // Remove font from browser
-    this.removeFontFromBrowser(font.font_family);
+      // Remove font from browser
+      this.removeFontFromBrowser(font.font_family);
 
-    // Extract file path from URL for deletion
-    // Handle both old manual URLs and new getPublicUrl URLs
-    let filePath: string;
-    if (font.file_url.includes('/storage/v1/object/public/user-fonts/')) {
-      // Extract path from public URL
-      filePath = font.file_url.split('/storage/v1/object/public/user-fonts/')[1];
-    } else {
-      // Fallback: try to extract from any user-fonts path
-      const pathMatch = font.file_url.match(/user-fonts\/(.+?)(?:\?|$)/);
-      filePath = pathMatch ? pathMatch[1] : font.file_url.split('/').slice(-2).join('/');
-    }
+      // Extract file path from URL for deletion
+      // Handle both old manual URLs and new getPublicUrl URLs
+      let filePath: string;
+      if (font.file_url.includes('/storage/v1/object/public/user-fonts/')) {
+        // Extract path from public URL
+        filePath = font.file_url.split('/storage/v1/object/public/user-fonts/')[1];
+      } else {
+        // Fallback: try to extract from any user-fonts path
+        const pathMatch = font.file_url.match(/user-fonts\/(.+?)(?:\?|$)/);
+        filePath = pathMatch ? pathMatch[1] : font.file_url.split('/').slice(-2).join('/');
+      }
 
-    // Delete from storage
-    const { error: storageError } = await supabase.storage
-      .from('user-fonts')
-      .remove([filePath]);
+      // Delete from storage
+      const { error: storageError } = await supabase.storage
+        .from('user-fonts')
+        .remove([filePath]);
 
-    if (storageError) {
-      console.warn('Failed to delete font file from storage:', storageError.message);
-    }
+      if (storageError) {
+        console.warn('Failed to delete font file from storage:', storageError.message);
+      }
 
-    // Delete from database
-    const { error: dbError } = await supabase
-      .from('user_fonts')
-      .delete()
-      .eq('id', fontId)
-      .eq('user_id', userId);
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from('user_fonts')
+        .delete()
+        .eq('id', fontId)
+        .eq('user_id', userId);
 
-    if (dbError) {
-      throw new Error(`Failed to delete font: ${dbError.message}`);
+      if (dbError) {
+        console.error('❌ Error deleting font from database:', dbError);
+        throw new Error(`Failed to delete font: ${dbError.message}`);
+      }
+
+      console.log(`✅ Successfully deleted font: ${fontId}`);
+    } catch (error) {
+      console.error('❌ Error in deleteFont:', error);
+      throw error;
     }
   }
 
@@ -609,111 +657,126 @@ export class FontService {
   }
 
   /**
-   * Load all user fonts into browser
+   * Load all user fonts into browser with enhanced error handling
    */
   static async loadAllUserFonts(userId: string): Promise<string[]> {
-    const fonts = await this.getUserFonts(userId);
-    const loadedFonts: string[] = [];
+    try {
+      const fonts = await this.getUserFonts(userId);
+      const loadedFonts: string[] = [];
 
-    console.log(`🚀 STARTING FONT LOADING: ${fonts.length} fonts`);
+      console.log(`🚀 STARTING FONT LOADING: ${fonts.length} fonts`);
 
-    // Load fonts one by one for maximum reliability
-    for (let i = 0; i < fonts.length; i++) {
-      const font = fonts[i];
-      try {
-        console.log(`🔥 LOADING FONT ${i + 1}/${fonts.length}: ${font.font_name}`);
-        await this.loadFontInBrowser(font);
-        const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
-        loadedFonts.push(mainFontFamily);
-        console.log(`✅ FONT LOADED SUCCESSFULLY: ${font.font_name}`);
-      } catch (error) {
-        console.warn(`⚠️ Font loading failed (continuing): ${font.font_name}`, error);
-        // Continue with other fonts
+      // Load fonts one by one for maximum reliability
+      for (let i = 0; i < fonts.length; i++) {
+        const font = fonts[i];
+        try {
+          console.log(`🔥 LOADING FONT ${i + 1}/${fonts.length}: ${font.font_name}`);
+          await this.loadFontInBrowser(font);
+          const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
+          loadedFonts.push(mainFontFamily);
+          console.log(`✅ FONT LOADED SUCCESSFULLY: ${font.font_name}`);
+        } catch (error) {
+          console.warn(`⚠️ Font loading failed (continuing): ${font.font_name}`, error);
+          // Continue with other fonts
+        }
+        
+        // Small delay between fonts
+        if (i < fonts.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
       }
-      
-      // Small delay between fonts
-      if (i < fonts.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
+
+      console.log(`🎉 FONT LOADING COMPLETE: ${loadedFonts.length}/${fonts.length} fonts loaded successfully`);
+      return loadedFonts;
+    } catch (error) {
+      console.error('❌ Error in loadAllUserFonts:', error);
+      throw error;
     }
-
-    console.log(`🎉 FONT LOADING COMPLETE: ${loadedFonts.length}/${fonts.length} fonts loaded successfully`);
-    return loadedFonts;
   }
 
   /**
    * Upload and save font (combined operation)
    */
   static async uploadAndSaveFont(file: File, userId: string): Promise<UserFont> {
-    // Extract clean font info from file name
-    const cleanFontName = this.extractCleanFontName(file.name);
-    // Generate CSS font family name that preserves font identity
-    const cssFontFamily = this.generateCssFontFamily(file.name);
-    const fontFormat = file.name.split('.').pop()?.toLowerCase() || 'ttf';
-
-    // Generate a unique font name to avoid constraint violations
-    const uniqueFontName = await this.generateUniqueFontName(userId, cleanFontName);
-
-    // Upload file
-    const fileUrl = await this.uploadFont(file, userId);
-
-    // Save metadata with unique font name and CSS font family name with fallbacks
-    const savedFont = await this.saveFontMetadata(
-      userId,
-      uniqueFontName,
-      cssFontFamily, // This will be processed to include fallbacks
-      fileUrl,
-      file.size,
-      fontFormat
-    );
-
-    // CRITICAL: Immediately load font into browser with simple approach
     try {
-      console.log(`🚀 IMMEDIATELY LOADING UPLOADED FONT: ${savedFont.font_name}`);
-      await this.loadFontInBrowser(savedFont);
-      console.log(`🎉 UPLOADED FONT READY FOR IMMEDIATE USE: ${savedFont.font_name}`);
-    } catch (error) {
-      console.warn(`⚠️ Uploaded font failed to load immediately (will retry later): ${error}`);
-      // Don't throw here - the font is saved, just not loaded
-    }
+      // Extract clean font info from file name
+      const cleanFontName = this.extractCleanFontName(file.name);
+      // Generate CSS font family name that preserves font identity
+      const cssFontFamily = this.generateCssFontFamily(file.name);
+      const fontFormat = file.name.split('.').pop()?.toLowerCase() || 'ttf';
 
-    return savedFont;
+      // Generate a unique font name to avoid constraint violations
+      const uniqueFontName = await this.generateUniqueFontName(userId, cleanFontName);
+
+      // Upload file
+      const fileUrl = await this.uploadFont(file, userId);
+
+      // Save metadata with unique font name and CSS font family name with fallbacks
+      const savedFont = await this.saveFontMetadata(
+        userId,
+        uniqueFontName,
+        cssFontFamily, // This will be processed to include fallbacks
+        fileUrl,
+        file.size,
+        fontFormat
+      );
+
+      // CRITICAL: Immediately load font into browser with simple approach
+      try {
+        console.log(`🚀 IMMEDIATELY LOADING UPLOADED FONT: ${savedFont.font_name}`);
+        await this.loadFontInBrowser(savedFont);
+        console.log(`🎉 UPLOADED FONT READY FOR IMMEDIATE USE: ${savedFont.font_name}`);
+      } catch (error) {
+        console.warn(`⚠️ Uploaded font failed to load immediately (will retry later): ${error}`);
+        // Don't throw here - the font is saved, just not loaded
+      }
+
+      return savedFont;
+    } catch (error) {
+      console.error('❌ Error in uploadAndSaveFont:', error);
+      throw error;
+    }
   }
 
   /**
    * Force reload all fonts (useful for refresh functionality)
    */
   static async forceReloadAllFonts(userId: string): Promise<void> {
-    console.log('🔥 FORCE RELOADING ALL FONTS...');
-    
-    // Clear all tracking
-    this.loadedFonts.clear();
-    this.fontLoadPromises.clear();
-    
-    // Remove all existing font styles
-    const existingStyles = document.querySelectorAll('style[id^="font-style-"]');
-    existingStyles.forEach(style => style.remove());
-    
-    // Clear document.fonts of user fonts
     try {
-      const fontFaces = Array.from(document.fonts);
-      fontFaces.forEach(fontFace => {
-        // Remove fonts that look like user fonts (contain underscores or specific patterns)
-        if (fontFace.family.includes('_') || fontFace.family.includes('Font')) {
-          document.fonts.delete(fontFace);
-        }
-      });
-    } catch (err) {
-      console.warn('Failed to clear document.fonts:', err);
+      console.log('🔥 FORCE RELOADING ALL FONTS...');
+      
+      // Clear all tracking
+      this.loadedFonts.clear();
+      this.fontLoadPromises.clear();
+      
+      // Remove all existing font styles
+      const existingStyles = document.querySelectorAll('style[id^="font-style-"]');
+      existingStyles.forEach(style => style.remove());
+      
+      // Clear document.fonts of user fonts
+      try {
+        const fontFaces = Array.from(document.fonts);
+        fontFaces.forEach(fontFace => {
+          // Remove fonts that look like user fonts (contain underscores or specific patterns)
+          if (fontFace.family.includes('_') || fontFace.family.includes('Font')) {
+            document.fonts.delete(fontFace);
+          }
+        });
+      } catch (err) {
+        console.warn('Failed to clear document.fonts:', err);
+      }
+      
+      // Wait for cleanup
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Reload all fonts with simple approach
+      await this.loadAllUserFonts(userId);
+      
+      console.log('🎉 ALL FONTS RELOADED SUCCESSFULLY!');
+    } catch (error) {
+      console.error('❌ Error in forceReloadAllFonts:', error);
+      throw error;
     }
-    
-    // Wait for cleanup
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Reload all fonts with simple approach
-    await this.loadAllUserFonts(userId);
-    
-    console.log('🎉 ALL FONTS RELOADED SUCCESSFULLY!');
   }
 
   /**

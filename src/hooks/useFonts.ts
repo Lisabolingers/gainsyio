@@ -107,8 +107,18 @@ export const useFonts = () => {
       console.log(`🎉 Font loading complete. ${loadedFonts.length}/${fonts.length} fonts loaded successfully.`);
       
     } catch (err: any) {
-      setError(err.message);
-      console.error('❌ Failed to load user fonts:', err);
+      const errorMessage = err?.message || 'An unexpected error occurred while loading fonts';
+      setError(errorMessage);
+      console.error('❌ Failed to load user fonts:', errorMessage);
+      
+      // Show user-friendly error message
+      if (errorMessage.includes('Failed to fetch')) {
+        setError('Unable to connect to the server. Please check your internet connection and try again.');
+      } else if (errorMessage.includes('Supabase connection failed')) {
+        setError('Database connection failed. Please refresh the page and try again.');
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -140,9 +150,10 @@ export const useFonts = () => {
       
       return savedFont;
     } catch (err: any) {
-      console.error(`❌ Font upload failed: ${err.message}`);
-      setError(err.message);
-      throw err;
+      const errorMessage = err?.message || 'An unexpected error occurred during font upload';
+      console.error(`❌ Font upload failed: ${errorMessage}`);
+      setError(errorMessage);
+      throw new Error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -160,8 +171,9 @@ export const useFonts = () => {
       // Update local state immediately
       setUserFonts(prev => prev.filter(font => font.id !== fontId));
     } catch (err: any) {
-      setError(err.message);
-      throw err;
+      const errorMessage = err?.message || 'An unexpected error occurred while deleting the font';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     } finally {
       setLoading(false);
     }
