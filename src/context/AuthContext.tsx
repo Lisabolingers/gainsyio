@@ -59,6 +59,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         if (insertError) {
           console.error('Error creating user profile:', insertError);
+        } else {
+          console.log('User profile created successfully');
         }
       }
     } catch (error) {
@@ -71,13 +73,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      
-      // Ensure user profile exists if user is authenticated
-      if (session?.user) {
-        await ensureUserProfile(session.user);
-      }
-      
       setLoading(false);
+      
+      // Ensure user profile exists in background (don't block UI)
+      if (session?.user) {
+        ensureUserProfile(session.user).catch(console.error);
+      }
     });
 
     // Listen for auth changes
@@ -86,13 +87,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      
-      // Ensure user profile exists if user is authenticated
-      if (session?.user) {
-        await ensureUserProfile(session.user);
-      }
-      
       setLoading(false);
+      
+      // Ensure user profile exists in background (don't block UI)
+      if (session?.user) {
+        ensureUserProfile(session.user).catch(console.error);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -114,20 +114,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (error) throw error;
 
     // Create user profile record if user was successfully created
+    // This runs in background, doesn't block the signup process
     if (data.user) {
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .insert({
-          id: data.user.id,
-          email: data.user.email,
-          subscription_plan: 'free',
-          subscription_status: 'active'
-        });
-
-      if (profileError) {
-        console.error('Error creating user profile:', profileError);
-        throw profileError;
-      }
+      ensureUserProfile(data.user).catch(console.error);
     }
   };
 
