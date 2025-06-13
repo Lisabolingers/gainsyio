@@ -20,11 +20,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
   },
-  global: {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  },
 });
 
 // Export supabaseUrl for use in other modules
