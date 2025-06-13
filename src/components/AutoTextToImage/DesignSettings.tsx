@@ -300,15 +300,15 @@ const DesignSettings = () => {
     );
   };
 
-  // CRITICAL: Enhanced font loading for Konva with proper error handling
+  // CRITICAL: Enhanced font loading for Konva with aggressive approach
   const ensureFontLoadedForKonva = async (fontFamily: string): Promise<string> => {
     const konvaFontFamily = FontService.getKonvaFontFamily(fontFamily);
     
-    console.log(`🔄 Ensuring font is loaded for Konva: ${fontFamily} -> ${konvaFontFamily}`);
+    console.log(`🚀 CRITICAL: Ensuring font is loaded for Konva: ${fontFamily} -> ${konvaFontFamily}`);
     
     // Check if font is already loaded
     if (document.fonts.check(`16px "${konvaFontFamily}"`)) {
-      console.log(`✅ Font already loaded: ${konvaFontFamily}`);
+      console.log(`✅ Font already loaded and ready: ${konvaFontFamily}`);
       return konvaFontFamily;
     }
     
@@ -316,28 +316,43 @@ const DesignSettings = () => {
     setFontLoadingStates(prev => ({ ...prev, [konvaFontFamily]: true }));
     
     try {
-      // Wait for font to be ready
+      console.log(`🔄 Font not ready, forcing load: ${konvaFontFamily}`);
+      
+      // Wait for document.fonts to be ready
       await document.fonts.ready;
       
-      // Additional check with timeout
+      // Aggressive checking with longer timeout and more attempts
       let attempts = 0;
-      const maxAttempts = 15; // Increased attempts
+      const maxAttempts = 30; // Increased attempts
       
       while (attempts < maxAttempts && !document.fonts.check(`16px "${konvaFontFamily}"`)) {
-        await new Promise(resolve => setTimeout(resolve, 200)); // Increased wait time
+        await new Promise(resolve => setTimeout(resolve, 300)); // Increased wait time
         attempts++;
-        console.log(`⏳ Waiting for font to load... attempt ${attempts}/${maxAttempts}`);
+        console.log(`⏳ AGGRESSIVE WAIT: Font loading attempt ${attempts}/${maxAttempts} for ${konvaFontFamily}`);
+        
+        // Force reflow every few attempts
+        if (attempts % 5 === 0) {
+          const testDiv = document.createElement('div');
+          testDiv.style.fontFamily = `"${konvaFontFamily}", Arial, sans-serif`;
+          testDiv.style.fontSize = '1px';
+          testDiv.style.position = 'absolute';
+          testDiv.style.left = '-9999px';
+          testDiv.textContent = 'test';
+          document.body.appendChild(testDiv);
+          testDiv.offsetHeight; // Force reflow
+          document.body.removeChild(testDiv);
+        }
       }
       
       if (attempts >= maxAttempts) {
-        console.warn(`⚠️ Font ${konvaFontFamily} may not be fully loaded, using fallback`);
+        console.warn(`⚠️ AGGRESSIVE LOADING TIMEOUT: Font ${konvaFontFamily} may not be fully loaded, using fallback`);
       } else {
-        console.log(`✅ Font ${konvaFontFamily} is ready for Konva`);
+        console.log(`🎉 AGGRESSIVE SUCCESS: Font ${konvaFontFamily} is ready for Konva after ${attempts} attempts`);
       }
       
       return konvaFontFamily;
     } catch (error) {
-      console.error(`❌ Error loading font ${konvaFontFamily}:`, error);
+      console.error(`❌ CRITICAL ERROR loading font ${konvaFontFamily}:`, error);
       return 'Arial'; // Fallback to Arial
     } finally {
       // Clear loading state
@@ -345,15 +360,22 @@ const DesignSettings = () => {
     }
   };
 
-  // CRITICAL: Enhanced text rendering with proper font loading
+  // CRITICAL: Enhanced text rendering with aggressive font loading
   const renderKonvaText = (text) => {
     const konvaFontFamily = FontService.getKonvaFontFamily(text.fontFamily);
     const isLoading = fontLoadingStates[konvaFontFamily];
     
+    console.log(`🎨 RENDERING TEXT: ${text.text.substring(0, 20)}... with font: ${text.fontFamily} -> ${konvaFontFamily}`);
+    
     // Use fallback font while loading
     const actualFontFamily = isLoading ? 'Arial' : konvaFontFamily;
     
-    console.log(`🎨 Rendering text with font: ${text.fontFamily} -> ${actualFontFamily}`);
+    // CRITICAL: Force font loading when font changes
+    useEffect(() => {
+      if (konvaFontFamily && konvaFontFamily !== 'Arial') {
+        ensureFontLoadedForKonva(text.fontFamily).catch(console.error);
+      }
+    }, [text.fontFamily]);
     
     return (
       <Group
@@ -578,10 +600,10 @@ const DesignSettings = () => {
                 <select 
                   value={text.fontFamily} 
                   onChange={(e) => {
-                    console.log(`🔄 Font changed to: ${e.target.value}`);
+                    console.log(`🔄 CRITICAL: Font changed to: ${e.target.value}`);
                     updateTextProperty(text.id, 'fontFamily', e.target.value);
-                    // Ensure font is loaded for Konva
-                    ensureFontLoadedForKonva(e.target.value);
+                    // Ensure font is loaded for Konva with aggressive approach
+                    ensureFontLoadedForKonva(e.target.value).catch(console.error);
                   }} 
                   className="w-32 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   disabled={fontsLoading}
