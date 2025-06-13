@@ -110,20 +110,6 @@ export class FontService {
   }
 
   /**
-   * Get the correct MIME type for font files
-   */
-  private static getFontMimeType(extension: string): string {
-    const mimeTypes: Record<string, string> = {
-      'ttf': 'font/ttf',
-      'otf': 'font/otf',
-      'woff': 'font/woff',
-      'woff2': 'font/woff2'
-    };
-    
-    return mimeTypes[extension.toLowerCase()] || 'application/octet-stream';
-  }
-
-  /**
    * Extract clean font name from file name
    */
   private static extractCleanFontName(fileName: string): string {
@@ -195,7 +181,8 @@ export class FontService {
   }
 
   /**
-   * CRITICAL: Enhanced font upload with proper file name sanitization and URL generation
+   * CRITICAL: Fixed font upload method - no content type specification
+   * Let Supabase automatically detect the correct MIME type
    */
   static async uploadFont(file: File, userId: string): Promise<string> {
     const fileExt = file.name.split('.').pop()?.toLowerCase();
@@ -204,7 +191,7 @@ export class FontService {
     const sanitizedOriginalName = this.sanitizeFileName(file.name);
     const fileName = `${userId}/${Date.now()}-${sanitizedOriginalName}`;
     
-    console.log(`🚀 SUPABASE: Starting font upload: ${file.name} -> ${sanitizedOriginalName} (${file.size} bytes)`);
+    console.log(`🚀 FONT UPLOAD STARTING: ${file.name} -> ${sanitizedOriginalName} (${file.size} bytes)`);
     
     // Validate file format
     if (!['ttf', 'otf', 'woff', 'woff2'].includes(fileExt || '')) {
@@ -217,13 +204,14 @@ export class FontService {
     }
 
     try {
-      // CRITICAL: Use direct file upload without specifying contentType
-      // Let Supabase handle the MIME type detection automatically
+      // CRITICAL FIX: Upload file without any content type specification
+      // This allows Supabase to automatically detect the correct MIME type
       const { data, error } = await supabase.storage
         .from('user-fonts')
         .upload(fileName, file, {
           cacheControl: '31536000', // 1 year cache for fonts
           upsert: false
+          // CRITICAL: No contentType specified - let Supabase handle it
         });
 
       if (error) {
