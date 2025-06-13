@@ -6,6 +6,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -30,9 +31,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const ensureUserProfile = async (user: User) => {
     try {
+      // Test connection first
+      const { error: connectionError } = await supabase
+        .from('user_profiles')
+        .select('count')
+        .limit(1);
+
+      if (connectionError) {
+        console.error('Supabase connection failed:', connectionError);
+        setError('Unable to connect to database. Please check your Supabase configuration.');
+        return;
+      }
+
       // Check if user profile exists
       const { data: existingProfile, error: fetchError } = await supabase
         .from('user_profiles')
@@ -43,6 +57,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (fetchError && fetchError.code !== 'PGRST116') {
         // PGRST116 is "not found" error, which is expected if profile doesn't exist
         console.error('Error checking user profile:', fetchError);
+        setError('Error accessing user profile. Please try again.');
         return;
       }
 
@@ -59,18 +74,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         if (insertError) {
           console.error('Error creating user profile:', insertError);
+          setError('Error creating user profile. Please try again.');
         } else {
           console.log('User profile created successfully');
+          setError(null); // Clear any previous errors
         }
+      } else {
+        setError(null); // Clear any previous errors
       }
     } catch (error) {
       console.error('Error ensuring user profile:', error);
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        setError('Unable to connect to Supabase. Please check your internet connection and Supabase configuration.');
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
     }
   };
 
   useEffect(() => {
+    // Check if Supabase is properly configured
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      setError('Supabase configuration is missing. Please set up your environment variables.');
+      setLoading(false);
+      return;
+    }
+
     // Get initial session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session }, error: sessionError }) => {
+      if (sessionError) {
+        console.error('Error getting session:', sessionError);
+        setError('Error connecting to authentication service.');
+      }
+      
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -79,6 +118,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (session?.user) {
         ensureUserProfile(session.user).catch(console.error);
       }
+    }).catch((error) => {
+      console.error('Error initializing auth:', error);
+      setError('Failed to initialize authentication. Please refresh the page.');
+      setLoading(false);
     });
 
     // Listen for auth changes
@@ -99,36 +142,66 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [supabase.auth]);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) throw error;
+    try {
+      setError(null);
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
+    } catch (error: any) {
+      console.error('Sign in error:', error);
+      if (error.message.includes('Failed to fetch')) {
+        setError('Unable to connect to authentication service. Please check your internet connection.');
+      } else {
+        setError(error.message || 'Sign in failed. Please try again.');
+      }
+      throw error;
+    }
   };
 
   const signUp = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-    if (error) throw error;
+    try {
+      setError(null);
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+      if (error) throw error;
 
-    // Create user profile record if user was successfully created
-    // This runs in background, doesn't block the signup process
-    if (data.user) {
-      ensureUserProfile(data.user).catch(console.error);
+      // Create user profile record if user was successfully created
+      // This runs in background, doesn't block the signup process
+      if (data.user) {
+        ensureUserProfile(data.user).catch(console.error);
+      }
+    } catch (error: any) {
+      console.error('Sign up error:', error);
+      if (error.message.includes('Failed to fetch')) {
+        setError('Unable to connect to authentication service. Please check your internet connection.');
+      } else {
+        setError(error.message || 'Sign up failed. Please try again.');
+      }
+      throw error;
     }
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    try {
+      setError(null);
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    } catch (error: any) {
+      console.error('Sign out error:', error);
+      setError('Sign out failed. Please try again.');
+      throw error;
+    }
   };
 
   const value = {
     user,
     session,
     loading,
+    error,
     signIn,
     signUp,
     signOut,
