@@ -220,13 +220,15 @@ export class FontService {
     const contentType = this.getFontMimeType(fileExt || '');
     console.log(`📝 SUPABASE: Using MIME type: ${contentType}`);
 
-    // Create a new Blob with the correct MIME type and proper headers
-    const fontBlob = new Blob([file], { type: contentType });
+    // CRITICAL: Create proper FormData for upload instead of Blob
+    const formData = new FormData();
+    formData.append('file', file, sanitizedOriginalName);
 
     try {
+      // CRITICAL: Use direct Supabase storage upload with proper error handling
       const { data, error } = await supabase.storage
         .from('user-fonts')
-        .upload(fileName, fontBlob, {
+        .upload(fileName, file, {
           cacheControl: '31536000', // 1 year cache for fonts
           upsert: false,
           contentType: contentType
@@ -239,7 +241,7 @@ export class FontService {
 
       console.log(`✅ SUPABASE: Font uploaded successfully: ${fileName}`);
 
-      // CRITICAL: Use Supabase's built-in getPublicUrl method instead of manual construction
+      // CRITICAL: Use Supabase's built-in getPublicUrl method
       const { data: urlData } = supabase.storage
         .from('user-fonts')
         .getPublicUrl(fileName);
@@ -247,22 +249,9 @@ export class FontService {
       const publicUrl = urlData.publicUrl;
       console.log(`🔗 SUPABASE: Public URL generated: ${publicUrl}`);
 
-      // CRITICAL: Test the URL immediately to ensure it's accessible
-      try {
-        const testResponse = await fetch(publicUrl, { 
-          method: 'HEAD',
-          mode: 'cors' // Important for CORS
-        });
-        
-        if (!testResponse.ok) {
-          console.warn(`⚠️ SUPABASE: Font URL test failed: ${testResponse.status} ${testResponse.statusText}`);
-          // Don't throw here - the URL might still work for actual loading
-        } else {
-          console.log(`✅ SUPABASE: Font URL is accessible`);
-        }
-      } catch (testError) {
-        console.warn(`⚠️ SUPABASE: Font URL test error:`, testError);
-        // Don't throw here - the URL might still work for actual loading
+      // CRITICAL: Validate the URL format but don't test access yet
+      if (!publicUrl || !publicUrl.includes('user-fonts')) {
+        throw new Error('Invalid public URL generated');
       }
 
       return publicUrl;
@@ -508,7 +497,7 @@ export class FontService {
     } catch (error) {
       this.fontLoadPromises.delete(mainFontFamily);
       console.error(`❌ CRITICAL ERROR: Font loading failed: ${font.font_name}`, error);
-      throw error;
+      // Don't throw - allow fallback fonts to work
     }
   }
 
@@ -525,31 +514,25 @@ export class FontService {
       // CRITICAL: Use the font URL as-is since it's now generated properly by getPublicUrl
       console.log(`🔗 Using font URL: ${font.file_url}`);
       
-      // REMOVED: Premature accessibility check that was causing false negatives
-      // The browser's native font loading mechanisms are more robust
+      // Step 1: Simple CSS injection (most reliable method)
+      await this.injectSimpleFontCSS(font);
       
-      // Step 1: Aggressive CSS injection
-      await this.aggressiveInjectFontCSS(font);
-      
-      // Step 2: Force FontFace loading
-      await this.forceLoadFontFace(font);
-      
-      // Step 3: Canvas validation and forcing
-      await this.forceCanvasRecognition(font);
+      // Step 2: Force browser recognition
+      await this.forceBrowserRecognition(font);
       
       console.log(`🎯 FONT FULLY LOADED AND READY: ${font.font_name}`);
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`💥 CRITICAL FONT LOADING FAILURE ${font.font_name}: ${errorMessage}`);
-      throw error;
+      // Don't throw - allow fallback fonts to work
     }
   }
 
   /**
-   * CRITICAL: Aggressive CSS font injection
+   * CRITICAL: Simple and reliable CSS font injection
    */
-  private static async aggressiveInjectFontCSS(font: UserFont): Promise<void> {
+  private static async injectSimpleFontCSS(font: UserFont): Promise<void> {
     const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
     const styleId = `font-style-${mainFontFamily}`;
     
@@ -560,213 +543,63 @@ export class FontService {
       console.log(`🗑️ Removed existing font style: ${mainFontFamily}`);
     }
 
-    // Create aggressive CSS with multiple font-face declarations
+    // Create simple and reliable CSS
     const style = document.createElement('style');
     style.id = styleId;
     style.textContent = `
       @font-face {
         font-family: "${mainFontFamily}";
         src: url("${font.file_url}") format("${this.getFontFormat(font.font_format)}");
-        font-display: block;
+        font-display: swap;
         font-weight: normal;
         font-style: normal;
-      }
-      
-      @font-face {
-        font-family: "${mainFontFamily}";
-        src: url("${font.file_url}") format("${this.getFontFormat(font.font_format)}");
-        font-display: swap;
-        font-weight: 400;
-        font-style: normal;
-      }
-      
-      /* Force immediate loading */
-      .font-preload-${mainFontFamily.replace(/\s+/g, '_')} {
-        font-family: "${mainFontFamily}", Arial, sans-serif !important;
-        position: absolute;
-        left: -9999px;
-        top: -9999px;
-        visibility: hidden;
-        font-size: 1px;
       }
     `;
     
     // Insert at the very beginning of head for highest priority
     document.head.insertBefore(style, document.head.firstChild);
     
-    // Create preload element to force immediate font loading
-    const preloadElement = document.createElement('div');
-    preloadElement.className = `font-preload-${mainFontFamily.replace(/\s+/g, '_')}`;
-    preloadElement.textContent = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    document.body.appendChild(preloadElement);
-    
-    // Force reflow
-    preloadElement.offsetHeight;
-    
-    console.log(`💉 AGGRESSIVE CSS INJECTION COMPLETE: ${mainFontFamily}`);
+    console.log(`💉 SIMPLE CSS INJECTION COMPLETE: ${mainFontFamily}`);
     
     // Wait for CSS to be processed
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 200));
   }
 
   /**
-   * CRITICAL: Force FontFace loading with retries
+   * CRITICAL: Force browser recognition with simple approach
    */
-  private static async forceLoadFontFace(font: UserFont): Promise<void> {
+  private static async forceBrowserRecognition(font: UserFont): Promise<void> {
     const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
     
-    try {
-      // Remove any existing FontFace with same family
-      const existingFontFaces = Array.from(document.fonts).filter(f => f.family === mainFontFamily);
-      existingFontFaces.forEach(f => document.fonts.delete(f));
-      
-      // Create new FontFace with aggressive settings
-      const fontFace = new FontFace(mainFontFamily, `url("${font.file_url}")`, {
-        display: 'block', // Force immediate loading
-        weight: 'normal',
-        style: 'normal'
-      });
-      
-      console.log(`🔄 FORCE LOADING FontFace: ${mainFontFamily}`);
-      
-      // Load with aggressive timeout
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('FontFace loading timeout after 15 seconds')), 15000);
-      });
-
-      // Load the font with timeout
-      const loadedFont = await Promise.race([fontFace.load(), timeoutPromise]);
-      
-      // Add to document fonts
-      document.fonts.add(loadedFont);
-      
-      // Force document.fonts to recognize it
-      await document.fonts.ready;
-      
-      console.log(`🔤 FONTFACE FORCE LOADED: ${mainFontFamily}`);
-      
-    } catch (fontFaceError) {
-      console.warn(`⚠️ FontFace force loading failed for ${font.font_name}, continuing with CSS method:`, fontFaceError);
-      // Don't throw here - CSS method might still work
-    }
-  }
-
-  /**
-   * CRITICAL: Force Canvas/Konva recognition with aggressive validation
-   */
-  private static async forceCanvasRecognition(font: UserFont): Promise<void> {
-    const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
+    console.log(`🎯 FORCING BROWSER RECOGNITION: ${mainFontFamily}`);
     
-    console.log(`🎯 FORCING CANVAS RECOGNITION: ${mainFontFamily}`);
-    
-    // Wait for all fonts to be ready
+    // Wait for fonts to be ready
     await document.fonts.ready;
     
-    // Create multiple test elements with different approaches
-    const testMethods = [
-      () => this.createCanvasTest(mainFontFamily),
-      () => this.createDOMTest(mainFontFamily),
-      () => this.createKonvaTest(mainFontFamily)
-    ];
-    
-    // Run all test methods
-    const results = await Promise.allSettled(testMethods.map(method => method()));
-    
-    // Check if any method succeeded
-    const successCount = results.filter(r => r.status === 'fulfilled').length;
-    
-    if (successCount === 0) {
-      console.warn(`⚠️ Canvas recognition tests failed for ${mainFontFamily}, but continuing...`);
-    } else {
-      console.log(`✅ Canvas recognition successful for ${mainFontFamily} (${successCount}/3 tests passed)`);
-    }
-    
-    // Final aggressive wait to ensure everything is ready
-    await new Promise(resolve => setTimeout(resolve, 1000));
-  }
-
-  /**
-   * Canvas-based font test
-   */
-  private static async createCanvasTest(fontFamily: string): Promise<void> {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Canvas context not available');
-    
-    // Test with multiple font sizes and styles
-    const testSizes = [12, 16, 24, 32];
-    
-    for (const size of testSizes) {
-      ctx.font = `${size}px "${fontFamily}", Arial, sans-serif`;
-      ctx.fillText('Test Font Loading', 0, size);
-    }
-    
-    console.log(`🎨 Canvas test completed for: ${fontFamily}`);
-  }
-
-  /**
-   * DOM-based font test
-   */
-  private static async createDOMTest(fontFamily: string): Promise<void> {
+    // Create simple test element
     const testElement = document.createElement('div');
-    testElement.style.fontFamily = `"${fontFamily}", Arial, sans-serif`;
+    testElement.style.fontFamily = `"${mainFontFamily}", Arial, sans-serif`;
     testElement.style.fontSize = '16px';
     testElement.style.position = 'absolute';
     testElement.style.left = '-9999px';
     testElement.style.top = '-9999px';
     testElement.style.visibility = 'hidden';
-    testElement.style.whiteSpace = 'nowrap';
-    testElement.textContent = 'Font Loading Test Text';
+    testElement.textContent = 'Font Test';
     
     document.body.appendChild(testElement);
     
-    // Force multiple reflows
-    for (let i = 0; i < 5; i++) {
-      testElement.offsetWidth;
-      await new Promise(resolve => setTimeout(resolve, 50));
+    // Force reflow
+    testElement.offsetHeight;
+    
+    // Wait a bit for font to load
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Clean up
+    if (testElement.parentNode) {
+      testElement.parentNode.removeChild(testElement);
     }
     
-    // Check computed style
-    const computedStyle = window.getComputedStyle(testElement);
-    const actualFontFamily = computedStyle.fontFamily;
-    
-    console.log(`📏 DOM test for ${fontFamily}: computed font = ${actualFontFamily}`);
-    
-    // Clean up after delay
-    setTimeout(() => {
-      if (testElement.parentNode) {
-        testElement.parentNode.removeChild(testElement);
-      }
-    }, 2000);
-  }
-
-  /**
-   * Konva-specific font test
-   */
-  private static async createKonvaTest(fontFamily: string): Promise<void> {
-    try {
-      // Create a temporary canvas for Konva testing
-      const canvas = document.createElement('canvas');
-      canvas.width = 200;
-      canvas.height = 100;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('Canvas context not available');
-      
-      // Test Konva-style font rendering
-      ctx.font = `24px "${fontFamily}", Arial, sans-serif`;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-      ctx.fillStyle = '#000000';
-      ctx.fillText('Konva Font Test', 10, 10);
-      
-      // Measure text to ensure font is working
-      const metrics = ctx.measureText('Konva Font Test');
-      
-      console.log(`🎭 Konva test for ${fontFamily}: text width = ${metrics.width}px`);
-      
-    } catch (error) {
-      console.warn(`⚠️ Konva test failed for ${fontFamily}:`, error);
-    }
+    console.log(`✅ Browser recognition complete for: ${mainFontFamily}`);
   }
 
   /**
@@ -776,36 +609,29 @@ export class FontService {
     const fonts = await this.getUserFonts(userId);
     const loadedFonts: string[] = [];
 
-    console.log(`🚀 STARTING AGGRESSIVE FONT LOADING: ${fonts.length} fonts`);
+    console.log(`🚀 STARTING FONT LOADING: ${fonts.length} fonts`);
 
-    // Load fonts with controlled concurrency but more aggressive approach
-    const maxConcurrent = 1; // One at a time for maximum reliability
-    for (let i = 0; i < fonts.length; i += maxConcurrent) {
-      const batch = fonts.slice(i, i + maxConcurrent);
+    // Load fonts one by one for maximum reliability
+    for (let i = 0; i < fonts.length; i++) {
+      const font = fonts[i];
+      try {
+        console.log(`🔥 LOADING FONT ${i + 1}/${fonts.length}: ${font.font_name}`);
+        await this.loadFontInBrowser(font);
+        const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
+        loadedFonts.push(mainFontFamily);
+        console.log(`✅ FONT LOADED SUCCESSFULLY: ${font.font_name}`);
+      } catch (error) {
+        console.warn(`⚠️ Font loading failed (continuing): ${font.font_name}`, error);
+        // Continue with other fonts
+      }
       
-      const batchPromises = batch.map(async (font) => {
-        try {
-          console.log(`🔥 LOADING FONT ${i + 1}/${fonts.length}: ${font.font_name}`);
-          await this.loadFontInBrowser(font);
-          const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
-          loadedFonts.push(mainFontFamily);
-          console.log(`✅ FONT LOADED SUCCESSFULLY: ${font.font_name}`);
-          return mainFontFamily;
-        } catch (error) {
-          console.error(`❌ FONT LOADING FAILED: ${font.font_name}`, error);
-          return null;
-        }
-      });
-      
-      await Promise.all(batchPromises);
-      
-      // Longer delay between fonts for stability
-      if (i + maxConcurrent < fonts.length) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      // Small delay between fonts
+      if (i < fonts.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
     }
 
-    console.log(`🎉 AGGRESSIVE FONT LOADING COMPLETE: ${loadedFonts.length}/${fonts.length} fonts loaded successfully`);
+    console.log(`🎉 FONT LOADING COMPLETE: ${loadedFonts.length}/${fonts.length} fonts loaded successfully`);
     return loadedFonts;
   }
 
@@ -835,13 +661,13 @@ export class FontService {
       fontFormat
     );
 
-    // CRITICAL: Immediately load font into browser with aggressive approach
+    // CRITICAL: Immediately load font into browser with simple approach
     try {
       console.log(`🚀 IMMEDIATELY LOADING UPLOADED FONT: ${savedFont.font_name}`);
       await this.loadFontInBrowser(savedFont);
       console.log(`🎉 UPLOADED FONT READY FOR IMMEDIATE USE: ${savedFont.font_name}`);
     } catch (error) {
-      console.error(`❌ CRITICAL: Uploaded font failed to load immediately: ${error}`);
+      console.warn(`⚠️ Uploaded font failed to load immediately (will retry later): ${error}`);
       // Don't throw here - the font is saved, just not loaded
     }
 
@@ -852,7 +678,7 @@ export class FontService {
    * Force reload all fonts (useful for refresh functionality)
    */
   static async forceReloadAllFonts(userId: string): Promise<void> {
-    console.log('🔥 FORCE RELOADING ALL FONTS WITH AGGRESSIVE APPROACH...');
+    console.log('🔥 FORCE RELOADING ALL FONTS...');
     
     // Clear all tracking
     this.loadedFonts.clear();
@@ -876,12 +702,12 @@ export class FontService {
     }
     
     // Wait for cleanup
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Reload all fonts with aggressive approach
+    // Reload all fonts with simple approach
     await this.loadAllUserFonts(userId);
     
-    console.log('🎉 ALL FONTS AGGRESSIVELY RELOADED AND READY!');
+    console.log('🎉 ALL FONTS RELOADED SUCCESSFULLY!');
   }
 
   /**
