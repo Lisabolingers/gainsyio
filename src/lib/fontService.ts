@@ -77,8 +77,7 @@ export class FontService {
   }
 
   /**
-   * CRITICAL: Generate CSS font family with appropriate fallbacks
-   * This is the most important function for font rendering
+   * Generate CSS font family with appropriate fallbacks
    */
   private static generateFontFamilyWithFallbacks(fontName: string, cssFontFamily: string): string {
     const category = this.detectFontCategory(fontName);
@@ -136,15 +135,13 @@ export class FontService {
   }
 
   /**
-   * CRITICAL: Generate CSS font family name that works with Konva
-   * This is the most important function for font rendering
+   * Generate CSS font family name that works with Konva
    */
   private static generateCssFontFamily(originalFileName: string): string {
     // Remove file extension and clean the name
     let fontFamily = originalFileName.replace(/\.[^/.]+$/, '');
     
-    // CRITICAL: Keep the original font name structure but make it CSS-safe
-    // Remove only problematic characters, preserve the font's identity
+    // Keep the original font name structure but make it CSS-safe
     fontFamily = fontFamily.replace(/[^\w\s-]/g, '');
     
     // Replace spaces with underscores for CSS compatibility but keep readable
@@ -155,18 +152,14 @@ export class FontService {
       fontFamily = 'Font_' + fontFamily;
     }
     
-    // IMPORTANT: Don't add random suffixes that break font recognition
-    // Instead, use the original font name as much as possible
     return fontFamily;
   }
 
   /**
-   * CRITICAL: Sanitize file name for Supabase Storage
-   * Remove problematic characters that can cause 400 errors
+   * Sanitize file name for Supabase Storage
    */
   private static sanitizeFileName(fileName: string): string {
     // Keep only alphanumeric characters, hyphens, underscores, and dots
-    // Replace spaces and other characters with underscores
     let sanitized = fileName
       .replace(/[^a-zA-Z0-9._-]/g, '_')  // Replace problematic chars with underscore
       .replace(/_{2,}/g, '_')            // Replace multiple underscores with single
@@ -181,13 +174,13 @@ export class FontService {
   }
 
   /**
-   * CRITICAL: Fixed font upload method - completely remove content type
-   * This is the final solution to the MIME type problem
+   * CRITICAL FIX: Upload font file without any content-type headers
+   * This completely avoids the MIME type issue by letting Supabase handle detection
    */
   static async uploadFont(file: File, userId: string): Promise<string> {
     const fileExt = file.name.split('.').pop()?.toLowerCase();
     
-    // CRITICAL: Sanitize the original file name to prevent 400 errors
+    // Sanitize the original file name to prevent 400 errors
     const sanitizedOriginalName = this.sanitizeFileName(file.name);
     const fileName = `${userId}/${Date.now()}-${sanitizedOriginalName}`;
     
@@ -204,14 +197,16 @@ export class FontService {
     }
 
     try {
-      // CRITICAL FIX: Upload file as raw binary data without any headers
-      // This completely avoids the MIME type issue
+      // CRITICAL FIX: Upload as raw ArrayBuffer without any headers
+      // This completely bypasses MIME type detection issues
+      const arrayBuffer = await file.arrayBuffer();
+      
       const { data, error } = await supabase.storage
         .from('user-fonts')
-        .upload(fileName, file, {
+        .upload(fileName, arrayBuffer, {
           cacheControl: '31536000', // 1 year cache for fonts
           upsert: false
-          // CRITICAL: No contentType, no headers - let Supabase handle everything
+          // NO contentType, NO headers - let Supabase handle everything automatically
         });
 
       if (error) {
@@ -221,7 +216,7 @@ export class FontService {
 
       console.log(`✅ SUPABASE: Font uploaded successfully: ${fileName}`);
 
-      // CRITICAL: Use Supabase's built-in getPublicUrl method
+      // Get public URL using Supabase's built-in method
       const { data: urlData } = supabase.storage
         .from('user-fonts')
         .getPublicUrl(fileName);
@@ -229,7 +224,7 @@ export class FontService {
       const publicUrl = urlData.publicUrl;
       console.log(`🔗 SUPABASE: Public URL generated: ${publicUrl}`);
 
-      // CRITICAL: Validate the URL format but don't test access yet
+      // Validate the URL format
       if (!publicUrl || !publicUrl.includes('user-fonts')) {
         throw new Error('Invalid public URL generated');
       }
@@ -413,7 +408,6 @@ export class FontService {
       this.removeFontFromBrowser(font.font_family);
 
       // Extract file path from URL for deletion
-      // Handle both old manual URLs and new getPublicUrl URLs
       let filePath: string;
       if (font.file_url.includes('/storage/v1/object/public/user-fonts/')) {
         // Extract path from public URL
@@ -498,15 +492,13 @@ export class FontService {
   }
 
   /**
-   * CRITICAL: Enhanced font loading with proper CSS injection and validation
-   * This is the core function that makes fonts work in Konva.js
+   * Enhanced font loading with proper CSS injection and validation
    */
   static async loadFontInBrowser(font: UserFont): Promise<void> {
     // Extract the main font family name (without fallbacks)
     const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
     
-    console.log(`🚀 CRITICAL: Starting font load process for: ${font.font_name} -> ${mainFontFamily}`);
-    console.log(`🔗 FONT URL: ${font.file_url}`);
+    console.log(`🚀 Starting font load process for: ${font.font_name} -> ${mainFontFamily}`);
     
     // Check if font is already loaded
     if (this.loadedFonts.has(mainFontFamily)) {
@@ -527,44 +519,40 @@ export class FontService {
     try {
       await loadingPromise;
       this.loadedFonts.add(mainFontFamily);
-      console.log(`🎉 CRITICAL SUCCESS: Font loaded and ready: ${font.font_name} (${mainFontFamily})`);
+      console.log(`🎉 Font loaded and ready: ${font.font_name} (${mainFontFamily})`);
     } catch (error) {
       this.fontLoadPromises.delete(mainFontFamily);
-      console.error(`❌ CRITICAL ERROR: Font loading failed: ${font.font_name}`, error);
+      console.error(`❌ Font loading failed: ${font.font_name}`, error);
       // Don't throw - allow fallback fonts to work
     }
   }
 
   /**
-   * CRITICAL: The actual font loading implementation
-   * Enhanced for Konva.js compatibility with aggressive loading
+   * The actual font loading implementation
    */
   private static async doLoadFont(font: UserFont): Promise<void> {
     const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
     
-    console.log(`🔥 AGGRESSIVE FONT LOADING: ${font.font_name} with family: ${mainFontFamily}`);
+    console.log(`🔥 Loading font: ${font.font_name} with family: ${mainFontFamily}`);
 
     try {
-      // CRITICAL: Use the font URL as-is since it's now generated properly by getPublicUrl
-      console.log(`🔗 Using font URL: ${font.file_url}`);
-      
       // Step 1: Simple CSS injection (most reliable method)
       await this.injectSimpleFontCSS(font);
       
       // Step 2: Force browser recognition
       await this.forceBrowserRecognition(font);
       
-      console.log(`🎯 FONT FULLY LOADED AND READY: ${font.font_name}`);
+      console.log(`🎯 Font fully loaded and ready: ${font.font_name}`);
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`💥 CRITICAL FONT LOADING FAILURE ${font.font_name}: ${errorMessage}`);
+      console.error(`💥 Font loading failure ${font.font_name}: ${errorMessage}`);
       // Don't throw - allow fallback fonts to work
     }
   }
 
   /**
-   * CRITICAL: Simple and reliable CSS font injection
+   * Simple and reliable CSS font injection
    */
   private static async injectSimpleFontCSS(font: UserFont): Promise<void> {
     const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
@@ -593,19 +581,19 @@ export class FontService {
     // Insert at the very beginning of head for highest priority
     document.head.insertBefore(style, document.head.firstChild);
     
-    console.log(`💉 SIMPLE CSS INJECTION COMPLETE: ${mainFontFamily}`);
+    console.log(`💉 CSS injection complete: ${mainFontFamily}`);
     
     // Wait for CSS to be processed
     await new Promise(resolve => setTimeout(resolve, 200));
   }
 
   /**
-   * CRITICAL: Force browser recognition with simple approach
+   * Force browser recognition with simple approach
    */
   private static async forceBrowserRecognition(font: UserFont): Promise<void> {
     const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
     
-    console.log(`🎯 FORCING BROWSER RECOGNITION: ${mainFontFamily}`);
+    console.log(`🎯 Forcing browser recognition: ${mainFontFamily}`);
     
     // Wait for fonts to be ready
     await document.fonts.ready;
@@ -637,24 +625,24 @@ export class FontService {
   }
 
   /**
-   * Load all user fonts into browser with enhanced error handling
+   * Load all user fonts into browser
    */
   static async loadAllUserFonts(userId: string): Promise<string[]> {
     try {
       const fonts = await this.getUserFonts(userId);
       const loadedFonts: string[] = [];
 
-      console.log(`🚀 STARTING FONT LOADING: ${fonts.length} fonts`);
+      console.log(`🚀 Starting font loading: ${fonts.length} fonts`);
 
       // Load fonts one by one for maximum reliability
       for (let i = 0; i < fonts.length; i++) {
         const font = fonts[i];
         try {
-          console.log(`🔥 LOADING FONT ${i + 1}/${fonts.length}: ${font.font_name}`);
+          console.log(`🔥 Loading font ${i + 1}/${fonts.length}: ${font.font_name}`);
           await this.loadFontInBrowser(font);
           const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
           loadedFonts.push(mainFontFamily);
-          console.log(`✅ FONT LOADED SUCCESSFULLY: ${font.font_name}`);
+          console.log(`✅ Font loaded successfully: ${font.font_name}`);
         } catch (error) {
           console.warn(`⚠️ Font loading failed (continuing): ${font.font_name}`, error);
           // Continue with other fonts
@@ -666,7 +654,7 @@ export class FontService {
         }
       }
 
-      console.log(`🎉 FONT LOADING COMPLETE: ${loadedFonts.length}/${fonts.length} fonts loaded successfully`);
+      console.log(`🎉 Font loading complete: ${loadedFonts.length}/${fonts.length} fonts loaded successfully`);
       return loadedFonts;
     } catch (error) {
       console.error('❌ Error in loadAllUserFonts:', error);
@@ -701,11 +689,11 @@ export class FontService {
         fontFormat
       );
 
-      // CRITICAL: Immediately load font into browser with simple approach
+      // Immediately load font into browser
       try {
-        console.log(`🚀 IMMEDIATELY LOADING UPLOADED FONT: ${savedFont.font_name}`);
+        console.log(`🚀 Immediately loading uploaded font: ${savedFont.font_name}`);
         await this.loadFontInBrowser(savedFont);
-        console.log(`🎉 UPLOADED FONT READY FOR IMMEDIATE USE: ${savedFont.font_name}`);
+        console.log(`🎉 Uploaded font ready for immediate use: ${savedFont.font_name}`);
       } catch (error) {
         console.warn(`⚠️ Uploaded font failed to load immediately (will retry later): ${error}`);
         // Don't throw here - the font is saved, just not loaded
@@ -723,7 +711,7 @@ export class FontService {
    */
   static async forceReloadAllFonts(userId: string): Promise<void> {
     try {
-      console.log('🔥 FORCE RELOADING ALL FONTS...');
+      console.log('🔥 Force reloading all fonts...');
       
       // Clear all tracking
       this.loadedFonts.clear();
@@ -749,10 +737,10 @@ export class FontService {
       // Wait for cleanup
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Reload all fonts with simple approach
+      // Reload all fonts
       await this.loadAllUserFonts(userId);
       
-      console.log('🎉 ALL FONTS RELOADED SUCCESSFULLY!');
+      console.log('🎉 All fonts reloaded successfully!');
     } catch (error) {
       console.error('❌ Error in forceReloadAllFonts:', error);
       throw error;
@@ -796,8 +784,7 @@ export class FontService {
   }
 
   /**
-   * CRITICAL: Get Konva-compatible font family name
-   * This ensures fonts work properly in Konva.js
+   * Get Konva-compatible font family name
    */
   static getKonvaFontFamily(fontValue: string): string {
     // Extract the first font family name from the CSS font stack
