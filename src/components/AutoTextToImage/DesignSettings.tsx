@@ -12,7 +12,7 @@ import { useAuth } from '../../context/AuthContext';
 
 const DesignSettings = () => {
   const { user } = useAuth();
-  const { userFonts, loadUserFonts } = useFonts();
+  const { userFonts, loadUserFonts, loading: fontsLoading } = useFonts();
   
   // Sistem fontları + kullanıcı fontları
   const systemFonts = [
@@ -50,10 +50,67 @@ const DesignSettings = () => {
   const [selectedId, setSelectedId] = useState(1);
   const [forceRender, setForceRender] = useState(0);
   const [fontUploading, setFontUploading] = useState(false);
+  const [fontsInitialized, setFontsInitialized] = useState(false);
   const stageRef = useRef();
   const transformerRef = useRef();
   const groupRefs = useRef({});
   const fileInputRef = useRef();
+
+  // CRITICAL: Sayfa yüklendiğinde tüm fontları canvas'a yükle
+  useEffect(() => {
+    const initializeFonts = async () => {
+      if (!user || fontsLoading || fontsInitialized) return;
+      
+      console.log('🚀 SAYFA YÜKLENDİ - FONTLAR İNİTİALİZE EDİLİYOR...');
+      
+      try {
+        // Kullanıcı fontlarını Supabase'den yükle
+        await loadUserFonts();
+        
+        // Tüm kullanıcı fontlarını canvas'a yükle
+        if (userFonts.length > 0) {
+          console.log(`🔄 ${userFonts.length} kullanıcı fontu canvas'a yükleniyor...`);
+          
+          for (const font of userFonts) {
+            try {
+              console.log(`📝 Canvas'a yükleniyor: ${font.font_name}`);
+              
+              // Font'u browser'a yükle
+              await FontService.loadFontInBrowser(font);
+              
+              // Kısa bir bekleme
+              await new Promise(resolve => setTimeout(resolve, 200));
+              
+            } catch (error) {
+              console.warn(`⚠️ Font yüklenemedi: ${font.font_name}`, error);
+            }
+          }
+          
+          console.log('✅ Tüm fontlar canvas\'a yüklendi');
+          
+          // Canvas'ı zorla yeniden render et
+          setForceRender(prev => prev + 1);
+        }
+        
+        setFontsInitialized(true);
+        console.log('🎉 FONT İNİTİALİZASYONU TAMAMLANDI');
+        
+      } catch (error) {
+        console.error('❌ Font initialization hatası:', error);
+        setFontsInitialized(true); // Hata olsa bile devam et
+      }
+    };
+
+    initializeFonts();
+  }, [user, userFonts.length, fontsLoading]);
+
+  // CRITICAL: userFonts değiştiğinde canvas'ı güncelle
+  useEffect(() => {
+    if (fontsInitialized && userFonts.length > 0) {
+      console.log('🔄 Font listesi değişti, canvas güncelleniyor...');
+      setForceRender(prev => prev + 1);
+    }
+  }, [userFonts, fontsInitialized]);
 
   // Fixed canvas container size - always 700x700px
   const maxContainerSize = 700;
@@ -373,13 +430,25 @@ const DesignSettings = () => {
     }
   };
 
-  // Enhanced text rendering with force render
+  // CRITICAL: Enhanced text rendering with proper font handling
   const renderKonvaText = (text) => {
     console.log(`🎨 Text render ediliyor: "${text.text.substring(0, 20)}..." font: ${text.fontFamily}`);
     
+    // CRITICAL: Font'un yüklenip yüklenmediğini kontrol et
+    const isFontLoaded = systemFonts.includes(text.fontFamily) || 
+                        userFonts.some(f => f.font_name === text.fontFamily) ||
+                        document.fonts.check(`16px "${text.fontFamily}"`);
+    
+    // Fallback font kullan eğer font yüklenmemişse
+    const actualFontFamily = isFontLoaded ? text.fontFamily : 'Arial';
+    
+    if (!isFontLoaded && text.fontFamily !== 'Arial') {
+      console.warn(`⚠️ Font yüklenmemiş, fallback kullanılıyor: ${text.fontFamily} -> ${actualFontFamily}`);
+    }
+    
     return (
       <Group
-        key={`${text.id}-${forceRender}`}
+        key={`${text.id}-${forceRender}-${fontsInitialized}`}
         ref={(node) => (groupRefs.current[text.id] = node)}
         x={text.x}
         y={text.y}
@@ -397,13 +466,13 @@ const DesignSettings = () => {
         }}
       >
         {text.styleOption && text.styleOption !== 'normal'
-          ? renderTextByStyle({...text}, canvasSize)
+          ? renderTextByStyle({...text, fontFamily: actualFontFamily}, canvasSize)
           : (
             text.colorOption === 'letters' ? (
               (() => {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-                ctx.font = `${text.maxFontSize}px ${text.fontFamily}`;
+                ctx.font = `${text.maxFontSize}px ${actualFontFamily}`;
                 const filteredColors = (text.letterColors || []).filter(color => color && color.trim() !== '' && color.toLowerCase() !== '#cccccc');
                 const lines = text.text.split('\n');
                 const totalWidth = Math.max(...lines.map(line =>
@@ -429,7 +498,7 @@ const DesignSettings = () => {
                             x={charX}
                             y={lineY}
                             fontSize={text.maxFontSize}
-                            fontFamily={text.fontFamily}
+                            fontFamily={actualFontFamily}
                             fill={color}
                             stroke={text.strokeEnabled ? text.strokeColor || '#000000' : undefined}
                             strokeWidth={text.strokeEnabled ? text.strokeWidth || 2 : 0}
@@ -444,10 +513,10 @@ const DesignSettings = () => {
               })()
             ) : (
               <KonvaText
-                key={`text-${text.id}-${forceRender}`}
+                key={`text-${text.id}-${forceRender}-${fontsInitialized}`}
                 text={text.text}
                 fontSize={text.maxFontSize}
-                fontFamily={text.fontFamily}
+                fontFamily={actualFontFamily}
                 fill={
                   text.tempFill
                     ? text.tempFill
@@ -495,13 +564,13 @@ const DesignSettings = () => {
               backgroundColor: 'white'
             }}>
               <Stage 
-                key={`stage-${forceRender}`}
+                key={`stage-${forceRender}-${fontsInitialized}`}
                 width={canvasSize.width} 
                 height={canvasSize.height} 
                 ref={stageRef} 
                 onClick={handleStageClick}
               >
-                <Layer key={`layer-${forceRender}`}>
+                <Layer key={`layer-${forceRender}-${fontsInitialized}`}>
                   {texts.map((text) => renderKonvaText(text))}
 
                   {selectedId && (
@@ -577,6 +646,18 @@ const DesignSettings = () => {
 
       {/* Text Controls Section - Right Side */}
       <div className="w-1/2 p-4 overflow-y-auto max-h-screen">
+        {/* Font Loading Status */}
+        {!fontsInitialized && (
+          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+              <span className="text-blue-700 dark:text-blue-400 text-sm">
+                Fontlar yükleniyor... ({userFonts.length} font)
+              </span>
+            </div>
+          </div>
+        )}
+
         {texts.map((text) => (
           <Card key={text.id} className="mb-4">
             <CardHeader>
@@ -609,6 +690,7 @@ const DesignSettings = () => {
                     updateTextProperty(text.id, 'fontFamily', e.target.value);
                   }} 
                   className="w-32 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  disabled={fontsLoading || !fontsInitialized}
                 >
                   {allFonts.map((font) => (
                     <option key={font} value={font}>{font}</option>
