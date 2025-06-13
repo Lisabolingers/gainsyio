@@ -6,13 +6,25 @@ import Input from '../ui/Input';
 import Button from '../ui/Button';
 import ColorOptions from './ColorOptions';
 import { renderTextByStyle } from './styleOption';
+import { useFonts } from '../../hooks/useFonts';
+import { FontService } from '../../lib/fontService';
+import { useAuth } from '../../context/AuthContext';
 
 const DesignSettings = () => {
-  // Basit font listesi - eski kod gibi
-  const [fonts, setFonts] = useState([
+  const { user } = useAuth();
+  const { userFonts, loadUserFonts } = useFonts();
+  
+  // Sistem fontları + kullanıcı fontları
+  const systemFonts = [
     'Arial', 'Times New Roman', 'Helvetica', 'Georgia', 'Verdana',
     'Comic Sans MS', 'Courier New', 'Roboto', 'Open Sans', 'Lobster'
-  ]);
+  ];
+  
+  // Tüm fontları birleştir
+  const allFonts = [
+    ...systemFonts,
+    ...userFonts.map(font => font.font_name)
+  ];
   
   const [canvasSize, setCanvasSize] = useState({ width: 1000, height: 1000 });
   const [templateName, setTemplateName] = useState('');
@@ -36,11 +48,12 @@ const DesignSettings = () => {
     }
   ]);
   const [selectedId, setSelectedId] = useState(1);
-  const [forceRender, setForceRender] = useState(0); // Canvas'ı zorla yeniden render etmek için
+  const [forceRender, setForceRender] = useState(0);
+  const [fontUploading, setFontUploading] = useState(false);
   const stageRef = useRef();
   const transformerRef = useRef();
   const groupRefs = useRef({});
-  const fileInputRef = useRef(); // Font yükleme için
+  const fileInputRef = useRef();
 
   // Fixed canvas container size - always 700x700px
   const maxContainerSize = 700;
@@ -59,7 +72,6 @@ const DesignSettings = () => {
     const halfWidth = text.width / 2;
     const halfHeight = text.height / 2;
     
-    // Ensure text stays within canvas bounds
     const minX = halfWidth;
     const maxX = canvasSize.width - halfWidth;
     const minY = halfHeight;
@@ -91,14 +103,10 @@ const DesignSettings = () => {
     if (node && transformerRef.current) {
       transformerRef.current.nodes([node]);
       
-      // Set transformer properties to ensure visibility regardless of scale
       const transformer = transformerRef.current;
+      const minHandleSize = Math.max(8, 12 / scale);
+      const minBorderWidth = Math.max(1, 2 / scale);
       
-      // Calculate minimum handle size based on scale
-      const minHandleSize = Math.max(8, 12 / scale); // Minimum 8px, scaled up for small scales
-      const minBorderWidth = Math.max(1, 2 / scale); // Minimum 1px, scaled up for small scales
-      
-      // Update transformer properties
       transformer.borderStrokeWidth(minBorderWidth);
       transformer.anchorSize(minHandleSize);
       transformer.anchorStroke('#0066ff');
@@ -106,7 +114,6 @@ const DesignSettings = () => {
       transformer.anchorStrokeWidth(Math.max(1, 1 / scale));
       transformer.borderStroke('#0066ff');
       
-      // Force redraw
       transformer.getLayer()?.batchDraw();
     }
   }, [selectedId, texts, scale]);
@@ -175,7 +182,6 @@ const DesignSettings = () => {
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
     
-    // Reset scale to 1 and adjust width/height instead
     node.scaleX(1);
     node.scaleY(1);
     
@@ -186,8 +192,8 @@ const DesignSettings = () => {
               ...text,
               x: node.x(),
               y: node.y(),
-              width: Math.max(50, text.width * scaleX), // Minimum width
-              height: Math.max(20, text.height * scaleY), // Minimum height,
+              width: Math.max(50, text.width * scaleX),
+              height: Math.max(20, text.height * scaleY),
             })
           : text
       )
@@ -234,52 +240,71 @@ const DesignSettings = () => {
     }
   };
 
-  // ESKİ KODDAN ALINAN BASİT FONT YÜKLEME SİSTEMİ
-  const handleFontUpload = (event) => {
+  // ENHANCED: Font yükleme - hem canvas'a hem Supabase'e kaydet
+  const handleFontUpload = async (event) => {
     const file = event.target.files[0];
-    if (file) {
-      console.log(`🚀 BASIT FONT YÜKLEME: ${file.name} başlatılıyor...`);
-      
+    if (!file || !user) {
+      console.log('❌ Dosya seçilmedi veya kullanıcı giriş yapmamış');
+      return;
+    }
+
+    setFontUploading(true);
+    console.log(`🚀 FONT YÜKLEME BAŞLADI: ${file.name}`);
+
+    try {
+      // 1. ADIM: Canvas için hemen yükle (eski sistem)
       const reader = new FileReader();
-      reader.onload = (e) => {
-        // Font ismini temizle
-        const fontName = file.name.split('.')[0].replace(/\s+/g, '-');
-        const fontData = e.target.result;
-        
-        console.log(`📝 Font ismi: ${fontName}`);
-        console.log(`📊 Font boyutu: ${file.size} bytes`);
-        
-        // Yeni FontFace oluştur
-        const newFontFace = new FontFace(fontName, `url(${fontData})`);
-        
-        newFontFace.load().then((loadedFace) => {
-          // Font'u document.fonts'a ekle
+      reader.onload = async (e) => {
+        try {
+          const fontName = file.name.split('.')[0].replace(/\s+/g, '-');
+          const fontData = e.target.result;
+          
+          console.log(`📝 Canvas için font yükleniyor: ${fontName}`);
+          
+          // Canvas'a hemen yükle
+          const newFontFace = new FontFace(fontName, `url(${fontData})`);
+          const loadedFace = await newFontFace.load();
           document.fonts.add(loadedFace);
           
-          // Font listesine ekle
-          setFonts((prev) => [...prev, fontName]);
+          console.log(`✅ Canvas'a font yüklendi: ${fontName}`);
           
-          // Canvas'ı zorla yeniden render et
+          // Canvas'ı güncelle
           setForceRender(prev => prev + 1);
           
-          console.log(`✅ FONT BAŞARIYLA YÜKLENDİ: ${fontName}`);
-          console.log(`📋 Mevcut fontlar:`, [...fonts, fontName]);
-          
-          // Seçili text'e yeni font'u uygula
+          // Seçili text'e uygula
           if (selectedId) {
             updateTextProperty(selectedId, 'fontFamily', fontName);
           }
           
-        }).catch((err) => {
-          console.error(`❌ Font yüklenemedi: ${fontName}`, err);
-        });
+          // 2. ADIM: Supabase'e kaydet
+          console.log(`💾 Supabase'e kaydediliyor: ${fontName}`);
+          
+          const savedFont = await FontService.uploadAndSaveFont(file, user.id);
+          console.log(`🎉 SUPABASE'E KAYDEDİLDİ:`, savedFont);
+          
+          // Font listesini yenile
+          await loadUserFonts();
+          console.log(`🔄 Font listesi yenilendi`);
+          
+        } catch (error) {
+          console.error(`❌ Font yükleme hatası:`, error);
+          alert(`Font yükleme hatası: ${error.message}`);
+        } finally {
+          setFontUploading(false);
+        }
       };
       
       reader.onerror = (err) => {
-        console.error(`❌ Dosya okunamadı:`, err);
+        console.error(`❌ Dosya okuma hatası:`, err);
+        setFontUploading(false);
       };
       
       reader.readAsDataURL(file);
+      
+    } catch (error) {
+      console.error(`❌ Font yükleme genel hatası:`, error);
+      alert(`Font yükleme hatası: ${error.message}`);
+      setFontUploading(false);
     }
     
     // Input'u temizle
@@ -321,7 +346,6 @@ const DesignSettings = () => {
         break;
     }
 
-    // Apply constraints
     newX = Math.max(halfWidth, Math.min(canvasSize.width - halfWidth, newX));
     newY = Math.max(halfHeight, Math.min(canvasSize.height - halfHeight, newY));
 
@@ -355,7 +379,7 @@ const DesignSettings = () => {
     
     return (
       <Group
-        key={`${text.id}-${forceRender}`} // Include forceRender in key to force re-render
+        key={`${text.id}-${forceRender}`}
         ref={(node) => (groupRefs.current[text.id] = node)}
         x={text.x}
         y={text.y}
@@ -364,7 +388,6 @@ const DesignSettings = () => {
         onDragEnd={(e) => handleTextDragEnd(text.id, e)}
         onTransformEnd={(e) => handleTransformEnd(text.id, e)}
         dragBoundFunc={(pos) => {
-          // Constrain drag position to canvas bounds
           const halfWidth = text.width / 2;
           const halfHeight = text.height / 2;
           return {
@@ -421,7 +444,7 @@ const DesignSettings = () => {
               })()
             ) : (
               <KonvaText
-                key={`text-${text.id}-${forceRender}`} // Include forceRender in key
+                key={`text-${text.id}-${forceRender}`}
                 text={text.text}
                 fontSize={text.maxFontSize}
                 fontFamily={text.fontFamily}
@@ -472,7 +495,7 @@ const DesignSettings = () => {
               backgroundColor: 'white'
             }}>
               <Stage 
-                key={`stage-${forceRender}`} // Force Stage re-render when fonts change
+                key={`stage-${forceRender}`}
                 width={canvasSize.width} 
                 height={canvasSize.height} 
                 ref={stageRef} 
@@ -491,7 +514,6 @@ const DesignSettings = () => {
                       anchorFill="#ffffff"
                       anchorStrokeWidth={Math.max(1, 1 / scale)}
                       boundBoxFunc={(oldBox, newBox) => {
-                        // Constrain transformer to canvas bounds
                         const text = texts.find(t => t.id === selectedId);
                         if (!text) return newBox;
                         
@@ -588,18 +610,23 @@ const DesignSettings = () => {
                   }} 
                   className="w-32 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
-                  {fonts.map((font) => (
+                  {allFonts.map((font) => (
                     <option key={font} value={font}>{font}</option>
                   ))}
                 </select>
                 
-                {/* Font Upload Button - Eski koddan alınan basit sistem */}
+                {/* Enhanced Font Upload Button */}
                 <Button 
                   className="p-2 h-10 w-10 flex items-center justify-center" 
                   onClick={() => fileInputRef.current?.click()}
+                  disabled={fontUploading}
                   title="Upload custom font"
                 >
-                  +
+                  {fontUploading ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    '+'
+                  )}
                 </Button>
                 <input 
                   type="file" 
