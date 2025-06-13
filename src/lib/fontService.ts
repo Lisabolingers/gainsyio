@@ -217,15 +217,10 @@ export class FontService {
 
       console.log(`✅ SUPABASE: Font uploaded successfully: ${fileName}`);
 
-      // Get public URL with proper headers for font loading
+      // Get public URL without transform options (fonts are not images)
       const { data: urlData } = supabase.storage
         .from('user-fonts')
-        .getPublicUrl(fileName, {
-          download: false, // Don't force download
-          transform: {
-            quality: 100 // Maintain quality
-          }
-        });
+        .getPublicUrl(fileName);
 
       const publicUrl = urlData.publicUrl;
       console.log(`🔗 SUPABASE: Public URL generated: ${publicUrl}`);
