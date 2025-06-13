@@ -229,8 +229,7 @@ export class FontService {
         .upload(fileName, fontBlob, {
           cacheControl: '31536000', // 1 year cache for fonts
           upsert: false,
-          contentType: contentType,
-          duplex: 'half' // Important for font files
+          contentType: contentType
         });
 
       if (error) {
