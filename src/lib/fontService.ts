@@ -175,60 +175,36 @@ export class FontService {
   }
 
   /**
-   * CRITICAL: Construct proper font URL that bypasses image transformation
+   * CRITICAL: Sanitize file name for Supabase Storage
+   * Remove problematic characters that can cause 400 errors
    */
-  private static constructFontUrl(fileName: string): string {
-    // Manually construct the direct storage URL to avoid image transformation paths
-    return `${supabaseUrl}/storage/v1/object/public/user-fonts/${fileName}`;
+  private static sanitizeFileName(fileName: string): string {
+    // Keep only alphanumeric characters, hyphens, underscores, and dots
+    // Replace spaces and other characters with underscores
+    let sanitized = fileName
+      .replace(/[^a-zA-Z0-9._-]/g, '_')  // Replace problematic chars with underscore
+      .replace(/_{2,}/g, '_')            // Replace multiple underscores with single
+      .replace(/^_+|_+$/g, '');         // Remove leading/trailing underscores
+    
+    // Ensure the file has an extension
+    if (!sanitized.includes('.')) {
+      sanitized += '.ttf'; // Default extension if missing
+    }
+    
+    return sanitized;
   }
 
   /**
-   * CRITICAL: Get direct font URL, normalizing any incorrect URLs
-   * This fixes URLs that might contain '/render/image/' instead of '/object/'
-   */
-  private static getDirectFontUrl(fontUrl: string): string {
-    console.log(`🔧 NORMALIZING FONT URL: ${fontUrl}`);
-    
-    // If the URL already contains '/object/', it's correct
-    if (fontUrl.includes('/storage/v1/object/')) {
-      console.log(`✅ URL is already correct: ${fontUrl}`);
-      return fontUrl;
-    }
-    
-    // If the URL contains '/render/image/', we need to fix it
-    if (fontUrl.includes('/render/image/')) {
-      // Extract the file path from the render URL
-      const renderMatch = fontUrl.match(/\/render\/image\/public\/user-fonts\/(.+?)(?:\?|$)/);
-      if (renderMatch) {
-        const filePath = renderMatch[1];
-        const correctedUrl = `${supabaseUrl}/storage/v1/object/public/user-fonts/${filePath}`;
-        console.log(`🔧 CORRECTED URL: ${fontUrl} -> ${correctedUrl}`);
-        return correctedUrl;
-      }
-    }
-    
-    // If it's a relative path or other format, try to extract the file path
-    const pathMatch = fontUrl.match(/user-fonts\/(.+?)(?:\?|$)/);
-    if (pathMatch) {
-      const filePath = pathMatch[1];
-      const correctedUrl = `${supabaseUrl}/storage/v1/object/public/user-fonts/${filePath}`;
-      console.log(`🔧 RECONSTRUCTED URL: ${fontUrl} -> ${correctedUrl}`);
-      return correctedUrl;
-    }
-    
-    // If we can't parse it, return as-is and log a warning
-    console.warn(`⚠️ COULD NOT NORMALIZE FONT URL: ${fontUrl}`);
-    return fontUrl;
-  }
-
-  /**
-   * CRITICAL: Enhanced font upload with proper CORS and headers
+   * CRITICAL: Enhanced font upload with proper file name sanitization and URL generation
    */
   static async uploadFont(file: File, userId: string): Promise<string> {
     const fileExt = file.name.split('.').pop()?.toLowerCase();
-    const fileName = `${userId}/${Date.now()}-${file.name}`;
     
-    console.log(`🚀 SUPABASE: Starting font upload: ${file.name} (${file.size} bytes)`);
+    // CRITICAL: Sanitize the original file name to prevent 400 errors
+    const sanitizedOriginalName = this.sanitizeFileName(file.name);
+    const fileName = `${userId}/${Date.now()}-${sanitizedOriginalName}`;
+    
+    console.log(`🚀 SUPABASE: Starting font upload: ${file.name} -> ${sanitizedOriginalName} (${file.size} bytes)`);
     
     // Validate file format
     if (!['ttf', 'otf', 'woff', 'woff2'].includes(fileExt || '')) {
@@ -264,9 +240,13 @@ export class FontService {
 
       console.log(`✅ SUPABASE: Font uploaded successfully: ${fileName}`);
 
-      // CRITICAL: Construct proper font URL that bypasses image transformation
-      const publicUrl = this.constructFontUrl(fileName);
-      console.log(`🔗 SUPABASE: Direct font URL generated: ${publicUrl}`);
+      // CRITICAL: Use Supabase's built-in getPublicUrl method instead of manual construction
+      const { data: urlData } = supabase.storage
+        .from('user-fonts')
+        .getPublicUrl(fileName);
+
+      const publicUrl = urlData.publicUrl;
+      console.log(`🔗 SUPABASE: Public URL generated: ${publicUrl}`);
 
       // CRITICAL: Test the URL immediately to ensure it's accessible
       try {
@@ -277,11 +257,13 @@ export class FontService {
         
         if (!testResponse.ok) {
           console.warn(`⚠️ SUPABASE: Font URL test failed: ${testResponse.status} ${testResponse.statusText}`);
+          // Don't throw here - the URL might still work for actual loading
         } else {
           console.log(`✅ SUPABASE: Font URL is accessible`);
         }
       } catch (testError) {
         console.warn(`⚠️ SUPABASE: Font URL test error:`, testError);
+        // Don't throw here - the URL might still work for actual loading
       }
 
       return publicUrl;
@@ -415,8 +397,17 @@ export class FontService {
     // Remove font from browser
     this.removeFontFromBrowser(font.font_family);
 
-    // Extract file path from URL
-    const filePath = font.file_url.split('/').slice(-2).join('/');
+    // Extract file path from URL for deletion
+    // Handle both old manual URLs and new getPublicUrl URLs
+    let filePath: string;
+    if (font.file_url.includes('/storage/v1/object/public/user-fonts/')) {
+      // Extract path from public URL
+      filePath = font.file_url.split('/storage/v1/object/public/user-fonts/')[1];
+    } else {
+      // Fallback: try to extract from any user-fonts path
+      const pathMatch = font.file_url.match(/user-fonts\/(.+?)(?:\?|$)/);
+      filePath = pathMatch ? pathMatch[1] : font.file_url.split('/').slice(-2).join('/');
+    }
 
     // Delete from storage
     const { error: storageError } = await supabase.storage
@@ -532,21 +523,20 @@ export class FontService {
     console.log(`🔥 AGGRESSIVE FONT LOADING: ${font.font_name} with family: ${mainFontFamily}`);
 
     try {
-      // CRITICAL: Normalize the font URL to ensure direct access
-      const normalizedFontUrl = this.getDirectFontUrl(font.file_url);
-      const fontWithNormalizedUrl = { ...font, file_url: normalizedFontUrl };
+      // CRITICAL: Use the font URL as-is since it's now generated properly by getPublicUrl
+      console.log(`🔗 Using font URL: ${font.file_url}`);
       
       // CRITICAL: First test if the font URL is accessible
-      await this.testFontUrlAccessibility(normalizedFontUrl);
+      await this.testFontUrlAccessibility(font.file_url);
       
       // Step 1: Aggressive CSS injection
-      await this.aggressiveInjectFontCSS(fontWithNormalizedUrl);
+      await this.aggressiveInjectFontCSS(font);
       
       // Step 2: Force FontFace loading
-      await this.forceLoadFontFace(fontWithNormalizedUrl);
+      await this.forceLoadFontFace(font);
       
       // Step 3: Canvas validation and forcing
-      await this.forceCanvasRecognition(fontWithNormalizedUrl);
+      await this.forceCanvasRecognition(font);
       
       console.log(`🎯 FONT FULLY LOADED AND READY: ${font.font_name}`);
       
