@@ -5,13 +5,15 @@ import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import ColorOptions from './ColorOptions';
-import FontUploadButton from './FontUploadButton';
 import { renderTextByStyle } from './styleOption';
-import { useFonts } from '../../hooks/useFonts';
-import { FontService } from '../../lib/fontService';
 
 const DesignSettings = () => {
-  const { allFonts, loading: fontsLoading, loadUserFonts } = useFonts();
+  // Basit font listesi - eski kod gibi
+  const [fonts, setFonts] = useState([
+    'Arial', 'Times New Roman', 'Helvetica', 'Georgia', 'Verdana',
+    'Comic Sans MS', 'Courier New', 'Roboto', 'Open Sans', 'Lobster'
+  ]);
+  
   const [canvasSize, setCanvasSize] = useState({ width: 1000, height: 1000 });
   const [templateName, setTemplateName] = useState('');
   const [texts, setTexts] = useState([
@@ -21,7 +23,7 @@ const DesignSettings = () => {
       x: 500,
       y: 500,
       maxFontSize: 50,
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Arial',
       fill: '#000',
       rotation: 0,
       lineHeight: 1,
@@ -34,11 +36,11 @@ const DesignSettings = () => {
     }
   ]);
   const [selectedId, setSelectedId] = useState(1);
-  const [fontLoadingStates, setFontLoadingStates] = useState<Record<string, boolean>>({});
-  const [forceRender, setForceRender] = useState(0); // Force re-render trigger
+  const [forceRender, setForceRender] = useState(0); // Canvas'ı zorla yeniden render etmek için
   const stageRef = useRef();
   const transformerRef = useRef();
   const groupRefs = useRef({});
+  const fileInputRef = useRef(); // Font yükleme için
 
   // Fixed canvas container size - always 700x700px
   const maxContainerSize = 700;
@@ -232,24 +234,57 @@ const DesignSettings = () => {
     }
   };
 
-  // CRITICAL: Enhanced font upload handler with immediate refresh
-  const handleFontUploaded = async (fontData: { display: string, value: string }) => {
-    console.log('🎉 Font uploaded successfully:', fontData);
-    
-    // Update selected text to use the new font immediately
-    if (selectedId) {
-      updateTextProperty(selectedId, 'fontFamily', fontData.value);
+  // ESKİ KODDAN ALINAN BASİT FONT YÜKLEME SİSTEMİ
+  const handleFontUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      console.log(`🚀 BASIT FONT YÜKLEME: ${file.name} başlatılıyor...`);
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        // Font ismini temizle
+        const fontName = file.name.split('.')[0].replace(/\s+/g, '-');
+        const fontData = e.target.result;
+        
+        console.log(`📝 Font ismi: ${fontName}`);
+        console.log(`📊 Font boyutu: ${file.size} bytes`);
+        
+        // Yeni FontFace oluştur
+        const newFontFace = new FontFace(fontName, `url(${fontData})`);
+        
+        newFontFace.load().then((loadedFace) => {
+          // Font'u document.fonts'a ekle
+          document.fonts.add(loadedFace);
+          
+          // Font listesine ekle
+          setFonts((prev) => [...prev, fontName]);
+          
+          // Canvas'ı zorla yeniden render et
+          setForceRender(prev => prev + 1);
+          
+          console.log(`✅ FONT BAŞARIYLA YÜKLENDİ: ${fontName}`);
+          console.log(`📋 Mevcut fontlar:`, [...fonts, fontName]);
+          
+          // Seçili text'e yeni font'u uygula
+          if (selectedId) {
+            updateTextProperty(selectedId, 'fontFamily', fontName);
+          }
+          
+        }).catch((err) => {
+          console.error(`❌ Font yüklenemedi: ${fontName}`, err);
+        });
+      };
+      
+      reader.onerror = (err) => {
+        console.error(`❌ Dosya okunamadı:`, err);
+      };
+      
+      reader.readAsDataURL(file);
     }
     
-    // Refresh the fonts list to show the new font immediately
-    try {
-      await loadUserFonts();
-      console.log('✅ Font list refreshed after upload');
-      
-      // Force canvas re-render after font upload
-      setForceRender(prev => prev + 1);
-    } catch (error) {
-      console.error('❌ Failed to refresh font list:', error);
+    // Input'u temizle
+    if (event.target) {
+      event.target.value = '';
     }
   };
 
@@ -295,6 +330,8 @@ const DesignSettings = () => {
 
   // Update text properties with constraints
   const updateTextProperty = (textId, property, value) => {
+    console.log(`🔄 Text özelliği güncelleniyor: ${property} = ${value}`);
+    
     setTexts(prevTexts =>
       prevTexts.map(text =>
         text.id === textId
@@ -303,100 +340,18 @@ const DesignSettings = () => {
       )
     );
     
-    // Force re-render when font changes
+    // Font değiştiğinde canvas'ı zorla yeniden render et
     if (property === 'fontFamily') {
-      setForceRender(prev => prev + 1);
+      console.log(`🎨 Font değişti, canvas yeniden render ediliyor: ${value}`);
+      setTimeout(() => {
+        setForceRender(prev => prev + 1);
+      }, 100);
     }
   };
 
-  // CRITICAL: Enhanced font loading for Konva with aggressive approach
-  const ensureFontLoadedForKonva = async (fontFamily: string): Promise<string> => {
-    const konvaFontFamily = FontService.getKonvaFontFamily(fontFamily);
-    
-    console.log(`🚀 CRITICAL: Ensuring font is loaded for Konva: ${fontFamily} -> ${konvaFontFamily}`);
-    
-    // Check if font is already loaded
-    if (document.fonts.check(`16px "${konvaFontFamily}"`)) {
-      console.log(`✅ Font already loaded and ready: ${konvaFontFamily}`);
-      return konvaFontFamily;
-    }
-    
-    // Set loading state
-    setFontLoadingStates(prev => ({ ...prev, [konvaFontFamily]: true }));
-    
-    try {
-      console.log(`🔄 Font not ready, forcing load: ${konvaFontFamily}`);
-      
-      // Wait for document.fonts to be ready
-      await document.fonts.ready;
-      
-      // Aggressive checking with longer timeout and more attempts
-      let attempts = 0;
-      const maxAttempts = 50; // Increased attempts
-      
-      while (attempts < maxAttempts && !document.fonts.check(`16px "${konvaFontFamily}"`)) {
-        await new Promise(resolve => setTimeout(resolve, 200)); // Increased wait time
-        attempts++;
-        console.log(`⏳ AGGRESSIVE WAIT: Font loading attempt ${attempts}/${maxAttempts} for ${konvaFontFamily}`);
-        
-        // Force reflow every few attempts
-        if (attempts % 5 === 0) {
-          const testDiv = document.createElement('div');
-          testDiv.style.fontFamily = `"${konvaFontFamily}", Arial, sans-serif`;
-          testDiv.style.fontSize = '16px';
-          testDiv.style.position = 'absolute';
-          testDiv.style.left = '-9999px';
-          testDiv.textContent = 'Font Test Loading';
-          document.body.appendChild(testDiv);
-          testDiv.offsetHeight; // Force reflow
-          document.body.removeChild(testDiv);
-          
-          // Also try to force font loading via canvas
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.font = `16px "${konvaFontFamily}", Arial, sans-serif`;
-            ctx.fillText('Test', 0, 16);
-          }
-        }
-      }
-      
-      if (attempts >= maxAttempts) {
-        console.warn(`⚠️ AGGRESSIVE LOADING TIMEOUT: Font ${konvaFontFamily} may not be fully loaded, using fallback`);
-      } else {
-        console.log(`🎉 AGGRESSIVE SUCCESS: Font ${konvaFontFamily} is ready for Konva after ${attempts} attempts`);
-      }
-      
-      return konvaFontFamily;
-    } catch (error) {
-      console.error(`❌ CRITICAL ERROR loading font ${konvaFontFamily}:`, error);
-      return 'Arial'; // Fallback to Arial
-    } finally {
-      // Clear loading state
-      setFontLoadingStates(prev => ({ ...prev, [konvaFontFamily]: false }));
-    }
-  };
-
-  // CRITICAL: Enhanced text rendering with aggressive font loading and force render
+  // Enhanced text rendering with force render
   const renderKonvaText = (text) => {
-    const konvaFontFamily = FontService.getKonvaFontFamily(text.fontFamily);
-    const isLoading = fontLoadingStates[konvaFontFamily];
-    
-    console.log(`🎨 RENDERING TEXT: "${text.text.substring(0, 20)}..." with font: ${text.fontFamily} -> ${konvaFontFamily} (Loading: ${isLoading})`);
-    
-    // CRITICAL: Always use the actual font family, don't fallback to Arial during loading
-    // This ensures the font is applied when it becomes available
-    const actualFontFamily = konvaFontFamily;
-    
-    // Force font loading when rendering
-    React.useEffect(() => {
-      if (konvaFontFamily && konvaFontFamily !== 'Arial') {
-        ensureFontLoadedForKonva(text.fontFamily).then(() => {
-          // Force re-render after font is loaded
-          setForceRender(prev => prev + 1);
-        }).catch(console.error);
-      }
-    }, [text.fontFamily, konvaFontFamily]);
+    console.log(`🎨 Text render ediliyor: "${text.text.substring(0, 20)}..." font: ${text.fontFamily}`);
     
     return (
       <Group
@@ -419,13 +374,13 @@ const DesignSettings = () => {
         }}
       >
         {text.styleOption && text.styleOption !== 'normal'
-          ? renderTextByStyle({...text, fontFamily: actualFontFamily}, canvasSize)
+          ? renderTextByStyle({...text}, canvasSize)
           : (
             text.colorOption === 'letters' ? (
               (() => {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-                ctx.font = `${text.maxFontSize}px ${actualFontFamily}`;
+                ctx.font = `${text.maxFontSize}px ${text.fontFamily}`;
                 const filteredColors = (text.letterColors || []).filter(color => color && color.trim() !== '' && color.toLowerCase() !== '#cccccc');
                 const lines = text.text.split('\n');
                 const totalWidth = Math.max(...lines.map(line =>
@@ -451,7 +406,7 @@ const DesignSettings = () => {
                             x={charX}
                             y={lineY}
                             fontSize={text.maxFontSize}
-                            fontFamily={actualFontFamily}
+                            fontFamily={text.fontFamily}
                             fill={color}
                             stroke={text.strokeEnabled ? text.strokeColor || '#000000' : undefined}
                             strokeWidth={text.strokeEnabled ? text.strokeWidth || 2 : 0}
@@ -469,7 +424,7 @@ const DesignSettings = () => {
                 key={`text-${text.id}-${forceRender}`} // Include forceRender in key
                 text={text.text}
                 fontSize={text.maxFontSize}
-                fontFamily={actualFontFamily}
+                fontFamily={text.fontFamily}
                 fill={
                   text.tempFill
                     ? text.tempFill
@@ -628,26 +583,31 @@ const DesignSettings = () => {
                 <select 
                   value={text.fontFamily} 
                   onChange={(e) => {
-                    console.log(`🔄 CRITICAL: Font changed to: ${e.target.value}`);
+                    console.log(`🔄 FONT DEĞİŞTİRİLİYOR: ${e.target.value}`);
                     updateTextProperty(text.id, 'fontFamily', e.target.value);
-                    // Ensure font is loaded for Konva with aggressive approach
-                    ensureFontLoadedForKonva(e.target.value).then(() => {
-                      // Force re-render after font change
-                      setTimeout(() => setForceRender(prev => prev + 1), 500);
-                    }).catch(console.error);
                   }} 
                   className="w-32 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  disabled={fontsLoading}
                 >
-                  {allFonts.map((font) => (
-                    <option key={font.value} value={font.value}>{font.display}</option>
+                  {fonts.map((font) => (
+                    <option key={font} value={font}>{font}</option>
                   ))}
                 </select>
                 
-                {/* Enhanced Font Upload Button */}
-                <div className="relative">
-                  <FontUploadButton onFontUploaded={handleFontUploaded} />
-                </div>
+                {/* Font Upload Button - Eski koddan alınan basit sistem */}
+                <Button 
+                  className="p-2 h-10 w-10 flex items-center justify-center" 
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Upload custom font"
+                >
+                  +
+                </Button>
+                <input 
+                  type="file" 
+                  accept=".ttf,.otf,.woff,.woff2" 
+                  ref={fileInputRef} 
+                  onChange={handleFontUpload} 
+                  style={{ display: 'none' }} 
+                />
 
                 <label className="text-gray-700 dark:text-gray-300 text-sm">Font Size (px):</label>
                 <input 
