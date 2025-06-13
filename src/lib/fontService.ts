@@ -376,10 +376,16 @@ export class FontService {
       .select('file_url, font_family')
       .eq('id', fontId)
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (fetchError) {
       throw new Error(`Failed to fetch font: ${fetchError.message}`);
+    }
+
+    // If font doesn't exist (already deleted or invalid ID), consider deletion successful
+    if (!font) {
+      console.log(`Font ${fontId} not found - already deleted or invalid ID`);
+      return;
     }
 
     // Remove font from browser
