@@ -216,22 +216,14 @@ export class FontService {
       throw new Error('Font file is too large. Maximum size is 5MB.');
     }
 
-    // Get the correct MIME type for the font file
-    const contentType = this.getFontMimeType(fileExt || '');
-    console.log(`📝 SUPABASE: Using MIME type: ${contentType}`);
-
-    // CRITICAL: Create proper FormData for upload instead of Blob
-    const formData = new FormData();
-    formData.append('file', file, sanitizedOriginalName);
-
     try {
-      // CRITICAL: Use direct Supabase storage upload with proper error handling
+      // CRITICAL: Use direct file upload without specifying contentType
+      // Let Supabase handle the MIME type detection automatically
       const { data, error } = await supabase.storage
         .from('user-fonts')
         .upload(fileName, file, {
           cacheControl: '31536000', // 1 year cache for fonts
-          upsert: false,
-          contentType: contentType
+          upsert: false
         });
 
       if (error) {
