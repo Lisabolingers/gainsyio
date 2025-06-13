@@ -35,6 +35,7 @@ const DesignSettings = () => {
   ]);
   const [selectedId, setSelectedId] = useState(1);
   const [fontLoadingStates, setFontLoadingStates] = useState<Record<string, boolean>>({});
+  const [forceRender, setForceRender] = useState(0); // Force re-render trigger
   const stageRef = useRef();
   const transformerRef = useRef();
   const groupRefs = useRef({});
@@ -244,6 +245,9 @@ const DesignSettings = () => {
     try {
       await loadUserFonts();
       console.log('✅ Font list refreshed after upload');
+      
+      // Force canvas re-render after font upload
+      setForceRender(prev => prev + 1);
     } catch (error) {
       console.error('❌ Failed to refresh font list:', error);
     }
@@ -298,6 +302,11 @@ const DesignSettings = () => {
           : text
       )
     );
+    
+    // Force re-render when font changes
+    if (property === 'fontFamily') {
+      setForceRender(prev => prev + 1);
+    }
   };
 
   // CRITICAL: Enhanced font loading for Konva with aggressive approach
@@ -323,10 +332,10 @@ const DesignSettings = () => {
       
       // Aggressive checking with longer timeout and more attempts
       let attempts = 0;
-      const maxAttempts = 30; // Increased attempts
+      const maxAttempts = 50; // Increased attempts
       
       while (attempts < maxAttempts && !document.fonts.check(`16px "${konvaFontFamily}"`)) {
-        await new Promise(resolve => setTimeout(resolve, 300)); // Increased wait time
+        await new Promise(resolve => setTimeout(resolve, 200)); // Increased wait time
         attempts++;
         console.log(`⏳ AGGRESSIVE WAIT: Font loading attempt ${attempts}/${maxAttempts} for ${konvaFontFamily}`);
         
@@ -334,13 +343,21 @@ const DesignSettings = () => {
         if (attempts % 5 === 0) {
           const testDiv = document.createElement('div');
           testDiv.style.fontFamily = `"${konvaFontFamily}", Arial, sans-serif`;
-          testDiv.style.fontSize = '1px';
+          testDiv.style.fontSize = '16px';
           testDiv.style.position = 'absolute';
           testDiv.style.left = '-9999px';
-          testDiv.textContent = 'test';
+          testDiv.textContent = 'Font Test Loading';
           document.body.appendChild(testDiv);
           testDiv.offsetHeight; // Force reflow
           document.body.removeChild(testDiv);
+          
+          // Also try to force font loading via canvas
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.font = `16px "${konvaFontFamily}", Arial, sans-serif`;
+            ctx.fillText('Test', 0, 16);
+          }
         }
       }
       
@@ -360,26 +377,30 @@ const DesignSettings = () => {
     }
   };
 
-  // CRITICAL: Enhanced text rendering with aggressive font loading
+  // CRITICAL: Enhanced text rendering with aggressive font loading and force render
   const renderKonvaText = (text) => {
     const konvaFontFamily = FontService.getKonvaFontFamily(text.fontFamily);
     const isLoading = fontLoadingStates[konvaFontFamily];
     
-    console.log(`🎨 RENDERING TEXT: ${text.text.substring(0, 20)}... with font: ${text.fontFamily} -> ${konvaFontFamily}`);
+    console.log(`🎨 RENDERING TEXT: "${text.text.substring(0, 20)}..." with font: ${text.fontFamily} -> ${konvaFontFamily} (Loading: ${isLoading})`);
     
-    // Use fallback font while loading
-    const actualFontFamily = isLoading ? 'Arial' : konvaFontFamily;
+    // CRITICAL: Always use the actual font family, don't fallback to Arial during loading
+    // This ensures the font is applied when it becomes available
+    const actualFontFamily = konvaFontFamily;
     
-    // CRITICAL: Force font loading when font changes
-    useEffect(() => {
+    // Force font loading when rendering
+    React.useEffect(() => {
       if (konvaFontFamily && konvaFontFamily !== 'Arial') {
-        ensureFontLoadedForKonva(text.fontFamily).catch(console.error);
+        ensureFontLoadedForKonva(text.fontFamily).then(() => {
+          // Force re-render after font is loaded
+          setForceRender(prev => prev + 1);
+        }).catch(console.error);
       }
-    }, [text.fontFamily]);
+    }, [text.fontFamily, konvaFontFamily]);
     
     return (
       <Group
-        key={text.id}
+        key={`${text.id}-${forceRender}`} // Include forceRender in key to force re-render
         ref={(node) => (groupRefs.current[text.id] = node)}
         x={text.x}
         y={text.y}
@@ -425,7 +446,7 @@ const DesignSettings = () => {
                           : '#000000';
                         return (
                           <KonvaText
-                            key={`${lineIdx}-${idx}`}
+                            key={`${lineIdx}-${idx}-${forceRender}`}
                             text={char}
                             x={charX}
                             y={lineY}
@@ -445,6 +466,7 @@ const DesignSettings = () => {
               })()
             ) : (
               <KonvaText
+                key={`text-${text.id}-${forceRender}`} // Include forceRender in key
                 text={text.text}
                 fontSize={text.maxFontSize}
                 fontFamily={actualFontFamily}
@@ -494,8 +516,14 @@ const DesignSettings = () => {
               top: `${offsetY}px`,
               backgroundColor: 'white'
             }}>
-              <Stage width={canvasSize.width} height={canvasSize.height} ref={stageRef} onClick={handleStageClick}>
-                <Layer>
+              <Stage 
+                key={`stage-${forceRender}`} // Force Stage re-render when fonts change
+                width={canvasSize.width} 
+                height={canvasSize.height} 
+                ref={stageRef} 
+                onClick={handleStageClick}
+              >
+                <Layer key={`layer-${forceRender}`}>
                   {texts.map((text) => renderKonvaText(text))}
 
                   {selectedId && (
@@ -603,7 +631,10 @@ const DesignSettings = () => {
                     console.log(`🔄 CRITICAL: Font changed to: ${e.target.value}`);
                     updateTextProperty(text.id, 'fontFamily', e.target.value);
                     // Ensure font is loaded for Konva with aggressive approach
-                    ensureFontLoadedForKonva(e.target.value).catch(console.error);
+                    ensureFontLoadedForKonva(e.target.value).then(() => {
+                      // Force re-render after font change
+                      setTimeout(() => setForceRender(prev => prev + 1), 500);
+                    }).catch(console.error);
                   }} 
                   className="w-32 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   disabled={fontsLoading}
