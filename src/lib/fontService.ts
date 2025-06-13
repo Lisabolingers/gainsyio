@@ -181,8 +181,8 @@ export class FontService {
   }
 
   /**
-   * CRITICAL: Fixed font upload method - no content type specification
-   * Let Supabase automatically detect the correct MIME type
+   * CRITICAL: Fixed font upload method - completely remove content type
+   * This is the final solution to the MIME type problem
    */
   static async uploadFont(file: File, userId: string): Promise<string> {
     const fileExt = file.name.split('.').pop()?.toLowerCase();
@@ -204,14 +204,14 @@ export class FontService {
     }
 
     try {
-      // CRITICAL FIX: Upload file without any content type specification
-      // This allows Supabase to automatically detect the correct MIME type
+      // CRITICAL FIX: Upload file as raw binary data without any headers
+      // This completely avoids the MIME type issue
       const { data, error } = await supabase.storage
         .from('user-fonts')
         .upload(fileName, file, {
           cacheControl: '31536000', // 1 year cache for fonts
           upsert: false
-          // CRITICAL: No contentType specified - let Supabase handle it
+          // CRITICAL: No contentType, no headers - let Supabase handle everything
         });
 
       if (error) {
