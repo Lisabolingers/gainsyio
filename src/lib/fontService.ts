@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, supabaseUrl } from './supabase';
 import { UserFont } from './supabase';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -175,6 +175,14 @@ export class FontService {
   }
 
   /**
+   * CRITICAL: Construct proper font URL that bypasses image transformation
+   */
+  private static constructFontUrl(fileName: string): string {
+    // Manually construct the direct storage URL to avoid image transformation paths
+    return `${supabaseUrl}/storage/v1/object/public/user-fonts/${fileName}`;
+  }
+
+  /**
    * CRITICAL: Enhanced font upload with proper CORS and headers
    */
   static async uploadFont(file: File, userId: string): Promise<string> {
@@ -217,13 +225,9 @@ export class FontService {
 
       console.log(`✅ SUPABASE: Font uploaded successfully: ${fileName}`);
 
-      // Get public URL without transform options (fonts are not images)
-      const { data: urlData } = supabase.storage
-        .from('user-fonts')
-        .getPublicUrl(fileName);
-
-      const publicUrl = urlData.publicUrl;
-      console.log(`🔗 SUPABASE: Public URL generated: ${publicUrl}`);
+      // CRITICAL: Construct proper font URL that bypasses image transformation
+      const publicUrl = this.constructFontUrl(fileName);
+      console.log(`🔗 SUPABASE: Direct font URL generated: ${publicUrl}`);
 
       // CRITICAL: Test the URL immediately to ensure it's accessible
       try {
