@@ -728,10 +728,10 @@ const MockupTemplatesPage: React.FC = () => {
                                         ta.id === area.id ? { ...ta, font_family: e.target.value } : ta
                                       ));
                                     }}
-                                    className="w-full text-xs p-1 border rounded"
+                                    className="w-full text-xs p-1 border rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
                                   >
                                     {allFonts.map((font) => (
-                                      <option key={font.value} value={font.display}>
+                                      <option key={font.value} value={font.display} className="text-gray-900 dark:text-white bg-white dark:bg-gray-700">
                                         {font.display}
                                       </option>
                                     ))}
