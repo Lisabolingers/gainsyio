@@ -19,6 +19,7 @@ const AdminLayout: React.FC = () => {
     { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
     { name: 'Templates', href: '/admin/templates', icon: FileTemplate },
     { name: 'Auto Text to Image', href: '/admin/templates/auto-text-to-image', icon: Zap },
+    { name: 'Text Templates', href: '/admin/templates/text', icon: Type },
     { name: 'Listing', href: '/admin/listing', icon: PlusCircle },
     { name: 'Library', href: '/admin/library', icon: Library },
     { name: 'Store Images', href: '/admin/store-images', icon: Image },
@@ -39,15 +40,17 @@ const AdminLayout: React.FC = () => {
       return location.pathname === '/admin';
     }
     
-    // Special handling for Templates and Auto Text to Image
+    // Special handling for Templates and sub-pages
     if (href === '/admin/templates') {
-      // Templates is active only if we're exactly on /admin/templates, not on sub-pages
       return location.pathname === '/admin/templates';
     }
     
     if (href === '/admin/templates/auto-text-to-image') {
-      // Auto Text to Image is active only if we're on this specific page
       return location.pathname === '/admin/templates/auto-text-to-image';
+    }
+    
+    if (href === '/admin/templates/text') {
+      return location.pathname === '/admin/templates/text';
     }
     
     // For other routes, check if current path starts with the href

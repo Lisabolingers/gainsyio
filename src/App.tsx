@@ -27,6 +27,7 @@ import AutoTextToImagePage from './pages/AutoTextToImagePage';
 import ListingTemplatesPage from './pages/ListingTemplatesPage';
 import MockupTemplatesPage from './pages/MockupTemplatesPage';
 import UpdateTemplatesPage from './pages/UpdateTemplatesPage';
+import TextTemplatesPage from './pages/TextTemplatesPage';
 import MyFontPage from './pages/MyFontPage';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -62,6 +63,7 @@ function App() {
                 <Route path="analytics" element={<AnalyticsPage />} />
                 <Route path="templates" element={<TemplatesPage />} />
                 <Route path="templates/auto-text-to-image" element={<AutoTextToImagePage />} />
+                <Route path="templates/text" element={<TextTemplatesPage />} />
                 <Route path="templates/listing" element={<ListingTemplatesPage />} />
                 <Route path="templates/mockup" element={<MockupTemplatesPage />} />
                 <Route path="templates/update" element={<UpdateTemplatesPage />} />

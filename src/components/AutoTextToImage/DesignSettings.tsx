@@ -9,7 +9,8 @@ import { renderTextByStyle } from './styleOption';
 import { useFonts } from '../../hooks/useFonts';
 import { FontService } from '../../lib/fontService';
 import { useAuth } from '../../context/AuthContext';
-import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { ChevronDown, ChevronRight, Trash2, Save } from 'lucide-react';
 
 const DesignSettings = () => {
   const { user } = useAuth();
@@ -53,6 +54,7 @@ const DesignSettings = () => {
   const [fontUploading, setFontUploading] = useState(false);
   const [fontsInitialized, setFontsInitialized] = useState(false);
   const [fontLoadingStatus, setFontLoadingStatus] = useState('');
+  const [saving, setSaving] = useState(false);
   
   // Accordion state for each text
   const [accordionStates, setAccordionStates] = useState({});
@@ -418,6 +420,68 @@ const DesignSettings = () => {
     }
   };
 
+  // ENHANCED: Save template to database
+  const saveTemplate = async () => {
+    if (!templateName.trim()) {
+      alert('Please enter a template name');
+      return;
+    }
+
+    if (!user) {
+      alert('You must be logged in to save templates');
+      return;
+    }
+
+    setSaving(true);
+    
+    try {
+      console.log('💾 Saving text template:', templateName);
+      
+      // Prepare template data
+      const templateData = {
+        user_id: user.id,
+        name: templateName.trim(),
+        font_family: 'Arial', // Default font family for compatibility
+        font_size: 24, // Default font size
+        font_weight: 'normal',
+        text_color: '#000000',
+        background_color: '#ffffff',
+        style_settings: {
+          canvas_size: canvasSize,
+          texts: texts.map(text => ({
+            ...text,
+            // Clean up any temporary properties
+            tempFill: undefined
+          }))
+        },
+        is_default: false
+      };
+
+      const { data, error } = await supabase
+        .from('auto_text_templates')
+        .insert(templateData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Error saving template:', error);
+        throw error;
+      }
+
+      console.log('✅ Template saved successfully:', data);
+      alert(`Template "${templateName}" saved successfully!`);
+      
+      // Optionally redirect to text templates page
+      // window.location.href = '/admin/templates/text';
+      
+    } catch (error) {
+      console.error('❌ Failed to save template:', error);
+      alert(`Failed to save template: ${error.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // ENHANCED: Font upload - both to canvas and Supabase
   const handleFontUpload = async (event) => {
     const file = event.target.files[0];
@@ -766,8 +830,23 @@ const DesignSettings = () => {
             <Button onClick={downloadImage} disabled={!templateName} className="w-full">
               DOWNLOAD DESIGN
             </Button>
-            <Button variant="secondary" className="w-full">
-              SAVE
+            <Button 
+              onClick={saveTemplate} 
+              disabled={!templateName || saving} 
+              variant="secondary" 
+              className="w-full flex items-center justify-center space-x-2"
+            >
+              {saving ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                  <span>SAVING...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  <span>SAVE TEMPLATE</span>
+                </>
+              )}
             </Button>
           </div>
         </div>
