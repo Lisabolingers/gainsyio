@@ -1,4 +1,4 @@
-import { supabase, supabaseUrl, testSupabaseConnection } from './supabase';
+import { supabase, testSupabaseConnection } from './supabase';
 import { UserFont } from './supabase';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -16,20 +16,6 @@ export class FontService {
     cursive: ['cursive'],
     fantasy: ['fantasy']
   };
-
-  /**
-   * Get correct MIME type for font files
-   */
-  private static getFontMimeType(fileExtension: string): string {
-    const mimeTypes: Record<string, string> = {
-      'ttf': 'font/ttf',
-      'otf': 'font/otf',
-      'woff': 'font/woff',
-      'woff2': 'font/woff2'
-    };
-    
-    return mimeTypes[fileExtension.toLowerCase()] || 'application/octet-stream';
-  }
 
   /**
    * Detect font family category based on font name and characteristics
@@ -170,83 +156,35 @@ export class FontService {
   }
 
   /**
-   * Sanitize file name for Supabase Storage
+   * Convert file to base64
    */
-  private static sanitizeFileName(fileName: string): string {
-    // Keep only alphanumeric characters, hyphens, underscores, and dots
-    let sanitized = fileName
-      .replace(/[^a-zA-Z0-9._-]/g, '_')  // Replace problematic chars with underscore
-      .replace(/_{2,}/g, '_')            // Replace multiple underscores with single
-      .replace(/^_+|_+$/g, '');         // Remove leading/trailing underscores
-    
-    // Ensure the file has an extension
-    if (!sanitized.includes('.')) {
-      sanitized += '.ttf'; // Default extension if missing
-    }
-    
-    return sanitized;
+  private static async fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result);
+        } else {
+          reject(new Error('Failed to convert file to base64'));
+        }
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
   }
 
   /**
-   * Upload font file with correct MIME type
+   * Get CSS font format string for @font-face
    */
-  static async uploadFont(file: File, userId: string): Promise<string> {
-    const fileExt = file.name.split('.').pop()?.toLowerCase();
+  private static getFontFormat(fontFormat: string): string {
+    const formatMap: Record<string, string> = {
+      'ttf': 'truetype',
+      'otf': 'opentype',
+      'woff': 'woff',
+      'woff2': 'woff2'
+    };
     
-    // Sanitize the original file name to prevent 400 errors
-    const sanitizedOriginalName = this.sanitizeFileName(file.name);
-    const fileName = `${userId}/${Date.now()}-${sanitizedOriginalName}`;
-    
-    console.log(`🚀 FONT UPLOAD STARTING: ${file.name} -> ${sanitizedOriginalName} (${file.size} bytes)`);
-    
-    // Validate file format
-    if (!['ttf', 'otf', 'woff', 'woff2'].includes(fileExt || '')) {
-      throw new Error('Invalid font format. Only TTF, OTF, WOFF, and WOFF2 files are supported.');
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      throw new Error('Font file is too large. Maximum size is 5MB.');
-    }
-
-    try {
-      // Get the correct MIME type for the font file
-      const mimeType = this.getFontMimeType(fileExt || '');
-      console.log(`📝 Using MIME type: ${mimeType} for file extension: ${fileExt}`);
-      
-      const { data, error } = await supabase.storage
-        .from('user-fonts')
-        .upload(fileName, file, {
-          cacheControl: '31536000', // 1 year cache for fonts
-          upsert: false,
-          contentType: mimeType // Set the correct MIME type
-        });
-
-      if (error) {
-        console.error(`❌ SUPABASE UPLOAD ERROR:`, error);
-        throw new Error(`Failed to upload font: ${error.message}`);
-      }
-
-      console.log(`✅ SUPABASE: Font uploaded successfully: ${fileName}`);
-
-      // Get public URL using Supabase's built-in method
-      const { data: urlData } = supabase.storage
-        .from('user-fonts')
-        .getPublicUrl(fileName);
-
-      const publicUrl = urlData.publicUrl;
-      console.log(`🔗 SUPABASE: Public URL generated: ${publicUrl}`);
-
-      // Validate the URL format
-      if (!publicUrl || !publicUrl.includes('user-fonts')) {
-        throw new Error('Invalid public URL generated');
-      }
-
-      return publicUrl;
-    } catch (uploadError) {
-      console.error(`❌ SUPABASE: Font upload failed:`, uploadError);
-      throw uploadError;
-    }
+    return formatMap[fontFormat.toLowerCase()] || 'truetype';
   }
 
   /**
@@ -313,13 +251,13 @@ export class FontService {
   }
 
   /**
-   * Save font metadata to database
+   * Save font metadata to database with base64 data
    */
   static async saveFontMetadata(
     userId: string,
     fontName: string,
     fontFamily: string,
-    fileUrl: string,
+    base64Data: string,
     fileSize: number,
     fontFormat: string
   ): Promise<UserFont> {
@@ -333,7 +271,7 @@ export class FontService {
           user_id: userId,
           font_name: fontName,
           font_family: fontFamilyWithFallbacks, // Store with fallbacks
-          file_url: fileUrl,
+          file_url: base64Data, // Store base64 data instead of URL
           file_size: fileSize,
           font_format: fontFormat,
           is_active: true
@@ -398,10 +336,10 @@ export class FontService {
    */
   static async deleteFont(fontId: string, userId: string): Promise<void> {
     try {
-      // First get the font to get the file URL
+      // First get the font to get the font family
       const { data: font, error: fetchError } = await supabase
         .from('user_fonts')
-        .select('file_url, font_family')
+        .select('font_family')
         .eq('id', fontId)
         .eq('user_id', userId)
         .maybeSingle();
@@ -420,27 +358,7 @@ export class FontService {
       // Remove font from browser
       this.removeFontFromBrowser(font.font_family);
 
-      // Extract file path from URL for deletion
-      let filePath: string;
-      if (font.file_url.includes('/storage/v1/object/public/user-fonts/')) {
-        // Extract path from public URL
-        filePath = font.file_url.split('/storage/v1/object/public/user-fonts/')[1];
-      } else {
-        // Fallback: try to extract from any user-fonts path
-        const pathMatch = font.file_url.match(/user-fonts\/(.+?)(?:\?|$)/);
-        filePath = pathMatch ? pathMatch[1] : font.file_url.split('/').slice(-2).join('/');
-      }
-
-      // Delete from storage
-      const { error: storageError } = await supabase.storage
-        .from('user-fonts')
-        .remove([filePath]);
-
-      if (storageError) {
-        console.warn('Failed to delete font file from storage:', storageError.message);
-      }
-
-      // Delete from database
+      // Delete from database (no storage cleanup needed with base64)
       const { error: dbError } = await supabase
         .from('user_fonts')
         .delete()
@@ -491,21 +409,7 @@ export class FontService {
   }
 
   /**
-   * Get CSS font format string for @font-face
-   */
-  private static getFontFormat(fontFormat: string): string {
-    const formatMap: Record<string, string> = {
-      'ttf': 'truetype',
-      'otf': 'opentype',
-      'woff': 'woff',
-      'woff2': 'woff2'
-    };
-    
-    return formatMap[fontFormat.toLowerCase()] || 'truetype';
-  }
-
-  /**
-   * Enhanced font loading with proper CSS injection and validation
+   * Enhanced font loading with base64 data
    */
   static async loadFontInBrowser(font: UserFont): Promise<void> {
     // Extract the main font family name (without fallbacks)
@@ -526,7 +430,7 @@ export class FontService {
     }
 
     // Create loading promise
-    const loadingPromise = this.doLoadFont(font);
+    const loadingPromise = this.doLoadFontFromBase64(font);
     this.fontLoadPromises.set(mainFontFamily, loadingPromise);
 
     try {
@@ -541,16 +445,16 @@ export class FontService {
   }
 
   /**
-   * The actual font loading implementation
+   * Load font from base64 data
    */
-  private static async doLoadFont(font: UserFont): Promise<void> {
+  private static async doLoadFontFromBase64(font: UserFont): Promise<void> {
     const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
     
-    console.log(`🔥 Loading font: ${font.font_name} with family: ${mainFontFamily}`);
+    console.log(`🔥 Loading font from base64: ${font.font_name} with family: ${mainFontFamily}`);
 
     try {
-      // Step 1: Simple CSS injection (most reliable method)
-      await this.injectSimpleFontCSS(font);
+      // Step 1: CSS injection with base64 data
+      await this.injectBase64FontCSS(font);
       
       // Step 2: Force browser recognition
       await this.forceBrowserRecognition(font);
@@ -565,9 +469,9 @@ export class FontService {
   }
 
   /**
-   * Simple and reliable CSS font injection
+   * Inject font CSS with base64 data
    */
-  private static async injectSimpleFontCSS(font: UserFont): Promise<void> {
+  private static async injectBase64FontCSS(font: UserFont): Promise<void> {
     const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
     const styleId = `font-style-${mainFontFamily}`;
     
@@ -578,7 +482,7 @@ export class FontService {
       console.log(`🗑️ Removed existing font style: ${mainFontFamily}`);
     }
 
-    // Create simple and reliable CSS
+    // Create CSS with base64 data
     const style = document.createElement('style');
     style.id = styleId;
     style.textContent = `
@@ -594,7 +498,7 @@ export class FontService {
     // Insert at the very beginning of head for highest priority
     document.head.insertBefore(style, document.head.firstChild);
     
-    console.log(`💉 CSS injection complete: ${mainFontFamily}`);
+    console.log(`💉 CSS injection complete with base64 data: ${mainFontFamily}`);
     
     // Wait for CSS to be processed
     await new Promise(resolve => setTimeout(resolve, 200));
@@ -676,28 +580,42 @@ export class FontService {
   }
 
   /**
-   * Upload and save font (combined operation)
+   * Upload and save font (combined operation) - now with base64
    */
   static async uploadAndSaveFont(file: File, userId: string): Promise<UserFont> {
     try {
+      // Validate file format
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      if (!['ttf', 'otf', 'woff', 'woff2'].includes(fileExt || '')) {
+        throw new Error('Invalid font format. Only TTF, OTF, WOFF, and WOFF2 files are supported.');
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error('Font file is too large. Maximum size is 5MB.');
+      }
+
+      console.log(`🚀 FONT UPLOAD STARTING: ${file.name} (${file.size} bytes)`);
+
       // Extract clean font info from file name
       const cleanFontName = this.extractCleanFontName(file.name);
-      // Generate CSS font family name that preserves font identity
       const cssFontFamily = this.generateCssFontFamily(file.name);
-      const fontFormat = file.name.split('.').pop()?.toLowerCase() || 'ttf';
+      const fontFormat = fileExt || 'ttf';
 
       // Generate a unique font name to avoid constraint violations
       const uniqueFontName = await this.generateUniqueFontName(userId, cleanFontName);
 
-      // Upload file
-      const fileUrl = await this.uploadFont(file, userId);
+      // Convert file to base64
+      console.log(`📝 Converting font to base64: ${file.name}`);
+      const base64Data = await this.fileToBase64(file);
+      console.log(`✅ Base64 conversion complete: ${uniqueFontName}`);
 
-      // Save metadata with unique font name and CSS font family name with fallbacks
+      // Save metadata with base64 data
       const savedFont = await this.saveFontMetadata(
         userId,
         uniqueFontName,
-        cssFontFamily, // This will be processed to include fallbacks
-        fileUrl,
+        cssFontFamily,
+        base64Data, // Store base64 instead of URL
         file.size,
         fontFormat
       );
