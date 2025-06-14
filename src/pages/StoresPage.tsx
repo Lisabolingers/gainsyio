@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Store, Plus, Edit, Trash2, ExternalLink, RefreshCw, Search, CheckCircle, Clock, X, Link as LinkIcon } from 'lucide-react';
+import { Store, Plus, Edit, Trash2, ExternalLink, RefreshCw, Search, CheckCircle, Clock, X, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
@@ -41,6 +41,29 @@ const StoresPage: React.FC = () => {
       loadStores();
     }
   }, [user]);
+
+  // Handle OAuth callback from Etsy
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const state = urlParams.get('state');
+    const error = urlParams.get('error');
+
+    if (error) {
+      console.error('❌ Etsy OAuth error:', error);
+      alert('Etsy connection failed: ' + error);
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      return;
+    }
+
+    if (code && state) {
+      console.log('✅ Etsy OAuth callback received:', { code, state });
+      handleEtsyCallback(code, state);
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   const loadStores = async () => {
     try {
@@ -103,7 +126,7 @@ const StoresPage: React.FC = () => {
         platform: 'etsy' as const,
         store_name: formData.store_name.trim(),
         store_url: formData.store_url.trim() || null,
-        api_credentials: {}, // Empty for now, will be filled by Etsy integration
+        api_credentials: {}, // Empty for now, will be filled by Etsy OAuth
         is_active: true
       };
 
@@ -192,13 +215,102 @@ const StoresPage: React.FC = () => {
     }
   };
 
+  const generateEtsyOAuthURL = (storeId: string) => {
+    // TODO: Replace with actual Etsy API credentials
+    const CLIENT_ID = 'your_etsy_client_id'; // This will come from environment variables
+    const REDIRECT_URI = `${window.location.origin}/admin/stores`; // Current page as callback
+    const STATE = `${storeId}_${Date.now()}`; // Include store ID in state for identification
+    const SCOPE = 'shops_r listings_r'; // Read shops and listings
+    
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: CLIENT_ID,
+      redirect_uri: REDIRECT_URI,
+      scope: SCOPE,
+      state: STATE
+    });
+
+    return `https://www.etsy.com/oauth/connect?${params.toString()}`;
+  };
+
   const connectToEtsy = async (storeId: string) => {
     try {
-      // TODO: Implement Etsy OAuth integration
-      // This will redirect to Etsy OAuth and handle the callback
-      console.log('🔗 Connecting to Etsy for store:', storeId);
+      console.log('🔗 Initiating Etsy OAuth for store:', storeId);
       
-      // For now, just update the sync timestamp
+      // Store the store ID in localStorage for callback handling
+      localStorage.setItem('etsy_connecting_store_id', storeId);
+      
+      // Generate OAuth URL and redirect
+      const oauthUrl = generateEtsyOAuthURL(storeId);
+      
+      // Show info to user before redirect
+      if (window.confirm('You will be redirected to Etsy to authorize the connection. Continue?')) {
+        window.location.href = oauthUrl;
+      }
+    } catch (error) {
+      console.error('Etsy OAuth initiation error:', error);
+      alert('Error occurred while initiating Etsy connection');
+    }
+  };
+
+  const handleEtsyCallback = async (code: string, state: string) => {
+    try {
+      console.log('🔄 Processing Etsy OAuth callback...');
+      
+      // Extract store ID from state
+      const storeId = state.split('_')[0];
+      const storedStoreId = localStorage.getItem('etsy_connecting_store_id');
+      
+      if (storeId !== storedStoreId) {
+        throw new Error('State mismatch - possible security issue');
+      }
+
+      // TODO: Exchange authorization code for access token
+      // This should be done on the backend for security
+      console.log('📝 Authorization code received:', code);
+      console.log('🏪 Store ID:', storeId);
+      
+      // For now, just update the store as connected
+      const { error } = await supabase
+        .from('stores')
+        .update({ 
+          last_sync_at: new Date().toISOString(),
+          api_credentials: { 
+            connected: true, 
+            connected_at: new Date().toISOString(),
+            // TODO: Store actual tokens here after backend exchange
+          },
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', storeId)
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      // Clean up localStorage
+      localStorage.removeItem('etsy_connecting_store_id');
+      
+      // Reload stores to show updated status
+      await loadStores();
+      
+      alert('🎉 Etsy store connected successfully!');
+      
+    } catch (error) {
+      console.error('❌ Etsy callback processing error:', error);
+      alert('Error occurred while processing Etsy connection: ' + error.message);
+      
+      // Clean up localStorage on error
+      localStorage.removeItem('etsy_connecting_store_id');
+    }
+  };
+
+  const syncStoreData = async (storeId: string) => {
+    try {
+      console.log('🔄 Syncing store data for:', storeId);
+      
+      // TODO: Implement actual Etsy API data sync
+      // This will fetch shop info, listings, etc.
+      
       const { error } = await supabase
         .from('stores')
         .update({ 
@@ -216,10 +328,10 @@ const StoresPage: React.FC = () => {
           : store
       ));
 
-      alert('Etsy connection initiated! (Integration coming soon)');
+      alert('Store data synced successfully!');
     } catch (error) {
-      console.error('Etsy connection error:', error);
-      alert('Error occurred while connecting to Etsy');
+      console.error('Store sync error:', error);
+      alert('Error occurred while syncing store data');
     }
   };
 
@@ -239,7 +351,7 @@ const StoresPage: React.FC = () => {
   };
 
   const isStoreConnected = (store: StoreData) => {
-    return store.last_sync_at && store.is_active;
+    return store.api_credentials?.connected && store.last_sync_at && store.is_active;
   };
 
   if (loading) {
@@ -273,6 +385,22 @@ const StoresPage: React.FC = () => {
             <Plus className="h-4 w-4" />
             <span>Add Store</span>
           </Button>
+        </div>
+      </div>
+
+      {/* OAuth Integration Info */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <div className="flex items-start space-x-3">
+          <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+          <div>
+            <h3 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
+              Etsy Integration Status
+            </h3>
+            <p className="text-sm text-blue-600 dark:text-blue-300">
+              <strong>Development Mode:</strong> OAuth integration is being implemented. 
+              Currently using mock connection for testing. Real Etsy API integration will be available soon.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -411,7 +539,7 @@ const StoresPage: React.FC = () => {
                     <div className="flex items-center space-x-3">
                       {isStoreConnected(store) ? (
                         <button
-                          onClick={() => connectToEtsy(store.id)}
+                          onClick={() => syncStoreData(store.id)}
                           className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300 flex items-center space-x-1"
                           title="Sync store data"
                         >
@@ -422,7 +550,7 @@ const StoresPage: React.FC = () => {
                         <button
                           onClick={() => connectToEtsy(store.id)}
                           className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300 flex items-center space-x-1"
-                          title="Connect to Etsy"
+                          title="Connect to Etsy via OAuth"
                         >
                           <LinkIcon className="h-4 w-4" />
                           <span>Connect</span>
@@ -497,7 +625,7 @@ const StoresPage: React.FC = () => {
                 />
               </div>
 
-              {/* Info Box */}
+              {/* OAuth Info Box */}
               <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                 <div className="flex items-start space-x-2">
                   <div className="text-blue-500 mt-0.5">
@@ -507,11 +635,11 @@ const StoresPage: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
-                      Etsy Integration
+                      🔐 Secure OAuth Integration
                     </h4>
                     <p className="text-sm text-blue-600 dark:text-blue-300">
-                      After adding your store, you'll be able to connect it to Etsy using our secure integration. 
-                      No need to provide API keys manually.
+                      After adding your store, click "Connect" to authorize via Etsy's secure OAuth system. 
+                      You'll be redirected to Etsy to grant permissions, then brought back here automatically.
                     </p>
                   </div>
                 </div>
