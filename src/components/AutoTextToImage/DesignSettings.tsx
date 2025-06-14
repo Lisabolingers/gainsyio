@@ -41,14 +41,15 @@ const DesignSettings = () => {
       width: 400,
       height: 100,
       align: 'center',
-      colorOption: 'bw', // CRITICAL: Default olarak Black & White
+      colorOption: 'bw',
       styleOption: 'normal',
     }
   ]);
-  const [selectedId, setSelectedId] = useState(1);
   
-  // CRITICAL: Seçim çerçevesini kontrol eden state
-  const [showTransformer, setShowTransformer] = useState(false);
+  // CRITICAL: Seçim durumunu kontrol eden state'ler
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [isTransformerVisible, setIsTransformerVisible] = useState(false);
+  const [isUserInteracting, setIsUserInteracting] = useState(false);
   
   const [forceRender, setForceRender] = useState(0);
   const [fontUploading, setFontUploading] = useState(false);
@@ -119,12 +120,10 @@ const DesignSettings = () => {
         if (data.style_settings?.texts && Array.isArray(data.style_settings.texts)) {
           const loadedTexts = data.style_settings.texts.map((text: any) => ({
             ...text,
-            // CRITICAL: Line height default değerini 1 olarak ayarla
             lineHeight: text.lineHeight || 1,
-            // Diğer default değerleri de kontrol et
             letterSpacing: text.letterSpacing || 0,
             align: text.align || 'center',
-            colorOption: text.colorOption || 'bw', // CRITICAL: Default Black & White
+            colorOption: text.colorOption || 'bw',
             styleOption: text.styleOption || 'normal',
             fill: text.fill || '#000000',
             maxFontSize: text.maxFontSize || 50,
@@ -139,10 +138,10 @@ const DesignSettings = () => {
           setTexts(loadedTexts);
           console.log('📝 Text elementleri yüklendi:', loadedTexts.length, 'element');
           
-          // İlk text'i seç
-          if (loadedTexts.length > 0) {
-            setSelectedId(loadedTexts[0].id);
-          }
+          // CRITICAL: Template yüklendiğinde seçimi temizle
+          setSelectedId(null);
+          setIsTransformerVisible(false);
+          setIsUserInteracting(false);
         }
         
         // Canvas'ı yeniden render et
@@ -167,31 +166,22 @@ const DesignSettings = () => {
       console.log('🚀 SAYFA YÜKLENDİ - FONTLAR İNİTİALİZE EDİLİYOR...');
       
       try {
-        // Kullanıcı fontlarını Supabase'den yükle
         await loadUserFonts();
         
-        // Tüm kullanıcı fontlarını canvas'a yükle
         if (userFonts.length > 0) {
           console.log(`🔄 ${userFonts.length} kullanıcı fontu canvas'a yükleniyor...`);
           
           for (const font of userFonts) {
             try {
               console.log(`📝 Canvas'a yükleniyor: ${font.font_name}`);
-              
-              // Font'u browser'a yükle
               await FontService.loadFontInBrowser(font);
-              
-              // Kısa bir bekleme
               await new Promise(resolve => setTimeout(resolve, 200));
-              
             } catch (error) {
               console.warn(`⚠️ Font yüklenemedi: ${font.font_name}`, error);
             }
           }
           
           console.log('✅ Tüm fontlar canvas\'a yüklendi');
-          
-          // Canvas'ı zorla yeniden render et
           setForceRender(prev => prev + 1);
         }
         
@@ -200,7 +190,7 @@ const DesignSettings = () => {
         
       } catch (error) {
         console.error('❌ Font initialization hatası:', error);
-        setFontsInitialized(true); // Hata olsa bile devam et
+        setFontsInitialized(true);
       }
     };
 
@@ -254,15 +244,28 @@ const DesignSettings = () => {
     );
   }, [canvasSize.width, canvasSize.height]);
 
-  // CRITICAL: Transformer'ı sadece showTransformer true olduğunda göster
+  // CRITICAL: Transformer kontrolü - geliştirilmiş versiyon
   useEffect(() => {
-    if (!showTransformer || selectedId === null) {
-      transformerRef.current?.nodes([]);
+    console.log('🔧 Transformer güncelleniyor:', {
+      selectedId,
+      isTransformerVisible,
+      isUserInteracting
+    });
+
+    // Transformer'ı gizle koşulları
+    if (!selectedId || !isTransformerVisible) {
+      console.log('❌ Transformer gizleniyor - seçim yok veya görünür değil');
+      if (transformerRef.current) {
+        transformerRef.current.nodes([]);
+        transformerRef.current.getLayer()?.batchDraw();
+      }
       return;
     }
-    
+
+    // Transformer'ı göster
     const node = groupRefs.current[selectedId];
     if (node && transformerRef.current) {
+      console.log('✅ Transformer gösteriliyor:', selectedId);
       transformerRef.current.nodes([node]);
       
       const transformer = transformerRef.current;
@@ -278,7 +281,7 @@ const DesignSettings = () => {
       
       transformer.getLayer()?.batchDraw();
     }
-  }, [selectedId, texts, scale, showTransformer]);
+  }, [selectedId, isTransformerVisible, isUserInteracting, texts, scale]);
 
   const adjustFontSize = (text) => {
     const baseFontSize = text.maxFontSize || 50;
@@ -304,13 +307,24 @@ const DesignSettings = () => {
     );
   }, [texts.map(t => t.text + t.letterSpacing + t.lineHeight + t.width + t.height)]);
 
-  // CRITICAL: Canvas tıklama işleyicisi - boş alana tıklandığında seçimi kaldır ve transformer'ı gizle
+  // CRITICAL: Canvas tıklama işleyicisi - geliştirilmiş versiyon
   const handleStageClick = (e) => {
+    console.log('🖱️ Canvas tıklandı:', e.target.getType());
+    
     // Eğer tıklanan element stage'in kendisiyse (boş alan)
     if (e.target === e.target.getStage()) {
-      console.log('🖱️ Boş alana tıklandı, seçim çerçevesi gizleniyor');
+      console.log('🔄 Boş alana tıklandı - seçim temizleniyor');
+      
+      // CRITICAL: Seçimi tamamen temizle
       setSelectedId(null);
-      setShowTransformer(false); // CRITICAL: Transformer'ı gizle
+      setIsTransformerVisible(false);
+      setIsUserInteracting(false);
+      
+      // Transformer'ı hemen gizle
+      if (transformerRef.current) {
+        transformerRef.current.nodes([]);
+        transformerRef.current.getLayer()?.batchDraw();
+      }
     }
   };
 
@@ -323,18 +337,28 @@ const DesignSettings = () => {
       text: '', 
       x: canvasSize.width / 2, 
       y: canvasSize.height / 2,
-      colorOption: 'bw' // CRITICAL: Yeni text için de Black & White default
+      colorOption: 'bw'
     });
     setTexts([...texts, newText]);
+    
+    // CRITICAL: Yeni text eklendiğinde otomatik seç ve transformer'ı göster
     setSelectedId(newId);
-    setShowTransformer(true); // Yeni text eklendiğinde transformer'ı göster
+    setIsTransformerVisible(true);
+    setIsUserInteracting(true);
+    
+    console.log('➕ Yeni text eklendi ve seçildi:', newId);
   };
 
-  // CRITICAL: Text tıklama işleyicisi - transformer'ı göster
+  // CRITICAL: Text tıklama işleyicisi - geliştirilmiş versiyon
   const handleTextClick = (textId) => {
-    console.log('📝 Text tıklandı, seçim çerçevesi gösteriliyor:', textId);
+    console.log('📝 Text tıklandı:', textId);
+    
+    // Kullanıcı etkileşimde olduğunu işaretle
+    setIsUserInteracting(true);
     setSelectedId(textId);
-    setShowTransformer(true); // CRITICAL: Text tıklandığında transformer'ı göster
+    setIsTransformerVisible(true);
+    
+    console.log('✅ Text seçildi ve transformer gösterildi:', textId);
   };
 
   // Handle text drag with boundary constraints
@@ -433,8 +457,8 @@ const DesignSettings = () => {
       const templateData = {
         user_id: user.id,
         name: templateName,
-        font_family: 'Arial', // Default değer
-        font_size: 24, // Default değer
+        font_family: 'Arial',
+        font_size: 24,
         font_weight: 'normal',
         text_color: '#000000',
         background_color: '#ffffff',
@@ -448,7 +472,6 @@ const DesignSettings = () => {
       let result;
 
       if (currentTemplateId) {
-        // Mevcut template'i güncelle
         console.log(`🔄 Mevcut template güncelleniyor: ${currentTemplateId}`);
         result = await supabase
           .from('auto_text_templates')
@@ -462,7 +485,6 @@ const DesignSettings = () => {
           .select()
           .single();
       } else {
-        // Yeni template oluştur
         console.log('✨ Yeni template oluşturuluyor...');
         result = await supabase
           .from('auto_text_templates')
@@ -479,7 +501,6 @@ const DesignSettings = () => {
 
       console.log('✅ Template başarıyla kaydedildi:', result.data);
 
-      // URL'yi güncelle
       if (!currentTemplateId && result.data) {
         setCurrentTemplateId(result.data.id);
         const newUrl = new URL(window.location.href);
@@ -507,7 +528,6 @@ const DesignSettings = () => {
     console.log(`🚀 FONT YÜKLEME BAŞLADI: ${file.name}`);
 
     try {
-      // 1. ADIM: Canvas için hemen yükle (eski sistem)
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
@@ -516,28 +536,23 @@ const DesignSettings = () => {
           
           console.log(`📝 Canvas için font yükleniyor: ${fontName}`);
           
-          // Canvas'a hemen yükle
           const newFontFace = new FontFace(fontName, `url(${fontData})`);
           const loadedFace = await newFontFace.load();
           document.fonts.add(loadedFace);
           
           console.log(`✅ Canvas'a font yüklendi: ${fontName}`);
           
-          // Canvas'ı güncelle
           setForceRender(prev => prev + 1);
           
-          // Seçili text'e uygula
           if (selectedId) {
             updateTextProperty(selectedId, 'fontFamily', fontName);
           }
           
-          // 2. ADIM: Supabase'e kaydet
           console.log(`💾 Supabase'e kaydediliyor: ${fontName}`);
           
           const savedFont = await FontService.uploadAndSaveFont(file, user.id);
           console.log(`🎉 SUPABASE'E KAYDEDİLDİ:`, savedFont);
           
-          // Font listesini yenile
           await loadUserFonts();
           console.log(`🔄 Font listesi yenilendi`);
           
@@ -562,7 +577,6 @@ const DesignSettings = () => {
       setFontUploading(false);
     }
     
-    // Input'u temizle
     if (event.target) {
       event.target.value = '';
     }
@@ -619,7 +633,6 @@ const DesignSettings = () => {
       )
     );
     
-    // Font değiştiğinde canvas'ı zorla yeniden render et
     if (property === 'fontFamily') {
       console.log(`🎨 Font değişti, canvas yeniden render ediliyor: ${value}`);
       setTimeout(() => {
@@ -637,12 +650,12 @@ const DesignSettings = () => {
     
     setTexts(prev => prev.filter(t => t.id !== textId));
     
-    // Eğer silinen text seçiliyse, başka bir text'i seç
+    // CRITICAL: Silinen text seçiliyse, seçimi temizle
     if (selectedId === textId) {
-      const remainingTexts = texts.filter(t => t.id !== textId);
-      if (remainingTexts.length > 0) {
-        setSelectedId(remainingTexts[0].id);
-      }
+      console.log('🗑️ Seçili text silindi, seçim temizleniyor');
+      setSelectedId(null);
+      setIsTransformerVisible(false);
+      setIsUserInteracting(false);
     }
   };
 
@@ -651,12 +664,8 @@ const DesignSettings = () => {
     console.log('🎉 Font yüklendi, font listesi yenileniyor...');
     
     try {
-      // Font listesini yenile
       await loadUserFonts();
-      
-      // Canvas'ı zorla yeniden render et
       setForceRender(prev => prev + 1);
-      
       console.log('✅ Font listesi başarıyla yenilendi');
     } catch (error) {
       console.error('❌ Font listesi yenileme hatası:', error);
@@ -667,12 +676,10 @@ const DesignSettings = () => {
   const renderKonvaText = (text) => {
     console.log(`🎨 Text render ediliyor: "${text.text.substring(0, 20)}..." font: ${text.fontFamily}`);
     
-    // CRITICAL: Font'un yüklenip yüklenmediğini kontrol et
     const isFontLoaded = systemFonts.includes(text.fontFamily) || 
                         userFonts.some(f => f.font_name === text.fontFamily) ||
                         document.fonts.check(`16px "${text.fontFamily}"`);
     
-    // Fallback font kullan eğer font yüklenmemişse
     const actualFontFamily = isFontLoaded ? text.fontFamily : 'Arial';
     
     if (!isFontLoaded && text.fontFamily !== 'Arial') {
@@ -685,7 +692,7 @@ const DesignSettings = () => {
         ref={(node) => (groupRefs.current[text.id] = node)}
         x={text.x}
         y={text.y}
-        draggable={showTransformer} // CRITICAL: Sadece transformer görünürken sürüklenebilir
+        draggable={isTransformerVisible && selectedId === text.id} // CRITICAL: Sadece transformer görünürken sürüklenebilir
         onClick={() => handleTextClick(text.id)}
         onDragEnd={(e) => handleTextDragEnd(text.id, e)}
         onTransformEnd={(e) => handleTransformEnd(text.id, e)}
@@ -816,8 +823,8 @@ const DesignSettings = () => {
                 <Layer key={`layer-${forceRender}-${fontsInitialized}`}>
                   {texts.map((text) => renderKonvaText(text))}
 
-                  {/* CRITICAL: Transformer sadece showTransformer true olduğunda göster */}
-                  {selectedId && showTransformer && (
+                  {/* CRITICAL: Transformer sadece gerekli koşullarda göster */}
+                  {selectedId && isTransformerVisible && (
                     <Transformer 
                       ref={transformerRef} 
                       borderStroke="#0066ff" 
@@ -877,7 +884,6 @@ const DesignSettings = () => {
               className="flex-1"
             />
           </div>
-          
           <div className="flex flex-col gap-2">
             <Button onClick={downloadImage} disabled={!templateName} className="w-full">
               DOWNLOAD DESIGN
@@ -887,10 +893,14 @@ const DesignSettings = () => {
             </Button>
           </div>
           
-          {/* CRITICAL: Kullanıcı ipucu */}
-          <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
-            <p>💡 <strong>İpucu:</strong> Boş alana tıklayarak sadece yazıları görebilirsiniz</p>
-            <p>Yazıları düzenlemek için yazıya tıklayın</p>
+          {/* CRITICAL: Geliştirilmiş kullanıcı ipuçları */}
+          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="text-sm text-blue-700 dark:text-blue-400 space-y-1">
+              <p><strong>💡 İpuçları:</strong></p>
+              <p>• <strong>Boş alana tıklayın</strong> → Seçimi kaldırır, sadece yazıları görürsünüz</p>
+              <p>• <strong>Yazıya tıklayın</strong> → Yazıyı seçer ve düzenleme çerçevesini gösterir</p>
+              <p>• <strong>Sürükleme</strong> → Sadece seçili yazılar sürüklenebilir</p>
+            </div>
           </div>
         </div>
       </div>
@@ -905,6 +915,16 @@ const DesignSettings = () => {
               <span className="text-blue-700 dark:text-blue-400 text-sm">
                 Fontlar yükleniyor... ({userFonts.length} font)
               </span>
+            </div>
+          </div>
+        )}
+
+        {/* CRITICAL: Seçim durumu göstergesi */}
+        {selectedId && (
+          <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+            <div className="text-sm text-orange-700 dark:text-orange-400">
+              <p><strong>📝 Seçili Text:</strong> Text {selectedId}</p>
+              <p className="text-xs mt-1">Düzenleme çerçevesi aktif - özellikleri değiştirebilirsiniz</p>
             </div>
           </div>
         )}
