@@ -61,14 +61,15 @@ const AccordionTextControls: React.FC<Props> = ({
   updateTextProperty,
   onDelete
 }) => {
+  // CRITICAL: Her text için ayrı state - text ID'sine göre unique key
   const [openSections, setOpenSections] = useState<{
     textOptions: boolean;
     colorOptions: boolean;
     styleOptions: boolean;
   }>({
-    textOptions: true,
-    colorOptions: true,
-    styleOptions: false
+    textOptions: true,   // Text Options default açık
+    colorOptions: true,  // Color Options default açık
+    styleOptions: false  // Style Options default kapalı
   });
 
   // CRITICAL: Black & White'ı default olarak ayarla
@@ -78,13 +79,21 @@ const AccordionTextControls: React.FC<Props> = ({
     }
   }, [text.id, text.colorOption, updateTextProperty]);
 
+  // CRITICAL: Akordiyon toggle fonksiyonu - state'i doğru şekilde güncelle
   const toggleSection = (section: 'textOptions' | 'colorOptions' | 'styleOptions') => {
-    setOpenSections(prev => ({
-      ...prev,
-      [section]: !prev[section]
-    }));
+    console.log(`🔄 Akordiyon toggle: ${section} - Mevcut durum:`, openSections[section]);
+    
+    setOpenSections(prev => {
+      const newState = {
+        ...prev,
+        [section]: !prev[section]
+      };
+      console.log(`✅ Yeni akordiyon durumu:`, newState);
+      return newState;
+    });
   };
 
+  // CRITICAL: Akordiyon başlık bileşeni - onClick event'ini doğru şekilde handle et
   const AccordionHeader: React.FC<{
     title: string;
     isOpen: boolean;
@@ -92,17 +101,23 @@ const AccordionTextControls: React.FC<Props> = ({
     icon?: string;
   }> = ({ title, isOpen, onClick, icon }) => (
     <button
-      onClick={onClick}
-      className="w-full flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors rounded-lg border border-gray-200 dark:border-gray-600"
+      type="button" // CRITICAL: Explicit button type
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log(`🖱️ Akordiyon başlığına tıklandı: ${title}`);
+        onClick();
+      }}
+      className="w-full flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors rounded-lg border border-gray-200 dark:border-gray-600 cursor-pointer"
     >
       <div className="flex items-center space-x-2">
         {icon && <span className="text-lg">{icon}</span>}
         <span className="font-medium text-gray-900 dark:text-white">{title}</span>
       </div>
       {isOpen ? (
-        <ChevronDown className="h-4 w-4 text-gray-500" />
+        <ChevronDown className="h-4 w-4 text-gray-500 transition-transform" />
       ) : (
-        <ChevronRight className="h-4 w-4 text-gray-500" />
+        <ChevronRight className="h-4 w-4 text-gray-500 transition-transform" />
       )}
     </button>
   );
@@ -117,6 +132,7 @@ const AccordionTextControls: React.FC<Props> = ({
             variant="danger"
             size="sm"
             className="p-2 h-8 w-8 flex items-center justify-center"
+            title="Delete text"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -150,8 +166,9 @@ const AccordionTextControls: React.FC<Props> = ({
             icon="📝"
           />
           
+          {/* CRITICAL: Conditional rendering - sadece açıksa göster */}
           {openSections.textOptions && (
-            <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 animate-slide-down">
               {/* Font and Size Controls */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -230,22 +247,52 @@ const AccordionTextControls: React.FC<Props> = ({
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Alignment:</label>
                 <div className="flex gap-2 text-2xl">
-                  <button onClick={() => alignText('left')} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded">
+                  <button 
+                    type="button"
+                    onClick={() => alignText('left')} 
+                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    title="Align left"
+                  >
                     <span className="material-icons text-lg">format_align_left</span>
                   </button>
-                  <button onClick={() => alignText('centerX')} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded">
+                  <button 
+                    type="button"
+                    onClick={() => alignText('centerX')} 
+                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    title="Align center horizontally"
+                  >
                     <span className="material-icons text-lg">format_align_center</span>
                   </button>
-                  <button onClick={() => alignText('right')} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded">
+                  <button 
+                    type="button"
+                    onClick={() => alignText('right')} 
+                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    title="Align right"
+                  >
                     <span className="material-icons text-lg">format_align_right</span>
                   </button>
-                  <button onClick={() => alignText('top')} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded">
+                  <button 
+                    type="button"
+                    onClick={() => alignText('top')} 
+                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    title="Align top"
+                  >
                     <span className="material-icons text-lg">vertical_align_top</span>
                   </button>
-                  <button onClick={() => alignText('centerY')} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded">
+                  <button 
+                    type="button"
+                    onClick={() => alignText('centerY')} 
+                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    title="Align center vertically"
+                  >
                     <span className="material-icons text-lg">vertical_align_center</span>
                   </button>
-                  <button onClick={() => alignText('bottom')} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded">
+                  <button 
+                    type="button"
+                    onClick={() => alignText('bottom')} 
+                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    title="Align bottom"
+                  >
                     <span className="material-icons text-lg">vertical_align_bottom</span>
                   </button>
                 </div>
@@ -263,8 +310,9 @@ const AccordionTextControls: React.FC<Props> = ({
             icon="🎨"
           />
           
+          {/* CRITICAL: Conditional rendering - sadece açıksa göster */}
           {openSections.colorOptions && (
-            <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 animate-slide-down">
               <ColorOptions text={text} setTexts={setTexts} texts={texts} />
             </div>
           )}
@@ -279,8 +327,9 @@ const AccordionTextControls: React.FC<Props> = ({
             icon="✨"
           />
           
+          {/* CRITICAL: Conditional rendering - sadece açıksa göster */}
           {openSections.styleOptions && (
-            <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 animate-slide-down">
               {/* Style Selection */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Style:</label>
