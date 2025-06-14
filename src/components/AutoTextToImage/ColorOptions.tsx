@@ -21,7 +21,7 @@ type Props = {
 const ColorOptions: FC<Props> = ({ text, setTexts, texts }) => {
   return (
     <div className="mt-4">
-      {/* Color Options üstüne çizgi eklendi */}
+      {/* Line above Color Options */}
       <div className="border-t border-gray-300 dark:border-gray-600 my-4"></div>
 
       <h3 className="text-lg font-bold mb-3 text-gray-900 dark:text-white">🎨 Color Options</h3>
@@ -53,7 +53,7 @@ const ColorOptions: FC<Props> = ({ text, setTexts, texts }) => {
                     ? {
                         ...t,
                         selectedColor: e.target.value,
-                        fill: e.target.value, // fill de güncellendi
+                        fill: e.target.value,
                       }
                     : t
                 )
@@ -71,7 +71,7 @@ const ColorOptions: FC<Props> = ({ text, setTexts, texts }) => {
                     ? {
                         ...t,
                         selectedColor: e.target.value,
-                        fill: e.target.value, // fill de güncellendi
+                        fill: e.target.value,
                       }
                     : t
                 )
@@ -98,7 +98,6 @@ const ColorOptions: FC<Props> = ({ text, setTexts, texts }) => {
         </div>
       )}
 
-      {/* Stroke başlığının üstündeki çizgi kaldırıldı */}
       <h4 className="font-semibold mb-2 text-gray-900 dark:text-white">Stroke</h4>
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
@@ -137,14 +136,14 @@ const ColorOptions: FC<Props> = ({ text, setTexts, texts }) => {
         )}
       </div>
 
-      {/* Reset butonu */}
+      {/* Reset button */}
       <div className="flex gap-2 mt-4">
         <Button onClick={() => setTexts(texts.map(t => t.id === text.id ? {
           ...t,
           colorOption: null,
           selectedColor: '',
           letterColors: Array(7).fill(''),
-          fill: '#000000', // fill sıfırlanıyor
+          fill: '#000000',
           strokeEnabled: false,
           strokeColor: '',
           strokeWidth: 2,
@@ -154,7 +153,7 @@ const ColorOptions: FC<Props> = ({ text, setTexts, texts }) => {
         </Button>
       </div>
 
-      {/* Reset'in altına çizgi eklendi */}
+      {/* Line below Reset */}
       <div className="border-t border-gray-300 dark:border-gray-600 my-4"></div>
     </div>
   );

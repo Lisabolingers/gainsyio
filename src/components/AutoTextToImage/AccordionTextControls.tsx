@@ -72,19 +72,19 @@ const AccordionTextControls: React.FC<Props> = ({
   }, [text.id, text.colorOption, updateTextProperty]);
 
   const toggleSection = (section: 'textOptions' | 'colorOptions' | 'styleOptions') => {
-    console.log(`🔄 Toggle çağrıldı - Section: ${section}, Current: ${activeSection}`);
+    console.log(`🔄 Toggle called - Section: ${section}, Current: ${activeSection}`);
     
     if (activeSection === section) {
-      console.log(`❌ Aynı bölüm, kapatılıyor: ${section}`);
+      console.log(`❌ Same section, closing: ${section}`);
       setActiveSection(null);
     } else {
-      console.log(`✅ Yeni bölüm açılıyor: ${section}`);
+      console.log(`✅ Opening new section: ${section}`);
       setActiveSection(section);
     }
   };
 
   const handleFontUploadWithCallback = (fontData: { display: string, value: string }) => {
-    console.log('🎉 Font yüklendi, callback çağrılıyor:', fontData);
+    console.log('🎉 Font uploaded, calling callback:', fontData);
     
     updateTextProperty(text.id, 'fontFamily', fontData.display);
     
@@ -110,13 +110,14 @@ const AccordionTextControls: React.FC<Props> = ({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Text Input - Her zaman görünür */}
+        {/* Text Input - Always visible */}
         <div className="flex gap-2 items-start">
           <textarea 
             value={text.text} 
             onChange={(e) => updateTextProperty(text.id, 'text', e.target.value)} 
             rows={1} 
             className="border border-gray-300 dark:border-gray-600 p-2 rounded flex-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none overflow-hidden" 
+            placeholder="Enter your text..."
           />
           <Button 
             className="p-2 h-10 w-10 flex items-center justify-center" 
@@ -127,7 +128,7 @@ const AccordionTextControls: React.FC<Props> = ({
           </Button>
         </div>
 
-        {/* AKORDIYON BÖLÜMLER */}
+        {/* ACCORDION SECTIONS */}
         <div className="space-y-3">
           
           {/* 1. TEXT OPTIONS ACCORDION */}
@@ -163,7 +164,7 @@ const AccordionTextControls: React.FC<Props> = ({
                         key={`font-select-${text.id}-${allFonts.length}`}
                         value={text.fontFamily} 
                         onChange={(e) => {
-                          console.log(`🔄 Font değiştiriliyor: ${e.target.value}`);
+                          console.log(`🔄 Font changing: ${e.target.value}`);
                           updateTextProperty(text.id, 'fontFamily', e.target.value);
                         }} 
                         className="flex-1 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"

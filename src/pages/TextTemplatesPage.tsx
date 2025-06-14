@@ -44,7 +44,7 @@ const TextTemplatesPage: React.FC = () => {
   const loadTemplates = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Template\'ler yükleniyor...');
+      console.log('🔄 Loading templates...');
       
       const { data, error } = await supabase
         .from('auto_text_templates')
@@ -53,15 +53,15 @@ const TextTemplatesPage: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ Template yükleme hatası:', error);
+        console.error('❌ Template loading error:', error);
         throw error;
       }
 
-      console.log('✅ Ham template verisi:', data);
+      console.log('✅ Raw template data:', data);
 
       // Parse the stored JSON data with better error handling
       const parsedTemplates = data?.map(template => {
-        console.log(`📝 Template işleniyor: ${template.name}`, template);
+        console.log(`📝 Processing template: ${template.name}`, template);
         
         let canvasSize = { width: 1000, height: 1000 };
         let texts: any[] = [];
@@ -76,7 +76,7 @@ const TextTemplatesPage: React.FC = () => {
             }
           }
         } catch (parseError) {
-          console.warn(`⚠️ Template parsing hatası: ${template.name}`, parseError);
+          console.warn(`⚠️ Template parsing error: ${template.name}`, parseError);
         }
         
         const parsedTemplate = {
@@ -87,14 +87,14 @@ const TextTemplatesPage: React.FC = () => {
           }
         };
         
-        console.log(`✅ İşlenmiş template: ${template.name}`, parsedTemplate);
+        console.log(`✅ Processed template: ${template.name}`, parsedTemplate);
         return parsedTemplate;
       }) || [];
 
-      console.log(`🎉 Toplam ${parsedTemplates.length} template yüklendi`);
+      console.log(`🎉 Total ${parsedTemplates.length} templates loaded`);
       setTemplates(parsedTemplates);
     } catch (error) {
-      console.error('❌ Template yükleme genel hatası:', error);
+      console.error('❌ Template loading general error:', error);
     } finally {
       setLoading(false);
     }
@@ -197,17 +197,17 @@ const TextTemplatesPage: React.FC = () => {
     }
   };
 
-  // CRITICAL: Geliştirilmiş Template Preview Component
+  // Enhanced Template Preview Component
   const TemplatePreview: React.FC<{ template: TextTemplate }> = ({ template }) => {
-    console.log(`🎨 Preview render ediliyor: ${template.name}`, template);
+    console.log(`🎨 Rendering preview: ${template.name}`, template);
     
     const canvasSize = template.style_settings?.canvas_size || { width: 1000, height: 1000 };
     const texts = template.style_settings?.texts || [];
     
-    console.log(`📐 Canvas boyutu: ${canvasSize.width}x${canvasSize.height}`);
-    console.log(`📝 Text sayısı: ${texts.length}`, texts);
+    console.log(`📐 Canvas size: ${canvasSize.width}x${canvasSize.height}`);
+    console.log(`📝 Text count: ${texts.length}`, texts);
     
-    // Preview container boyutları
+    // Preview container dimensions
     const previewWidth = 280;
     const canvasAspectRatio = canvasSize.width / canvasSize.height;
     const previewHeight = Math.min(previewWidth / canvasAspectRatio, 160);
@@ -233,18 +233,18 @@ const TextTemplatesPage: React.FC = () => {
             height: `${previewHeight}px`
           }}
         >
-          {/* CRITICAL: Text elementlerini render et */}
+          {/* Render text elements */}
           {texts.length > 0 ? (
             texts.map((text, index) => {
-              console.log(`🔤 Text ${index} render ediliyor:`, text);
+              console.log(`🔤 Rendering text ${index}:`, text);
               
-              // CRITICAL: Pozisyon hesaplamaları - merkez noktasından
+              // Position calculations - from center point
               const textX = (text.x || canvasSize.width / 2) * scale;
               const textY = (text.y || canvasSize.height / 2) * scale;
               const fontSize = Math.max((text.maxFontSize || 24) * scale, 8);
               const textWidth = (text.width || 200) * scale;
               
-              // CRITICAL: Renk belirleme
+              // Color determination
               let textColor = '#000000';
               if (text.colorOption === 'bw') {
                 textColor = '#000000';
@@ -276,7 +276,7 @@ const TextTemplatesPage: React.FC = () => {
                     whiteSpace: 'pre-wrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    // CRITICAL: Stroke desteği
+                    // Stroke support
                     WebkitTextStroke: text.strokeEnabled ? `${(text.strokeWidth || 2) * scale}px ${text.strokeColor || '#000000'}` : 'none',
                     WebkitTextFillColor: text.strokeOnly ? 'transparent' : textColor
                   }}
@@ -286,14 +286,14 @@ const TextTemplatesPage: React.FC = () => {
               );
             })
           ) : (
-            // Fallback: Eğer text yok ise
+            // Fallback: If no text
             <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
               No text elements
             </div>
           )}
         </div>
         
-        {/* CRITICAL: Overlay bilgileri */}
+        {/* Overlay information */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
           <div className="text-white text-xs text-center">
             <div className="font-medium">{texts.length} element(s)</div>
@@ -462,7 +462,7 @@ const TextTemplatesPage: React.FC = () => {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    {/* CRITICAL: Gerçek Template Preview */}
+                    {/* Real Template Preview */}
                     <div className="mb-4">
                       <TemplatePreview template={template} />
                     </div>

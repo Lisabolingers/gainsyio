@@ -49,7 +49,7 @@ const LogoSelector: React.FC<LogoSelectorProps> = ({ onSelect, onClose }) => {
 
   const loadStores = async () => {
     try {
-      console.log('🔄 Logo Selector: Etsy mağazaları yükleniyor...');
+      console.log('🔄 Logo Selector: Loading Etsy stores...');
       
       const { data, error } = await supabase
         .from('stores')
@@ -60,19 +60,19 @@ const LogoSelector: React.FC<LogoSelectorProps> = ({ onSelect, onClose }) => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ Logo Selector: Mağaza yükleme hatası:', error);
+        console.error('❌ Logo Selector: Store loading error:', error);
         throw error;
       }
 
-      console.log(`✅ Logo Selector: ${data?.length || 0} Etsy mağazası yüklendi`);
+      console.log(`✅ Logo Selector: ${data?.length || 0} Etsy stores loaded`);
       setStores(data || []);
       
-      // İlk mağazayı otomatik seç
+      // Auto-select first store
       if (data && data.length > 0) {
         setSelectedStore(data[0].id);
       }
     } catch (error) {
-      console.error('❌ Logo Selector: Mağaza yükleme genel hatası:', error);
+      console.error('❌ Logo Selector: Store loading general error:', error);
     } finally {
       setLoading(false);
     }
@@ -83,27 +83,27 @@ const LogoSelector: React.FC<LogoSelectorProps> = ({ onSelect, onClose }) => {
     
     try {
       setLoadingImages(true);
-      console.log(`🔄 Logo Selector: ${selectedStore} mağazası için logo resimleri yükleniyor...`);
+      console.log(`🔄 Logo Selector: Loading logo images for store ${selectedStore}...`);
       
-      // CRITICAL: Logo klasörü ve logo tipindeki tüm resimleri getir
+      // Get all images from logos folder OR logo type
       const { data, error } = await supabase
         .from('store_images')
         .select('*')
         .eq('user_id', user?.id)
         .eq('store_id', selectedStore)
-        .or('folder_path.eq.logos,image_type.eq.logo') // Logo klasörü VEYA logo tipi
+        .or('folder_path.eq.logos,image_type.eq.logo') // Logos folder OR logo type
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ Logo Selector: Resim yükleme hatası:', error);
+        console.error('❌ Logo Selector: Image loading error:', error);
         throw error;
       }
 
-      console.log(`✅ Logo Selector: ${data?.length || 0} logo resmi yüklendi`);
+      console.log(`✅ Logo Selector: ${data?.length || 0} logo images loaded`);
       setImages(data || []);
     } catch (error) {
-      console.error('❌ Logo Selector: Resim yükleme genel hatası:', error);
-      setImages([]); // Hata durumunda boş array
+      console.error('❌ Logo Selector: Image loading general error:', error);
+      setImages([]); // Empty array on error
     } finally {
       setLoadingImages(false);
     }
@@ -114,7 +114,7 @@ const LogoSelector: React.FC<LogoSelectorProps> = ({ onSelect, onClose }) => {
   );
 
   const handleImageSelect = (imageUrl: string, imageName: string) => {
-    console.log('🖼️ Logo Selector: Resim seçildi:', imageName, imageUrl);
+    console.log('🖼️ Logo Selector: Image selected:', imageName, imageUrl);
     onSelect(imageUrl);
   };
 
@@ -129,7 +129,7 @@ const LogoSelector: React.FC<LogoSelectorProps> = ({ onSelect, onClose }) => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('tr-TR', {
+    return new Date(dateString).toLocaleDateString('en-US', {
       day: 'numeric',
       month: 'short',
       year: 'numeric'
@@ -145,10 +145,10 @@ const LogoSelector: React.FC<LogoSelectorProps> = ({ onSelect, onClose }) => {
             <div>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
                 <ImageIcon className="h-6 w-6 mr-2 text-orange-500" />
-                Logo Seçin
+                Select Logo
               </h2>
               <p className="text-gray-600 dark:text-gray-400 mt-1">
-                Store Images logo klasöründen bir logo seçin
+                Choose a logo from Store Images logos folder
               </p>
             </div>
             <button
@@ -166,7 +166,7 @@ const LogoSelector: React.FC<LogoSelectorProps> = ({ onSelect, onClose }) => {
             <Store className="h-5 w-5 text-orange-500 flex-shrink-0" />
             <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Etsy Mağazası:
+                Etsy Store:
               </label>
               {stores.length > 0 ? (
                 <div className="flex items-center space-x-3">
@@ -189,15 +189,15 @@ const LogoSelector: React.FC<LogoSelectorProps> = ({ onSelect, onClose }) => {
                     className="flex items-center space-x-2"
                   >
                     <RefreshCw className={`h-4 w-4 ${loadingImages ? 'animate-spin' : ''}`} />
-                    <span>Yenile</span>
+                    <span>Refresh</span>
                   </Button>
                 </div>
               ) : (
                 <div className="text-gray-500 dark:text-gray-400 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
                   <p className="text-sm">
-                    Henüz Etsy mağazası eklenmemiş. 
+                    No Etsy stores added yet. 
                     <a href="/admin/stores" target="_blank" className="text-orange-500 hover:text-orange-600 ml-1 underline">
-                      Mağaza ekleyin
+                      Add a store
                     </a>
                   </p>
                 </div>
@@ -212,7 +212,7 @@ const LogoSelector: React.FC<LogoSelectorProps> = ({ onSelect, onClose }) => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
             <Input
               type="text"
-              placeholder="Logo ara..."
+              placeholder="Search logos..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
@@ -226,36 +226,36 @@ const LogoSelector: React.FC<LogoSelectorProps> = ({ onSelect, onClose }) => {
             <div className="flex items-center justify-center h-32">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-3"></div>
-                <p className="text-gray-500 dark:text-gray-400">Mağazalar yükleniyor...</p>
+                <p className="text-gray-500 dark:text-gray-400">Loading stores...</p>
               </div>
             </div>
           ) : loadingImages ? (
             <div className="flex items-center justify-center h-32">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-3"></div>
-                <p className="text-gray-500 dark:text-gray-400">Logo resimleri yükleniyor...</p>
+                <p className="text-gray-500 dark:text-gray-400">Loading logo images...</p>
               </div>
             </div>
           ) : !selectedStore ? (
             <div className="text-center py-12">
               <Store className="h-16 w-16 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                Mağaza Seçin
+                Select Store
               </h3>
               <p className="text-gray-500 dark:text-gray-400">
-                Logo seçmek için önce bir Etsy mağazası seçin
+                Please select an Etsy store first to choose a logo
               </p>
             </div>
           ) : filteredImages.length === 0 ? (
             <div className="text-center py-12">
               <ImageIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                {searchTerm ? 'Logo bulunamadı' : 'Logo klasöründe resim yok'}
+                {searchTerm ? 'No logos found' : 'No images in logos folder'}
               </h3>
               <p className="text-gray-500 dark:text-gray-400 mb-6">
                 {searchTerm
-                  ? 'Arama terimlerinizi değiştirmeyi deneyin'
-                  : 'Store Images bölümünden logo klasörüne resim ekleyin'
+                  ? 'Try adjusting your search terms'
+                  : 'Add images to the logos folder in Store Images'
                 }
               </p>
               <div className="flex justify-center space-x-3">
@@ -265,7 +265,7 @@ const LogoSelector: React.FC<LogoSelectorProps> = ({ onSelect, onClose }) => {
                   className="flex items-center space-x-2"
                 >
                   <Folder className="h-4 w-4" />
-                  <span>Store Images'a Git</span>
+                  <span>Go to Store Images</span>
                 </Button>
                 {searchTerm && (
                   <Button
@@ -273,7 +273,7 @@ const LogoSelector: React.FC<LogoSelectorProps> = ({ onSelect, onClose }) => {
                     className="flex items-center space-x-2"
                   >
                     <X className="h-4 w-4" />
-                    <span>Aramayı Temizle</span>
+                    <span>Clear Search</span>
                   </Button>
                 )}
               </div>
@@ -283,10 +283,10 @@ const LogoSelector: React.FC<LogoSelectorProps> = ({ onSelect, onClose }) => {
               {/* Results Header */}
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                  Logo Klasörü
+                  Logos Folder
                 </h3>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {filteredImages.length} logo bulundu
+                  {filteredImages.length} logos found
                 </span>
               </div>
 
@@ -314,7 +314,7 @@ const LogoSelector: React.FC<LogoSelectorProps> = ({ onSelect, onClose }) => {
                         className="opacity-0 group-hover:opacity-100 transition-opacity transform scale-90 group-hover:scale-100 bg-orange-600 hover:bg-orange-700"
                         size="sm"
                       >
-                        Bu Logo'yu Seç
+                        Select This Logo
                       </Button>
                     </div>
 
@@ -361,8 +361,8 @@ const LogoSelector: React.FC<LogoSelectorProps> = ({ onSelect, onClose }) => {
             <div className="text-sm text-gray-500 dark:text-gray-400">
               {filteredImages.length > 0 && (
                 <span>
-                  {searchTerm ? `"${searchTerm}" için ` : ''}
-                  {filteredImages.length} logo bulundu
+                  {searchTerm ? `"${searchTerm}" search: ` : ''}
+                  {filteredImages.length} logos found
                 </span>
               )}
             </div>
@@ -374,10 +374,10 @@ const LogoSelector: React.FC<LogoSelectorProps> = ({ onSelect, onClose }) => {
                 className="flex items-center space-x-2"
               >
                 <Folder className="h-4 w-4" />
-                <span>Store Images'ı Aç</span>
+                <span>Open Store Images</span>
               </Button>
               <Button onClick={onClose} variant="secondary">
-                İptal
+                Cancel
               </Button>
             </div>
           </div>

@@ -63,7 +63,7 @@ const ListingTemplatesPage: React.FC = () => {
   const loadTemplates = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Listing template\'ler yükleniyor...');
+      console.log('🔄 Loading listing templates...');
       
       const { data, error } = await supabase
         .from('listing_templates')
@@ -72,14 +72,14 @@ const ListingTemplatesPage: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ Template yükleme hatası:', error);
+        console.error('❌ Template loading error:', error);
         throw error;
       }
 
-      console.log(`✅ ${data?.length || 0} listing template yüklendi`);
+      console.log(`✅ ${data?.length || 0} listing templates loaded`);
       setTemplates(data || []);
     } catch (error) {
-      console.error('❌ Template yükleme genel hatası:', error);
+      console.error('❌ Template loading general error:', error);
     } finally {
       setLoading(false);
     }
@@ -87,7 +87,7 @@ const ListingTemplatesPage: React.FC = () => {
 
   const loadStores = async () => {
     try {
-      console.log('🔄 Etsy mağazaları yükleniyor...');
+      console.log('🔄 Loading Etsy stores...');
       
       const { data, error } = await supabase
         .from('stores')
@@ -98,19 +98,19 @@ const ListingTemplatesPage: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ Mağaza yükleme hatası:', error);
+        console.error('❌ Store loading error:', error);
         throw error;
       }
 
-      console.log(`✅ ${data?.length || 0} Etsy mağazası yüklendi`);
+      console.log(`✅ ${data?.length || 0} Etsy stores loaded`);
       setStores(data || []);
       
-      // İlk mağazayı otomatik seç
+      // Auto-select first store
       if (data && data.length > 0) {
         setSelectedStore(data[0].id);
       }
     } catch (error) {
-      console.error('❌ Mağaza yükleme genel hatası:', error);
+      console.error('❌ Store loading general error:', error);
     }
   };
 
@@ -119,10 +119,10 @@ const ListingTemplatesPage: React.FC = () => {
     
     try {
       setLoadingDrafts(true);
-      console.log(`🔄 ${storeId} mağazası için draft listeler yükleniyor...`);
+      console.log(`🔄 Loading draft listings for store ${storeId}...`);
       
-      // TODO: Etsy API entegrasyonu geldiğinde burası aktif olacak
-      // Şimdilik mock data kullanıyoruz
+      // TODO: When Etsy API integration comes, this will be active
+      // For now we're using mock data
       const mockDrafts: EtsyDraftListing[] = [
         {
           id: '1',
@@ -157,9 +157,9 @@ const ListingTemplatesPage: React.FC = () => {
       ];
       
       setDraftListings(mockDrafts);
-      console.log(`✅ ${mockDrafts.length} draft liste yüklendi (mock data)`);
+      console.log(`✅ ${mockDrafts.length} draft listings loaded (mock data)`);
     } catch (error) {
-      console.error('❌ Draft liste yükleme hatası:', error);
+      console.error('❌ Draft listing loading error:', error);
     } finally {
       setLoadingDrafts(false);
     }
@@ -173,7 +173,7 @@ const ListingTemplatesPage: React.FC = () => {
 
   const createTemplateFromDraft = async (draft: EtsyDraftListing) => {
     try {
-      console.log('🔄 Draft\'tan template oluşturuluyor:', draft.title);
+      console.log('🔄 Creating template from draft:', draft.title);
       
       const templateData = {
         user_id: user?.id,
@@ -193,24 +193,24 @@ const ListingTemplatesPage: React.FC = () => {
         .single();
 
       if (error) {
-        console.error('❌ Template oluşturma hatası:', error);
+        console.error('❌ Template creation error:', error);
         throw error;
       }
 
-      console.log('✅ Template başarıyla oluşturuldu:', data);
+      console.log('✅ Template created successfully:', data);
       await loadTemplates();
       setShowDraftModal(false);
       setSelectedDraft(null);
       
-      alert('Template başarıyla oluşturuldu! 🎉');
+      alert('Template created successfully! 🎉');
     } catch (error) {
-      console.error('❌ Template oluşturma genel hatası:', error);
-      alert('Template oluşturulurken hata oluştu.');
+      console.error('❌ Template creation general error:', error);
+      alert('Error occurred while creating template.');
     }
   };
 
   const deleteTemplate = async (templateId: string) => {
-    if (!window.confirm('Bu template\'i silmek istediğinizden emin misiniz?')) return;
+    if (!window.confirm('Are you sure you want to delete this template?')) return;
 
     try {
       const { error } = await supabase
@@ -224,8 +224,8 @@ const ListingTemplatesPage: React.FC = () => {
       setTemplates(prev => prev.filter(t => t.id !== templateId));
       setSelectedTemplates(prev => prev.filter(id => id !== templateId));
     } catch (error) {
-      console.error('Template silme hatası:', error);
-      alert('Template silinirken hata oluştu');
+      console.error('Template deletion error:', error);
+      alert('Error occurred while deleting template');
     }
   };
 
@@ -235,7 +235,7 @@ const ListingTemplatesPage: React.FC = () => {
         .from('listing_templates')
         .insert({
           user_id: user?.id,
-          name: `${template.name} (Kopya)`,
+          name: `${template.name} (Copy)`,
           title_template: template.title_template,
           description_template: template.description_template,
           tags_template: template.tags_template,
@@ -248,8 +248,8 @@ const ListingTemplatesPage: React.FC = () => {
 
       await loadTemplates();
     } catch (error) {
-      console.error('Template kopyalama hatası:', error);
-      alert('Template kopyalanırken hata oluştu');
+      console.error('Template duplication error:', error);
+      alert('Error occurred while duplicating template');
     }
   };
 
@@ -259,7 +259,7 @@ const ListingTemplatesPage: React.FC = () => {
   );
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('tr-TR', {
+    return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -287,7 +287,7 @@ const ListingTemplatesPage: React.FC = () => {
   const handleBulkDelete = async () => {
     if (selectedTemplates.length === 0) return;
 
-    if (!window.confirm(`${selectedTemplates.length} template\'i silmek istediğinizden emin misiniz?`)) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedTemplates.length} template(s)?`)) return;
 
     try {
       const { error } = await supabase
@@ -301,8 +301,8 @@ const ListingTemplatesPage: React.FC = () => {
       setTemplates(prev => prev.filter(t => !selectedTemplates.includes(t.id)));
       setSelectedTemplates([]);
     } catch (error) {
-      console.error('Toplu silme hatası:', error);
-      alert('Template\'ler silinirken hata oluştu');
+      console.error('Bulk deletion error:', error);
+      alert('Error occurred while deleting templates');
     }
   };
 
@@ -326,7 +326,7 @@ const ListingTemplatesPage: React.FC = () => {
             Listing Templates
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Etsy draft listelerinden template oluşturun ve yönetin ({templates.length} template)
+            Create templates from Etsy draft listings and manage them ({templates.length} templates)
           </p>
         </div>
         <div className="flex items-center space-x-3 mt-4 sm:mt-0">
@@ -336,7 +336,7 @@ const ListingTemplatesPage: React.FC = () => {
             disabled={!selectedStore || stores.length === 0}
           >
             <Plus className="h-4 w-4" />
-            <span>Draft\'tan Oluştur</span>
+            <span>Create from Draft</span>
           </Button>
           <Button
             onClick={() => setShowCreateModal(true)}
@@ -344,7 +344,7 @@ const ListingTemplatesPage: React.FC = () => {
             className="flex items-center space-x-2"
           >
             <Plus className="h-4 w-4" />
-            <span>Manuel Oluştur</span>
+            <span>Create Manually</span>
           </Button>
         </div>
       </div>
@@ -355,7 +355,7 @@ const ListingTemplatesPage: React.FC = () => {
           <Store className="h-5 w-5 text-orange-500" />
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Etsy Mağazası Seçin:
+              Select Etsy Store:
             </label>
             {stores.length > 0 ? (
               <select
@@ -363,7 +363,7 @@ const ListingTemplatesPage: React.FC = () => {
                 onChange={(e) => setSelectedStore(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
               >
-                <option value="">Mağaza seçin...</option>
+                <option value="">Select store...</option>
                 {stores.map((store) => (
                   <option key={store.id} value={store.id}>
                     {store.store_name}
@@ -372,9 +372,9 @@ const ListingTemplatesPage: React.FC = () => {
               </select>
             ) : (
               <div className="text-gray-500 dark:text-gray-400">
-                Henüz Etsy mağazası eklenmemiş. 
+                No Etsy stores added yet. 
                 <a href="/admin/stores" className="text-orange-500 hover:text-orange-600 ml-1">
-                  Mağaza ekleyin
+                  Add a store
                 </a>
               </div>
             )}
@@ -388,7 +388,7 @@ const ListingTemplatesPage: React.FC = () => {
               className="flex items-center space-x-2"
             >
               <RefreshCw className={`h-4 w-4 ${loadingDrafts ? 'animate-spin' : ''}`} />
-              <span>Yenile</span>
+              <span>Refresh</span>
             </Button>
           )}
         </div>
@@ -400,7 +400,7 @@ const ListingTemplatesPage: React.FC = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
           <Input
             type="text"
-            placeholder="Template ara..."
+            placeholder="Search templates..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
@@ -430,15 +430,15 @@ const ListingTemplatesPage: React.FC = () => {
         <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <span className="text-orange-700 dark:text-orange-400">
-              {selectedTemplates.length} template seçildi
+              {selectedTemplates.length} template(s) selected
             </span>
             <div className="flex space-x-2">
               <Button onClick={handleBulkDelete} variant="danger" size="sm">
                 <Trash2 className="h-4 w-4 mr-1" />
-                Seçilenleri Sil
+                Delete Selected
               </Button>
               <Button onClick={() => setSelectedTemplates([])} variant="secondary" size="sm">
-                Seçimi Temizle
+                Clear Selection
               </Button>
             </div>
           </div>
@@ -450,12 +450,12 @@ const ListingTemplatesPage: React.FC = () => {
         <div className="text-center py-12">
           <FileTemplate className="h-16 w-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            {searchTerm ? 'Template bulunamadı' : 'Henüz listing template yok'}
+            {searchTerm ? 'No templates found' : 'No listing templates yet'}
           </h3>
           <p className="text-gray-500 dark:text-gray-400 mb-6">
             {searchTerm
-              ? 'Arama terimlerinizi değiştirmeyi deneyin'
-              : 'Etsy draft listelerinizden template oluşturmaya başlayın'
+              ? 'Try adjusting your search terms'
+              : 'Start creating templates from your Etsy draft listings'
             }
           </p>
           {!searchTerm && (
@@ -466,7 +466,7 @@ const ListingTemplatesPage: React.FC = () => {
                 disabled={!selectedStore}
               >
                 <Plus className="h-4 w-4" />
-                <span>Draft\'tan Oluştur</span>
+                <span>Create from Draft</span>
               </Button>
               <Button
                 onClick={() => setShowCreateModal(true)}
@@ -474,7 +474,7 @@ const ListingTemplatesPage: React.FC = () => {
                 className="flex items-center space-x-2"
               >
                 <Plus className="h-4 w-4" />
-                <span>Manuel Oluştur</span>
+                <span>Create Manually</span>
               </Button>
             </div>
           )}
@@ -490,7 +490,7 @@ const ListingTemplatesPage: React.FC = () => {
               className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
             />
             <label className="text-sm text-gray-700 dark:text-gray-300">
-              Tümünü seç ({filteredTemplates.length} template)
+              Select all ({filteredTemplates.length} templates)
             </label>
           </div>
 
@@ -514,14 +514,14 @@ const ListingTemplatesPage: React.FC = () => {
                         <button
                           onClick={() => duplicateTemplate(template)}
                           className="text-blue-500 hover:text-blue-700 p-1"
-                          title="Template\'i kopyala"
+                          title="Duplicate template"
                         >
                           <Copy className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => deleteTemplate(template.id)}
                           className="text-red-500 hover:text-red-700 p-1"
-                          title="Template\'i sil"
+                          title="Delete template"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -531,21 +531,21 @@ const ListingTemplatesPage: React.FC = () => {
                   <CardContent>
                     <div className="space-y-3">
                       <div>
-                        <h4 className="font-medium text-gray-900 dark:text-white mb-1">Başlık:</h4>
+                        <h4 className="font-medium text-gray-900 dark:text-white mb-1">Title:</h4>
                         <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
                           {template.title_template}
                         </p>
                       </div>
                       
                       <div>
-                        <h4 className="font-medium text-gray-900 dark:text-white mb-1">Açıklama:</h4>
+                        <h4 className="font-medium text-gray-900 dark:text-white mb-1">Description:</h4>
                         <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3">
                           {template.description_template}
                         </p>
                       </div>
 
                       <div>
-                        <h4 className="font-medium text-gray-900 dark:text-white mb-1">Etiketler:</h4>
+                        <h4 className="font-medium text-gray-900 dark:text-white mb-1">Tags:</h4>
                         <div className="flex flex-wrap gap-1">
                           {template.tags_template.slice(0, 3).map((tag, index) => (
                             <span
@@ -564,24 +564,24 @@ const ListingTemplatesPage: React.FC = () => {
                       </div>
 
                       <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
-                        <span>Kategori: {template.category}</span>
+                        <span>Category: {template.category}</span>
                         {template.price_template && (
-                          <span>Fiyat: ${template.price_template}</span>
+                          <span>Price: ${template.price_template}</span>
                         )}
                       </div>
 
                       <div className="text-xs text-gray-500 dark:text-gray-400">
-                        Oluşturulma: {formatDate(template.created_at)}
+                        Created: {formatDate(template.created_at)}
                       </div>
                     </div>
 
                     <div className="flex space-x-2 mt-4">
                       <Button size="sm" className="flex-1">
                         <Edit className="h-4 w-4 mr-1" />
-                        Düzenle
+                        Edit
                       </Button>
                       <Button variant="secondary" size="sm" className="flex-1">
-                        Kullan
+                        Use
                       </Button>
                     </div>
                   </CardContent>
@@ -605,25 +605,25 @@ const ListingTemplatesPage: React.FC = () => {
                       />
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      İsim
+                      Name
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Başlık
+                      Title
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Kategori
+                      Category
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Etiket Sayısı
+                      Tag Count
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Fiyat
+                      Price
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Oluşturulma
+                      Created
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      İşlemler
+                      Actions
                     </th>
                   </tr>
                 </thead>
@@ -663,21 +663,21 @@ const ListingTemplatesPage: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                         <button
                           className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300"
-                          title="Düzenle"
+                          title="Edit"
                         >
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => duplicateTemplate(template)}
                           className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                          title="Kopyala"
+                          title="Duplicate"
                         >
                           <Copy className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => deleteTemplate(template.id)}
                           className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                          title="Sil"
+                          title="Delete"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -698,7 +698,7 @@ const ListingTemplatesPage: React.FC = () => {
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  Etsy Draft Listeleri
+                  Etsy Draft Listings
                 </h2>
                 <button
                   onClick={() => setShowDraftModal(false)}
@@ -708,7 +708,7 @@ const ListingTemplatesPage: React.FC = () => {
                 </button>
               </div>
               <p className="text-gray-600 dark:text-gray-400 mt-2">
-                Seçili mağazanızdan draft listeleri seçin ve template olarak kaydedin
+                Select draft listings from your selected store and save them as templates
               </p>
             </div>
             
@@ -721,7 +721,7 @@ const ListingTemplatesPage: React.FC = () => {
                 <div className="text-center py-8">
                   <FileTemplate className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-500 dark:text-gray-400">
-                    Bu mağazada draft liste bulunamadı
+                    No draft listings found in this store
                   </p>
                 </div>
               ) : (
@@ -764,7 +764,7 @@ const ListingTemplatesPage: React.FC = () => {
                             className="w-full"
                             size="sm"
                           >
-                            Template Olarak Kaydet
+                            Save as Template
                           </Button>
                         </div>
                       </CardContent>
@@ -784,7 +784,7 @@ const ListingTemplatesPage: React.FC = () => {
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  Manuel Template Oluştur
+                  Create Manual Template
                 </h2>
                 <button
                   onClick={() => setShowCreateModal(false)}
@@ -797,7 +797,7 @@ const ListingTemplatesPage: React.FC = () => {
             
             <div className="p-6">
               <p className="text-gray-600 dark:text-gray-400 text-center py-8">
-                Manuel template oluşturma özelliği yakında eklenecek...
+                Manual template creation feature will be added soon...
               </p>
             </div>
           </div>

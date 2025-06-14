@@ -64,7 +64,7 @@ const StoreImagesPage: React.FC = () => {
 
   const loadStores = async () => {
     try {
-      console.log('🔄 Etsy mağazaları yükleniyor...');
+      console.log('🔄 Loading Etsy stores...');
       
       const { data, error } = await supabase
         .from('stores')
@@ -75,49 +75,49 @@ const StoreImagesPage: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ Mağaza yükleme hatası:', error);
+        console.error('❌ Store loading error:', error);
         throw error;
       }
 
-      console.log(`✅ ${data?.length || 0} Etsy mağazası yüklendi`);
+      console.log(`✅ ${data?.length || 0} Etsy stores loaded`);
       setStores(data || []);
       
       if (data && data.length > 0) {
         setSelectedStore(data[0].id);
       }
     } catch (error) {
-      console.error('❌ Mağaza yükleme genel hatası:', error);
+      console.error('❌ Store loading general error:', error);
     }
   };
 
   const loadFolders = async () => {
     try {
-      // Mock folder data - gerçek implementasyonda bu Supabase'den gelecek
+      // Mock folder data - this will come from Supabase in real implementation
       const mockFolders: ImageFolder[] = [
         {
           id: '1',
-          name: 'Logolar',
+          name: 'Logos',
           path: 'logos',
           image_count: 5,
           created_at: '2024-01-15'
         },
         {
           id: '2',
-          name: 'Banner\'lar',
+          name: 'Banners',
           path: 'banners',
           image_count: 3,
           created_at: '2024-01-10'
         },
         {
           id: '3',
-          name: 'Arka Planlar',
+          name: 'Backgrounds',
           path: 'backgrounds',
           image_count: 8,
           created_at: '2024-01-05'
         },
         {
           id: '4',
-          name: 'Watermark\'lar',
+          name: 'Watermarks',
           path: 'watermarks',
           image_count: 2,
           created_at: '2024-01-01'
@@ -126,26 +126,26 @@ const StoreImagesPage: React.FC = () => {
       
       setFolders(mockFolders);
     } catch (error) {
-      console.error('❌ Klasör yükleme hatası:', error);
+      console.error('❌ Folder loading error:', error);
     }
   };
 
   const loadImages = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Store images yükleniyor...');
+      console.log('🔄 Loading store images...');
       
       let query = supabase
         .from('store_images')
         .select('*')
         .eq('user_id', user?.id);
 
-      // Eğer klasör seçiliyse, o klasördeki resimleri getir
+      // If folder is selected, get images from that folder
       if (currentFolder) {
         query = query.eq('folder_path', currentFolder);
       }
 
-      // Eğer mağaza seçiliyse, o mağazaya ait resimleri getir
+      // If store is selected, get images from that store
       if (selectedStore) {
         query = query.eq('store_id', selectedStore);
       }
@@ -153,14 +153,14 @@ const StoreImagesPage: React.FC = () => {
       const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ Resim yükleme hatası:', error);
+        console.error('❌ Image loading error:', error);
         throw error;
       }
 
-      console.log(`✅ ${data?.length || 0} resim yüklendi`);
+      console.log(`✅ ${data?.length || 0} images loaded`);
       setImages(data || []);
     } catch (error) {
-      console.error('❌ Resim yükleme genel hatası:', error);
+      console.error('❌ Image loading general error:', error);
     } finally {
       setLoading(false);
     }
@@ -168,12 +168,12 @@ const StoreImagesPage: React.FC = () => {
 
   const createFolder = async () => {
     if (!newFolderName.trim()) {
-      alert('Klasör adı gerekli!');
+      alert('Folder name is required!');
       return;
     }
 
     try {
-      // TODO: Gerçek implementasyonda Supabase'e klasör kaydedilecek
+      // TODO: In real implementation, folder will be saved to Supabase
       const newFolder: ImageFolder = {
         id: Date.now().toString(),
         name: newFolderName,
@@ -187,10 +187,10 @@ const StoreImagesPage: React.FC = () => {
       setNewFolderName('');
       setShowCreateFolderModal(false);
       
-      alert('Klasör başarıyla oluşturuldu! 🎉');
+      alert('Folder created successfully! 🎉');
     } catch (error) {
-      console.error('❌ Klasör oluşturma hatası:', error);
-      alert('Klasör oluşturulurken hata oluştu.');
+      console.error('❌ Folder creation error:', error);
+      alert('Error occurred while creating folder.');
     }
   };
 
@@ -202,7 +202,7 @@ const StoreImagesPage: React.FC = () => {
     );
     
     if (validFiles.length !== files.length) {
-      alert('Sadece PNG ve JPEG formatındaki resimler yüklenebilir!');
+      alert('Only PNG and JPEG format images can be uploaded!');
     }
     
     setUploadFiles(validFiles);
@@ -216,7 +216,7 @@ const StoreImagesPage: React.FC = () => {
 
     try {
       setUploading(true);
-      console.log(`🔄 ${uploadFiles.length} resim yükleniyor...`);
+      console.log(`🔄 Uploading ${uploadFiles.length} images...`);
 
       for (const file of uploadFiles) {
         // Convert to base64 for storage
@@ -237,20 +237,20 @@ const StoreImagesPage: React.FC = () => {
           .insert(imageData);
 
         if (error) {
-          console.error('❌ Resim yükleme hatası:', error);
+          console.error('❌ Image upload error:', error);
           throw error;
         }
       }
 
-      console.log('✅ Tüm resimler başarıyla yüklendi');
+      console.log('✅ All images uploaded successfully');
       await loadImages();
       setUploadFiles([]);
       setShowUploadModal(false);
       
-      alert('Resimler başarıyla yüklendi! 🎉');
+      alert('Images uploaded successfully! 🎉');
     } catch (error) {
-      console.error('❌ Resim yükleme genel hatası:', error);
-      alert('Resimler yüklenirken hata oluştu.');
+      console.error('❌ Image upload general error:', error);
+      alert('Error occurred while uploading images.');
     } finally {
       setUploading(false);
     }
@@ -266,7 +266,7 @@ const StoreImagesPage: React.FC = () => {
   };
 
   const deleteImage = async (imageId: string) => {
-    if (!window.confirm('Bu resmi silmek istediğinizden emin misiniz?')) return;
+    if (!window.confirm('Are you sure you want to delete this image?')) return;
 
     try {
       const { error } = await supabase
@@ -280,8 +280,8 @@ const StoreImagesPage: React.FC = () => {
       setImages(prev => prev.filter(img => img.id !== imageId));
       setSelectedImages(prev => prev.filter(id => id !== imageId));
     } catch (error) {
-      console.error('Resim silme hatası:', error);
-      alert('Resim silinirken hata oluştu');
+      console.error('Image deletion error:', error);
+      alert('Error occurred while deleting image');
     }
   };
 
@@ -290,30 +290,30 @@ const StoreImagesPage: React.FC = () => {
     if (!folder) return;
 
     if (folder.image_count > 0) {
-      if (!window.confirm(`Bu klasörde ${folder.image_count} resim var. Klasörü ve içindeki tüm resimleri silmek istediğinizden emin misiniz?`)) {
+      if (!window.confirm(`This folder contains ${folder.image_count} images. Are you sure you want to delete the folder and all its images?`)) {
         return;
       }
     }
 
     try {
-      // TODO: Gerçek implementasyonda Supabase'den klasör ve içindeki resimler silinecek
+      // TODO: In real implementation, folder and its images will be deleted from Supabase
       setFolders(prev => prev.filter(f => f.id !== folderId));
       
-      // Klasördeki resimleri de sil
+      // Delete images in the folder
       const imagesToDelete = images.filter(img => img.folder_path === folder.path);
       for (const image of imagesToDelete) {
         await deleteImage(image.id);
       }
       
-      // Eğer silinen klasörde isek, ana dizine dön
+      // If we're in the deleted folder, go back to root
       if (currentFolder === folder.path) {
         setCurrentFolder('');
       }
       
-      alert('Klasör başarıyla silindi!');
+      alert('Folder deleted successfully!');
     } catch (error) {
-      console.error('Klasör silme hatası:', error);
-      alert('Klasör silinirken hata oluştu');
+      console.error('Folder deletion error:', error);
+      alert('Error occurred while deleting folder');
     }
   };
 
@@ -322,7 +322,7 @@ const StoreImagesPage: React.FC = () => {
   );
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('tr-TR', {
+    return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -353,7 +353,7 @@ const StoreImagesPage: React.FC = () => {
   };
 
   const getCurrentFolderName = () => {
-    if (!currentFolder) return 'Ana Dizin';
+    if (!currentFolder) return 'Root Directory';
     const folder = folders.find(f => f.path === currentFolder);
     return folder ? folder.name : currentFolder;
   };
@@ -389,7 +389,7 @@ const StoreImagesPage: React.FC = () => {
             Store Images
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Mağaza resimlerinizi klasörler halinde organize edin ({images.length} resim)
+            Organize your store images in folders ({images.length} images)
           </p>
         </div>
         <div className="flex items-center space-x-3 mt-4 sm:mt-0">
@@ -399,14 +399,14 @@ const StoreImagesPage: React.FC = () => {
             className="flex items-center space-x-2"
           >
             <FolderPlus className="h-4 w-4" />
-            <span>Yeni Klasör</span>
+            <span>New Folder</span>
           </Button>
           <Button
             onClick={() => fileInputRef.current?.click()}
             className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
           >
             <Plus className="h-4 w-4" />
-            <span>Resim Yükle</span>
+            <span>Upload Image</span>
           </Button>
         </div>
       </div>
@@ -417,7 +417,7 @@ const StoreImagesPage: React.FC = () => {
           <Store className="h-5 w-5 text-orange-500" />
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Etsy Mağazası Seçin:
+              Select Etsy Store:
             </label>
             {stores.length > 0 ? (
               <select
@@ -425,7 +425,7 @@ const StoreImagesPage: React.FC = () => {
                 onChange={(e) => setSelectedStore(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
               >
-                <option value="">Tüm mağazalar</option>
+                <option value="">All stores</option>
                 {stores.map((store) => (
                   <option key={store.id} value={store.id}>
                     {store.store_name}
@@ -434,9 +434,9 @@ const StoreImagesPage: React.FC = () => {
               </select>
             ) : (
               <div className="text-gray-500 dark:text-gray-400">
-                Henüz Etsy mağazası eklenmemiş. 
+                No Etsy stores added yet. 
                 <a href="/admin/stores" className="text-orange-500 hover:text-orange-600 ml-1">
-                  Mağaza ekleyin
+                  Add a store
                 </a>
               </div>
             )}
@@ -451,7 +451,7 @@ const StoreImagesPage: React.FC = () => {
           className="hover:text-orange-500 flex items-center space-x-1"
         >
           <Folder className="h-4 w-4" />
-          <span>Ana Dizin</span>
+          <span>Root Directory</span>
         </button>
         {breadcrumbs().map((part, index) => (
           <React.Fragment key={index}>
@@ -467,7 +467,7 @@ const StoreImagesPage: React.FC = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
           <Input
             type="text"
-            placeholder="Resim ara..."
+            placeholder="Search images..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
@@ -494,19 +494,19 @@ const StoreImagesPage: React.FC = () => {
 
       {/* Folders and Images Display */}
       <div className="space-y-6">
-        {/* Folders Section - Ana dizindeyken göster */}
+        {/* Folders Section - Show when in root directory */}
         {!currentFolder && (
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
               <Folder className="h-5 w-5 mr-2 text-orange-500" />
-              Klasörler ({folders.length})
+              Folders ({folders.length})
             </h2>
             
             {folders.length === 0 ? (
               <div className="text-center py-8 bg-gray-50 dark:bg-gray-800 rounded-lg">
                 <FolderPlus className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-500 dark:text-gray-400 mb-4">
-                  Henüz klasör oluşturulmamış
+                  No folders created yet
                 </p>
                 <Button
                   onClick={() => setShowCreateFolderModal(true)}
@@ -514,7 +514,7 @@ const StoreImagesPage: React.FC = () => {
                   className="flex items-center space-x-2 mx-auto"
                 >
                   <FolderPlus className="h-4 w-4" />
-                  <span>İlk Klasörü Oluştur</span>
+                  <span>Create First Folder</span>
                 </Button>
               </div>
             ) : (
@@ -531,7 +531,7 @@ const StoreImagesPage: React.FC = () => {
                         {folder.name}
                       </h3>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {folder.image_count} resim
+                        {folder.image_count} images
                       </p>
                     </div>
                     
@@ -543,7 +543,7 @@ const StoreImagesPage: React.FC = () => {
                           deleteFolder(folder.id);
                         }}
                         className="p-1 bg-red-500 text-white rounded hover:bg-red-600"
-                        title="Klasörü sil"
+                        title="Delete folder"
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -555,7 +555,7 @@ const StoreImagesPage: React.FC = () => {
           </div>
         )}
 
-        {/* Back Button - Klasör içindeyken göster */}
+        {/* Back Button - Show when in folder */}
         {currentFolder && (
           <Button
             onClick={() => setCurrentFolder('')}
@@ -563,7 +563,7 @@ const StoreImagesPage: React.FC = () => {
             className="flex items-center space-x-2"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span>Ana Dizine Dön</span>
+            <span>Back to Root Directory</span>
           </Button>
         )}
 
@@ -571,19 +571,19 @@ const StoreImagesPage: React.FC = () => {
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
             <Image className="h-5 w-5 mr-2 text-orange-500" />
-            {getCurrentFolderName()} - Resimler ({filteredImages.length})
+            {getCurrentFolderName()} - Images ({filteredImages.length})
           </h2>
 
           {filteredImages.length === 0 ? (
             <div className="text-center py-12">
               <Image className="h-16 w-16 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                {searchTerm ? 'Resim bulunamadı' : 'Bu klasörde resim yok'}
+                {searchTerm ? 'No images found' : 'No images in this folder'}
               </h3>
               <p className="text-gray-500 dark:text-gray-400 mb-6">
                 {searchTerm
-                  ? 'Arama terimlerinizi değiştirmeyi deneyin'
-                  : 'İlk resminizi yüklemeye başlayın'
+                  ? 'Try adjusting your search terms'
+                  : 'Start by uploading your first image'
                 }
               </p>
               {!searchTerm && (
@@ -592,7 +592,7 @@ const StoreImagesPage: React.FC = () => {
                   className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
                 >
                   <Plus className="h-4 w-4" />
-                  <span>İlk Resmi Yükle</span>
+                  <span>Upload First Image</span>
                 </Button>
               )}
             </div>
@@ -615,14 +615,14 @@ const StoreImagesPage: React.FC = () => {
                           <button
                             onClick={() => window.open(image.image_url, '_blank')}
                             className="p-2 bg-white text-gray-900 rounded-full hover:bg-gray-100"
-                            title="Büyük görüntüle"
+                            title="View large"
                           >
                             <Eye className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => deleteImage(image.id)}
                             className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600"
-                            title="Sil"
+                            title="Delete"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -670,19 +670,19 @@ const StoreImagesPage: React.FC = () => {
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                Yeni Klasör Oluştur
+                Create New Folder
               </h2>
             </div>
             
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Klasör Adı:
+                  Folder Name:
                 </label>
                 <Input
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
-                  placeholder="Örn: Logolar, Banner'lar..."
+                  placeholder="e.g. Logos, Banners..."
                   className="w-full"
                   onKeyPress={(e) => e.key === 'Enter' && createFolder()}
                 />
@@ -694,7 +694,7 @@ const StoreImagesPage: React.FC = () => {
                   className="flex-1"
                   disabled={!newFolderName.trim()}
                 >
-                  Oluştur
+                  Create
                 </Button>
                 <Button
                   onClick={() => {
@@ -704,7 +704,7 @@ const StoreImagesPage: React.FC = () => {
                   variant="secondary"
                   className="flex-1"
                 >
-                  İptal
+                  Cancel
                 </Button>
               </div>
             </div>
@@ -718,10 +718,10 @@ const StoreImagesPage: React.FC = () => {
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                Resim Yükle
+                Upload Images
               </h2>
               <p className="text-gray-600 dark:text-gray-400 mt-1">
-                {uploadFiles.length} resim seçildi
+                {uploadFiles.length} images selected
               </p>
             </div>
             
@@ -729,7 +729,7 @@ const StoreImagesPage: React.FC = () => {
               {/* Image Type Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Resim Türü:
+                  Image Type:
                 </label>
                 <select
                   value={uploadImageType}
@@ -738,16 +738,16 @@ const StoreImagesPage: React.FC = () => {
                 >
                   <option value="logo">🏷️ Logo</option>
                   <option value="banner">🎌 Banner</option>
-                  <option value="background">🖼️ Arka Plan</option>
+                  <option value="background">🖼️ Background</option>
                   <option value="watermark">💧 Watermark</option>
-                  <option value="general">📷 Genel</option>
+                  <option value="general">📷 General</option>
                 </select>
               </div>
 
               {/* Current Folder Info */}
               <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  <strong>Hedef Klasör:</strong> {getCurrentFolderName()}
+                  <strong>Target Folder:</strong> {getCurrentFolderName()}
                 </p>
               </div>
 
@@ -777,7 +777,7 @@ const StoreImagesPage: React.FC = () => {
                   className="flex-1"
                   disabled={uploading || uploadFiles.length === 0}
                 >
-                  {uploading ? 'Yükleniyor...' : 'Yükle'}
+                  {uploading ? 'Uploading...' : 'Upload'}
                 </Button>
                 <Button
                   onClick={() => {
@@ -788,7 +788,7 @@ const StoreImagesPage: React.FC = () => {
                   className="flex-1"
                   disabled={uploading}
                 >
-                  İptal
+                  Cancel
                 </Button>
               </div>
             </div>

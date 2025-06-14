@@ -91,7 +91,7 @@ const MockupTemplatesPage: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAreaVisibility, setShowAreaVisibility] = useState(true);
 
-  // CRITICAL: Transformer görünürlüğünü kontrol eden state
+  // Transformer visibility control state
   const [showTransformer, setShowTransformer] = useState(false);
 
   // Logo Selector States
@@ -117,7 +117,7 @@ const MockupTemplatesPage: React.FC = () => {
   const loadTemplates = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Mockup template\'ler yükleniyor...');
+      console.log('🔄 Loading mockup templates...');
       
       const { data, error } = await supabase
         .from('mockup_templates')
@@ -126,14 +126,14 @@ const MockupTemplatesPage: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ Template yükleme hatası:', error);
+        console.error('❌ Template loading error:', error);
         throw error;
       }
 
-      console.log(`✅ ${data?.length || 0} mockup template yüklendi`);
+      console.log(`✅ ${data?.length || 0} mockup templates loaded`);
       setTemplates(data || []);
     } catch (error) {
-      console.error('❌ Template yükleme genel hatası:', error);
+      console.error('❌ Template loading general error:', error);
     } finally {
       setLoading(false);
     }
@@ -141,7 +141,7 @@ const MockupTemplatesPage: React.FC = () => {
 
   const loadStores = async () => {
     try {
-      console.log('🔄 Etsy mağazaları yükleniyor...');
+      console.log('🔄 Loading Etsy stores...');
       
       const { data, error } = await supabase
         .from('stores')
@@ -152,14 +152,14 @@ const MockupTemplatesPage: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ Mağaza yükleme hatası:', error);
+        console.error('❌ Store loading error:', error);
         throw error;
       }
 
-      console.log(`✅ ${data?.length || 0} Etsy mağazası yüklendi`);
+      console.log(`✅ ${data?.length || 0} Etsy stores loaded`);
       
       if (!data || data.length === 0) {
-        console.log('🏪 Mağaza bulunamadı, örnek mağaza oluşturuluyor...');
+        console.log('🏪 No stores found, creating sample store...');
         await createSampleStore();
         return;
       }
@@ -170,13 +170,13 @@ const MockupTemplatesPage: React.FC = () => {
         setSelectedStore(data[0].id);
       }
     } catch (error) {
-      console.error('❌ Mağaza yükleme genel hatası:', error);
+      console.error('❌ Store loading general error:', error);
     }
   };
 
   const createSampleStore = async () => {
     try {
-      console.log('🏪 Örnek Etsy mağazası oluşturuluyor...');
+      console.log('🏪 Creating sample Etsy store...');
       
       const { data, error } = await supabase
         .rpc('create_sample_store_for_user', {
@@ -184,16 +184,16 @@ const MockupTemplatesPage: React.FC = () => {
         });
 
       if (error) {
-        console.error('❌ Örnek mağaza oluşturma hatası:', error);
+        console.error('❌ Sample store creation error:', error);
         throw error;
       }
 
-      console.log('✅ Örnek mağaza başarıyla oluşturuldu:', data);
+      console.log('✅ Sample store created successfully:', data);
       
       await loadStores();
       
     } catch (error) {
-      console.error('❌ Örnek mağaza oluşturma genel hatası:', error);
+      console.error('❌ Sample store creation general error:', error);
     }
   };
 
@@ -207,7 +207,7 @@ const MockupTemplatesPage: React.FC = () => {
     setLogoArea(null);
     setLogoImage(null);
     setSelectedId(null);
-    setShowTransformer(false); // CRITICAL: Transformer'ı gizle
+    setShowTransformer(false);
     setCanvasSize({ width: 2000, height: 2000 });
     setShowEditor(true);
   };
@@ -221,9 +221,9 @@ const MockupTemplatesPage: React.FC = () => {
     setTextAreas(template.text_areas || []);
     setLogoArea(template.logo_area || null);
     setSelectedId(null);
-    setShowTransformer(false); // CRITICAL: Transformer'ı gizle
+    setShowTransformer(false);
     
-    // Logo image yükleme
+    // Load logo image
     if (template.logo_area?.logoUrl) {
       const img = new window.Image();
       img.onload = () => {
@@ -247,22 +247,22 @@ const MockupTemplatesPage: React.FC = () => {
 
   const saveTemplate = async () => {
     if (!templateName.trim()) {
-      alert('Template adı gerekli!');
+      alert('Template name is required!');
       return;
     }
 
     if (!backgroundImage) {
-      alert('Background image gerekli!');
+      alert('Background image is required!');
       return;
     }
 
     if (!selectedStore) {
-      alert('Mağaza seçimi gerekli!');
+      alert('Store selection is required!');
       return;
     }
 
     try {
-      console.log('💾 Template kaydediliyor...');
+      console.log('💾 Saving template...');
 
       const templateData = {
         user_id: user?.id,
@@ -297,24 +297,24 @@ const MockupTemplatesPage: React.FC = () => {
       }
 
       if (result.error) {
-        console.error('❌ Template kaydetme hatası:', result.error);
-        alert('Template kaydedilemedi: ' + result.error.message);
+        console.error('❌ Template save error:', result.error);
+        alert('Template could not be saved: ' + result.error.message);
         return;
       }
 
-      console.log('✅ Template başarıyla kaydedildi:', result.data);
+      console.log('✅ Template saved successfully:', result.data);
       await loadTemplates();
       setShowEditor(false);
-      alert('Template başarıyla kaydedildi! 🎉');
+      alert('Template saved successfully! 🎉');
 
     } catch (error) {
-      console.error('❌ Template kaydetme genel hatası:', error);
-      alert('Template kaydedilemedi: ' + error.message);
+      console.error('❌ Template save general error:', error);
+      alert('Template could not be saved: ' + error.message);
     }
   };
 
   const deleteTemplate = async (templateId: string) => {
-    if (!window.confirm('Bu template\'i silmek istediğinizden emin misiniz?')) return;
+    if (!window.confirm('Are you sure you want to delete this template?')) return;
 
     try {
       const { error } = await supabase
@@ -328,8 +328,8 @@ const MockupTemplatesPage: React.FC = () => {
       setTemplates(prev => prev.filter(t => t.id !== templateId));
       setSelectedTemplates(prev => prev.filter(id => id !== templateId));
     } catch (error) {
-      console.error('Template silme hatası:', error);
-      alert('Template silinirken hata oluştu');
+      console.error('Template deletion error:', error);
+      alert('Error occurred while deleting template');
     }
   };
 
@@ -339,7 +339,7 @@ const MockupTemplatesPage: React.FC = () => {
         .from('mockup_templates')
         .insert({
           user_id: user?.id,
-          name: `${template.name} (Kopya)`,
+          name: `${template.name} (Copy)`,
           image_url: template.image_url,
           design_areas: template.design_areas,
           text_areas: template.text_areas,
@@ -352,8 +352,8 @@ const MockupTemplatesPage: React.FC = () => {
 
       await loadTemplates();
     } catch (error) {
-      console.error('Template kopyalama hatası:', error);
-      alert('Template kopyalanırken hata oluştu');
+      console.error('Template duplication error:', error);
+      alert('Error occurred while duplicating template');
     }
   };
 
@@ -362,12 +362,12 @@ const MockupTemplatesPage: React.FC = () => {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Sadece resim dosyaları yüklenebilir!');
+      alert('Only image files can be uploaded!');
       return;
     }
 
     if (file.size > 20 * 1024 * 1024) {
-      alert('Dosya boyutu 20MB\'dan küçük olmalı!');
+      alert('File size must be smaller than 20MB!');
       return;
     }
 
@@ -385,14 +385,14 @@ const MockupTemplatesPage: React.FC = () => {
       };
       reader.readAsDataURL(file);
     } catch (error) {
-      console.error('Background upload hatası:', error);
-      alert('Background yüklenirken hata oluştu');
+      console.error('Background upload error:', error);
+      alert('Error occurred while uploading background');
     }
   };
 
   const addDesignArea = () => {
     if (designAreas.length >= 1) {
-      alert('Sadece 1 tasarım alanı ekleyebilirsiniz!');
+      alert('You can only add 1 design area!');
       return;
     }
 
@@ -409,7 +409,7 @@ const MockupTemplatesPage: React.FC = () => {
 
     setDesignAreas([newArea]);
     setSelectedId(newArea.id);
-    setShowTransformer(true); // CRITICAL: Alan eklendiğinde transformer'ı göster
+    setShowTransformer(true);
   };
 
   const addTextArea = () => {
@@ -432,12 +432,12 @@ const MockupTemplatesPage: React.FC = () => {
 
     setTextAreas(prev => [...prev, newArea]);
     setSelectedId(newArea.id);
-    setShowTransformer(true); // CRITICAL: Alan eklendiğinde transformer'ı göster
+    setShowTransformer(true);
   };
 
   const addLogoArea = () => {
     if (logoArea) {
-      alert('Sadece 1 logo alanı ekleyebilirsiniz!');
+      alert('You can only add 1 logo area!');
       return;
     }
 
@@ -454,23 +454,23 @@ const MockupTemplatesPage: React.FC = () => {
 
     setLogoArea(newArea);
     setSelectedId(newArea.id);
-    setShowTransformer(true); // CRITICAL: Alan eklendiğinde transformer'ı göster
+    setShowTransformer(true);
     
-    // Logo selector'ı aç
+    // Open logo selector
     setShowLogoSelector(true);
   };
 
   const handleLogoSelect = (logoUrl: string) => {
-    console.log('🖼️ Logo seçildi:', logoUrl);
+    console.log('🖼️ Logo selected:', logoUrl);
     
     const img = new window.Image();
     img.onload = () => {
       setLogoImage(img);
-      console.log('✅ Logo image yüklendi:', img.width, 'x', img.height);
+      console.log('✅ Logo image loaded:', img.width, 'x', img.height);
     };
     img.onerror = () => {
-      console.error('❌ Logo image yüklenemedi:', logoUrl);
-      alert('Logo yüklenirken hata oluştu');
+      console.error('❌ Logo image could not be loaded:', logoUrl);
+      alert('Error occurred while loading logo');
     };
     img.src = logoUrl;
     
@@ -482,9 +482,9 @@ const MockupTemplatesPage: React.FC = () => {
   };
 
   const handleLogoAreaClick = () => {
-    console.log('🖼️ Logo alanına tıklandı, logo selector açılıyor...');
+    console.log('🖼️ Logo area clicked, opening logo selector...');
     setSelectedId(logoArea?.id || null);
-    setShowTransformer(true); // CRITICAL: Logo area tıklandığında transformer'ı göster
+    setShowTransformer(true);
     setShowLogoSelector(true);
   };
 
@@ -500,24 +500,24 @@ const MockupTemplatesPage: React.FC = () => {
     
     if (selectedId === areaId) {
       setSelectedId(null);
-      setShowTransformer(false); // CRITICAL: Alan silindiğinde transformer'ı gizle
+      setShowTransformer(false);
     }
   };
 
-  // CRITICAL: Canvas tıklama işleyicisi - boş alana tıklandığında seçimi kaldır
+  // Canvas click handler - clear selection when clicking empty area
   const handleStageClick = (e: any) => {
     if (e.target === e.target.getStage()) {
-      console.log('🖱️ Boş alana tıklandı, seçim kaldırılıyor ve transformer gizleniyor');
+      console.log('🖱️ Empty area clicked, clearing selection and hiding transformer');
       setSelectedId(null);
-      setShowTransformer(false); // CRITICAL: Boş alana tıklandığında transformer'ı gizle
+      setShowTransformer(false);
     }
   };
 
-  // CRITICAL: Alan tıklama işleyicisi - transformer'ı göster
+  // Area click handler - show transformer
   const handleAreaClick = (areaId: string) => {
-    console.log('🎯 Alan tıklandı, transformer gösteriliyor:', areaId);
+    console.log('🎯 Area clicked, showing transformer:', areaId);
     setSelectedId(areaId);
-    setShowTransformer(true); // CRITICAL: Alan tıklandığında transformer'ı göster
+    setShowTransformer(true);
   };
 
   const handleDragEnd = (areaId: string, e: any) => {
@@ -576,7 +576,7 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
-  // CRITICAL: Transformer'ı sadece showTransformer true olduğunda göster
+  // Show transformer only when showTransformer is true
   useEffect(() => {
     if (!showTransformer || !selectedId) {
       transformerRef.current?.nodes([]);
@@ -595,7 +595,7 @@ const MockupTemplatesPage: React.FC = () => {
   );
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('tr-TR', {
+    return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -635,9 +635,9 @@ const MockupTemplatesPage: React.FC = () => {
   };
 
   const getStoreName = (storeId?: string) => {
-    if (!storeId) return 'Mağaza seçilmemiş';
+    if (!storeId) return 'No store selected';
     const store = stores.find(s => s.id === storeId);
-    return store ? store.store_name : 'Bilinmeyen mağaza';
+    return store ? store.store_name : 'Unknown store';
   };
 
   if (loading) {
@@ -663,15 +663,15 @@ const MockupTemplatesPage: React.FC = () => {
                 variant="secondary"
                 size="sm"
               >
-                ← Geri
+                ← Back
               </Button>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                {editingTemplate ? 'Template Düzenle' : 'Yeni Template Oluştur'}
+                {editingTemplate ? 'Edit Template' : 'Create New Template'}
               </h1>
             </div>
             <div className="flex items-center space-x-3">
               <Button onClick={saveTemplate} disabled={!templateName || !backgroundImage || !selectedStore}>
-                💾 Kaydet
+                💾 Save
               </Button>
             </div>
           </div>
@@ -685,7 +685,7 @@ const MockupTemplatesPage: React.FC = () => {
               {/* Canvas Controls */}
               <div className="mb-4 flex items-center space-x-4">
                 <Input
-                  placeholder="Template adı"
+                  placeholder="Template name"
                   value={templateName}
                   onChange={(e) => setTemplateName(e.target.value)}
                   className="w-64"
@@ -697,7 +697,7 @@ const MockupTemplatesPage: React.FC = () => {
                     onChange={(e) => setSelectedStore(e.target.value)}
                     className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   >
-                    <option value="">Mağaza seçin...</option>
+                    <option value="">Select store...</option>
                     {stores.map((store) => (
                       <option key={store.id} value={store.id}>
                         {store.store_name}
@@ -710,7 +710,7 @@ const MockupTemplatesPage: React.FC = () => {
                   variant="secondary"
                   size="sm"
                 >
-                  📁 Mockup Yükle
+                  📁 Upload Mockup
                 </Button>
               </div>
 
@@ -758,7 +758,7 @@ const MockupTemplatesPage: React.FC = () => {
                           ref={(node) => (groupRefs.current[area.id] = node)}
                           x={area.x}
                           y={area.y}
-                          draggable={showTransformer && selectedId === area.id} // CRITICAL: Sadece seçiliyken sürüklenebilir
+                          draggable={showTransformer && selectedId === area.id}
                           onClick={() => handleAreaClick(area.id)}
                           onDragEnd={(e) => handleDragEnd(area.id, e)}
                           onTransformEnd={(e) => handleTransformEnd(area.id, e)}
@@ -796,7 +796,7 @@ const MockupTemplatesPage: React.FC = () => {
                           ref={(node) => (groupRefs.current[area.id] = node)}
                           x={area.x}
                           y={area.y}
-                          draggable={showTransformer && selectedId === area.id} // CRITICAL: Sadece seçiliyken sürüklenebilir
+                          draggable={showTransformer && selectedId === area.id}
                           onClick={() => handleAreaClick(area.id)}
                           onDragEnd={(e) => handleDragEnd(area.id, e)}
                           onTransformEnd={(e) => handleTransformEnd(area.id, e)}
@@ -834,7 +834,7 @@ const MockupTemplatesPage: React.FC = () => {
                           ref={(node) => (groupRefs.current[logoArea.id] = node)}
                           x={logoArea.x}
                           y={logoArea.y}
-                          draggable={showTransformer && selectedId === logoArea.id} // CRITICAL: Sadece seçiliyken sürüklenebilir
+                          draggable={showTransformer && selectedId === logoArea.id}
                           onClick={handleLogoAreaClick}
                           onDragEnd={(e) => handleDragEnd(logoArea.id, e)}
                           onTransformEnd={(e) => handleTransformEnd(logoArea.id, e)}
@@ -863,7 +863,7 @@ const MockupTemplatesPage: React.FC = () => {
                                 rotation={logoArea.rotation}
                               />
                               <KonvaText
-                                text="LOGO\n(Tıklayın)"
+                                text="LOGO\n(Click)"
                                 fontSize={36}
                                 fontFamily="Arial"
                                 fill="#a855f7"
@@ -879,7 +879,7 @@ const MockupTemplatesPage: React.FC = () => {
                         </Group>
                       )}
 
-                      {/* CRITICAL: Transformer sadece showTransformer true olduğunda göster */}
+                      {/* Show transformer only when showTransformer is true */}
                       {selectedId && showTransformer && showAreaVisibility && (
                         <Transformer
                           ref={transformerRef}
@@ -897,14 +897,14 @@ const MockupTemplatesPage: React.FC = () => {
 
               {/* Canvas Info */}
               <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
-                <p>💡 <strong>İpucu:</strong> Template kaydedilebilmesi için lütfen template adı ve tasarım alanı eklemelisiniz. Logo ve yazı eklemek isteğe bağlıdır.</p>
-                <p>Canvas boyutu: {canvasSize.width} × {canvasSize.height} px</p>
+                <p>💡 <strong>Tip:</strong> To save the template, please add a template name and design area. Logo and text are optional.</p>
+                <p>Canvas size: {canvasSize.width} × {canvasSize.height} px</p>
                 <p className="mt-2 text-orange-600 dark:text-orange-400">
-                  🖱️ <strong>Boş alana tıklayarak seçimi kaldırabilir ve sadece alanları görebilirsiniz</strong>
+                  🖱️ <strong>Click empty area to clear selection and view areas only</strong>
                 </p>
                 {logoArea && !logoImage && (
                   <p className="text-orange-600 dark:text-orange-400 mt-2">
-                    🖼️ <strong>Logo alanına tıklayarak Store Images'dan logo seçebilirsiniz</strong>
+                    🖼️ <strong>Click logo area to select logo from Store Images</strong>
                   </p>
                 )}
               </div>
@@ -917,7 +917,7 @@ const MockupTemplatesPage: React.FC = () => {
               {/* Add Areas */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Alanlar Ekle</CardTitle>
+                  <CardTitle>Add Areas</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <Button
@@ -926,7 +926,7 @@ const MockupTemplatesPage: React.FC = () => {
                     disabled={designAreas.length >= 1}
                   >
                     <Square className="h-4 w-4 mr-2" />
-                    Tasarım Alanı {designAreas.length >= 1 && '(Max 1)'}
+                    Design Area {designAreas.length >= 1 && '(Max 1)'}
                   </Button>
                   <Button
                     onClick={addTextArea}
@@ -934,7 +934,7 @@ const MockupTemplatesPage: React.FC = () => {
                     className="w-full"
                   >
                     <Type className="h-4 w-4 mr-2" />
-                    Yazı Alanı
+                    Text Area
                   </Button>
                   <Button
                     onClick={addLogoArea}
@@ -943,23 +943,23 @@ const MockupTemplatesPage: React.FC = () => {
                     disabled={!!logoArea}
                   >
                     <Circle className="h-4 w-4 mr-2" />
-                    Logo Alanı {logoArea && '(Max 1)'}
+                    Logo Area {logoArea && '(Max 1)'}
                   </Button>
                 </CardContent>
               </Card>
 
-              {/* Logo Area için özel bilgi paneli */}
+              {/* Special info panel for Logo Area */}
               {logoArea && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center justify-between">
-                      🖼️ Logo Alanı
+                      🖼️ Logo Area
                       <Button
                         onClick={() => setShowLogoSelector(true)}
                         size="sm"
                         className="text-xs"
                       >
-                        Logo Seç
+                        Select Logo
                       </Button>
                     </CardTitle>
                   </CardHeader>
@@ -967,10 +967,10 @@ const MockupTemplatesPage: React.FC = () => {
                     {logoImage ? (
                       <div className="space-y-2">
                         <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                          <div className="text-xs text-gray-600 dark:text-gray-400 mb-2">Seçili Logo:</div>
+                          <div className="text-xs text-gray-600 dark:text-gray-400 mb-2">Selected Logo:</div>
                           <img 
                             src={logoArea.logoUrl} 
-                            alt="Seçili logo" 
+                            alt="Selected logo" 
                             className="w-16 h-16 object-cover rounded border mx-auto"
                           />
                         </div>
@@ -980,7 +980,7 @@ const MockupTemplatesPage: React.FC = () => {
                           size="sm"
                           className="w-full"
                         >
-                          Logo Değiştir
+                          Change Logo
                         </Button>
                         <Button
                           onClick={() => {
@@ -991,20 +991,20 @@ const MockupTemplatesPage: React.FC = () => {
                           size="sm"
                           className="w-full"
                         >
-                          Logo Kaldır
+                          Remove Logo
                         </Button>
                       </div>
                     ) : (
                       <div className="text-center py-4">
                         <div className="text-gray-500 dark:text-gray-400 mb-3">
-                          Henüz logo seçilmedi
+                          No logo selected yet
                         </div>
                         <Button
                           onClick={() => setShowLogoSelector(true)}
                           className="w-full"
                           size="sm"
                         >
-                          Store Images'dan Logo Seç
+                          Select Logo from Store Images
                         </Button>
                       </div>
                     )}
@@ -1018,9 +1018,9 @@ const MockupTemplatesPage: React.FC = () => {
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle>
-                        {selectedId.startsWith('design-') && '🔷 Tasarım Alanı'}
-                        {selectedId.startsWith('text-') && '📝 Yazı Alanı'}
-                        {selectedId.startsWith('logo-') && '🖼️ Logo Alanı'}
+                        {selectedId.startsWith('design-') && '🔷 Design Area'}
+                        {selectedId.startsWith('text-') && '📝 Text Area'}
+                        {selectedId.startsWith('logo-') && '🖼️ Logo Area'}
                       </CardTitle>
                       <Button
                         onClick={() => deleteArea(selectedId)}
@@ -1032,14 +1032,14 @@ const MockupTemplatesPage: React.FC = () => {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {/* Boyut Bilgisi */}
+                    {/* Size Info */}
                     <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Boyut:</div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Size:</div>
                       <div className="text-sm font-medium text-gray-900 dark:text-white">
                         {Math.round(getSelectedArea()?.width || 0)} × {Math.round(getSelectedArea()?.height || 0)} px
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Pozisyon: {Math.round(getSelectedArea()?.x || 0)}, {Math.round(getSelectedArea()?.y || 0)}
+                        Position: {Math.round(getSelectedArea()?.x || 0)}, {Math.round(getSelectedArea()?.y || 0)}
                       </div>
                     </div>
 
@@ -1047,7 +1047,7 @@ const MockupTemplatesPage: React.FC = () => {
                     {selectedId.startsWith('text-') && (
                       <>
                         <div>
-                          <label className="text-xs text-gray-600 dark:text-gray-400">Metin:</label>
+                          <label className="text-xs text-gray-600 dark:text-gray-400">Text:</label>
                           <Input
                             value={(getSelectedArea() as TextArea)?.text || ''}
                             onChange={(e) => updateSelectedArea('text', e.target.value)}
@@ -1055,7 +1055,7 @@ const MockupTemplatesPage: React.FC = () => {
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-gray-600 dark:text-gray-400">Font Boyutu:</label>
+                          <label className="text-xs text-gray-600 dark:text-gray-400">Font Size:</label>
                           <Input
                             type="number"
                             value={(getSelectedArea() as TextArea)?.fontSize || 72}
@@ -1066,7 +1066,7 @@ const MockupTemplatesPage: React.FC = () => {
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-gray-600 dark:text-gray-400">Renk:</label>
+                          <label className="text-xs text-gray-600 dark:text-gray-400">Color:</label>
                           <Input
                             type="color"
                             value={(getSelectedArea() as TextArea)?.color || '#000000'}
@@ -1080,7 +1080,7 @@ const MockupTemplatesPage: React.FC = () => {
                     {/* Opacity for Design and Logo Areas */}
                     {(selectedId.startsWith('design-') || selectedId.startsWith('logo-')) && (
                       <div>
-                        <label className="text-xs text-gray-600 dark:text-gray-400">Opaklık:</label>
+                        <label className="text-xs text-gray-600 dark:text-gray-400">Opacity:</label>
                         <Input
                           type="range"
                           min="0"
@@ -1133,7 +1133,7 @@ const MockupTemplatesPage: React.FC = () => {
             Mockup Templates
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Ürün mockup template'lerinizi oluşturun ve yönetin ({templates.length} template)
+            Create and manage your product mockup templates ({templates.length} templates)
           </p>
         </div>
         <div className="flex items-center space-x-3 mt-4 sm:mt-0">
@@ -1142,7 +1142,7 @@ const MockupTemplatesPage: React.FC = () => {
             className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
           >
             <Plus className="h-4 w-4" />
-            <span>Yeni Template</span>
+            <span>New Template</span>
           </Button>
         </div>
       </div>
@@ -1153,7 +1153,7 @@ const MockupTemplatesPage: React.FC = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
           <Input
             type="text"
-            placeholder="Template ara..."
+            placeholder="Search templates..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
@@ -1183,12 +1183,12 @@ const MockupTemplatesPage: React.FC = () => {
         <div className="text-center py-12">
           <Image className="h-16 w-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            {searchTerm ? 'Template bulunamadı' : 'Henüz mockup template yok'}
+            {searchTerm ? 'No templates found' : 'No mockup templates yet'}
           </h3>
           <p className="text-gray-500 dark:text-gray-400 mb-6">
             {searchTerm
-              ? 'Arama terimlerinizi değiştirmeyi deneyin'
-              : 'İlk mockup template\'inizi oluşturmaya başlayın'
+              ? 'Try adjusting your search terms'
+              : 'Start creating your first mockup template'
             }
           </p>
           {!searchTerm && (
@@ -1197,7 +1197,7 @@ const MockupTemplatesPage: React.FC = () => {
               className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
             >
               <Plus className="h-4 w-4" />
-              <span>İlk Template\'i Oluştur</span>
+              <span>Create First Template</span>
             </Button>
           )}
         </div>
@@ -1219,7 +1219,7 @@ const MockupTemplatesPage: React.FC = () => {
                     <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-30 transition-opacity flex items-center justify-center">
                       <div className="opacity-0 hover:opacity-100 transition-opacity text-white text-center">
                         <div className="text-sm">
-                          {template.design_areas?.length || 0} Tasarım • {template.text_areas?.length || 0} Yazı
+                          {template.design_areas?.length || 0} Design • {template.text_areas?.length || 0} Text
                           {template.logo_area && ' • 1 Logo'}
                         </div>
                       </div>
@@ -1253,14 +1253,14 @@ const MockupTemplatesPage: React.FC = () => {
                       className="flex-1"
                     >
                       <Edit className="h-4 w-4 mr-1" />
-                      Düzenle
+                      Edit
                     </Button>
                     <Button
                       onClick={() => duplicateTemplate(template)}
                       variant="secondary"
                       size="sm"
                       className="p-2"
-                      title="Kopyala"
+                      title="Duplicate"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
@@ -1269,7 +1269,7 @@ const MockupTemplatesPage: React.FC = () => {
                       variant="danger"
                       size="sm"
                       className="p-2"
-                      title="Sil"
+                      title="Delete"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
