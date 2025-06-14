@@ -23,7 +23,6 @@ interface ListingTemplate {
 interface EtsyStore {
   id: string;
   store_name: string;
-  store_url?: string;
   is_active: boolean;
   api_credentials: any;
 }
@@ -367,7 +366,7 @@ const ListingTemplatesPage: React.FC = () => {
                 <option value="">Mağaza seçin...</option>
                 {stores.map((store) => (
                   <option key={store.id} value={store.id}>
-                    {store.store_name} {store.store_url && `(${store.store_url})`}
+                    {store.store_name}
                   </option>
                 ))}
               </select>

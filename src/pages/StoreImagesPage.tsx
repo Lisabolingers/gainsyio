@@ -31,7 +31,6 @@ interface ImageFolder {
 interface EtsyStore {
   id: string;
   store_name: string;
-  store_url?: string;
   is_active: boolean;
 }
 
@@ -429,7 +428,7 @@ const StoreImagesPage: React.FC = () => {
                 <option value="">Tüm mağazalar</option>
                 {stores.map((store) => (
                   <option key={store.id} value={store.id}>
-                    {store.store_name} {store.store_url && `(${store.store_url})`}
+                    {store.store_name}
                   </option>
                 ))}
               </select>

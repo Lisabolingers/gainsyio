@@ -16,7 +16,7 @@ interface MockupTemplate {
   design_areas: DesignArea[];
   text_areas: TextArea[];
   logo_area?: LogoArea;
-  store_id?: string; // CRITICAL: Mağaza ID'si eklendi
+  store_id?: string;
   is_default: boolean;
   created_at: string;
   updated_at: string;
@@ -64,7 +64,6 @@ interface LogoArea {
 interface EtsyStore {
   id: string;
   store_name: string;
-  store_url?: string;
   is_active: boolean;
 }
 
@@ -83,7 +82,7 @@ const MockupTemplatesPage: React.FC = () => {
   const [canvasSize, setCanvasSize] = useState({ width: 600, height: 600 });
   const [templateName, setTemplateName] = useState('');
   const [backgroundImage, setBackgroundImage] = useState<string>('');
-  const [selectedStore, setSelectedStore] = useState<string>(''); // CRITICAL: Mağaza seçimi
+  const [selectedStore, setSelectedStore] = useState<string>('');
   const [designAreas, setDesignAreas] = useState<DesignArea[]>([]);
   const [textAreas, setTextAreas] = useState<TextArea[]>([]);
   const [logoArea, setLogoArea] = useState<LogoArea | null>(null);
@@ -102,7 +101,7 @@ const MockupTemplatesPage: React.FC = () => {
   useEffect(() => {
     if (user) {
       loadTemplates();
-      loadStores(); // CRITICAL: Mağazaları yükle
+      loadStores();
     }
   }, [user]);
 
@@ -131,7 +130,6 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
-  // CRITICAL: Mağaza yükleme fonksiyonu - örnek mağaza oluşturma ile
   const loadStores = async () => {
     try {
       console.log('🔄 Etsy mağazaları yükleniyor...');
@@ -151,16 +149,14 @@ const MockupTemplatesPage: React.FC = () => {
 
       console.log(`✅ ${data?.length || 0} Etsy mağazası yüklendi`);
       
-      // CRITICAL: Eğer mağaza yoksa örnek mağaza oluştur
       if (!data || data.length === 0) {
         console.log('🏪 Mağaza bulunamadı, örnek mağaza oluşturuluyor...');
         await createSampleStore();
-        return; // createSampleStore içinde loadStores tekrar çağrılacak
+        return;
       }
       
       setStores(data || []);
       
-      // İlk mağazayı otomatik seç
       if (data && data.length > 0) {
         setSelectedStore(data[0].id);
       }
@@ -169,7 +165,6 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
-  // CRITICAL: Örnek mağaza oluşturma fonksiyonu
   const createSampleStore = async () => {
     try {
       console.log('🏪 Örnek Etsy mağazası oluşturuluyor...');
@@ -186,12 +181,10 @@ const MockupTemplatesPage: React.FC = () => {
 
       console.log('✅ Örnek mağaza başarıyla oluşturuldu:', data);
       
-      // Mağazaları tekrar yükle
       await loadStores();
       
     } catch (error) {
       console.error('❌ Örnek mağaza oluşturma genel hatası:', error);
-      // Hata olsa bile devam et, kullanıcı manuel mağaza ekleyebilir
     }
   };
 
@@ -199,7 +192,7 @@ const MockupTemplatesPage: React.FC = () => {
     setEditingTemplate(null);
     setTemplateName('');
     setBackgroundImage('');
-    setSelectedStore(stores.length > 0 ? stores[0].id : ''); // CRITICAL: İlk mağazayı seç
+    setSelectedStore(stores.length > 0 ? stores[0].id : '');
     setDesignAreas([]);
     setTextAreas([]);
     setLogoArea(null);
@@ -212,13 +205,12 @@ const MockupTemplatesPage: React.FC = () => {
     setEditingTemplate(template);
     setTemplateName(template.name);
     setBackgroundImage(template.image_url);
-    setSelectedStore(template.store_id || (stores.length > 0 ? stores[0].id : '')); // CRITICAL: Template'in mağazasını seç
+    setSelectedStore(template.store_id || (stores.length > 0 ? stores[0].id : ''));
     setDesignAreas(template.design_areas || []);
     setTextAreas(template.text_areas || []);
     setLogoArea(template.logo_area || null);
     setSelectedId(null);
     
-    // Canvas boyutunu background image'den al
     if (template.image_url) {
       const img = new window.Image();
       img.onload = () => {
@@ -256,14 +248,13 @@ const MockupTemplatesPage: React.FC = () => {
         design_areas: designAreas,
         text_areas: textAreas,
         logo_area: logoArea,
-        store_id: selectedStore, // CRITICAL: Mağaza ID'sini kaydet
+        store_id: selectedStore,
         is_default: false
       };
 
       let result;
 
       if (editingTemplate) {
-        // Mevcut template'i güncelle
         result = await supabase
           .from('mockup_templates')
           .update({
@@ -275,7 +266,6 @@ const MockupTemplatesPage: React.FC = () => {
           .select()
           .single();
       } else {
-        // Yeni template oluştur
         result = await supabase
           .from('mockup_templates')
           .insert(templateData)
@@ -331,7 +321,7 @@ const MockupTemplatesPage: React.FC = () => {
           design_areas: template.design_areas,
           text_areas: template.text_areas,
           logo_area: template.logo_area,
-          store_id: template.store_id, // CRITICAL: Mağaza ID'sini de kopyala
+          store_id: template.store_id,
           is_default: false
         });
 
@@ -344,7 +334,6 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
-  // Background image upload
   const handleBackgroundUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -354,20 +343,17 @@ const MockupTemplatesPage: React.FC = () => {
       return;
     }
 
-    // CRITICAL: Dosya boyutu sınırını 20MB'a çıkardık
-    if (file.size > 20 * 1024 * 1024) { // 20MB limit
+    if (file.size > 20 * 1024 * 1024) {
       alert('Dosya boyutu 20MB\'dan küçük olmalı!');
       return;
     }
 
     try {
-      // Convert to base64
       const reader = new FileReader();
       reader.onload = (e) => {
         const base64 = e.target?.result as string;
         setBackgroundImage(base64);
         
-        // Auto-detect canvas size from image
         const img = new window.Image();
         img.onload = () => {
           setCanvasSize({ width: img.width, height: img.height });
@@ -381,7 +367,6 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
-  // Area management functions
   const addDesignArea = () => {
     if (designAreas.length >= 1) {
       alert('Sadece 1 tasarım alanı ekleyebilirsiniz!');
@@ -460,7 +445,6 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
-  // Canvas event handlers
   const handleStageClick = (e: any) => {
     if (e.target === e.target.getStage()) {
       setSelectedId(null);
@@ -523,7 +507,6 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
-  // Transformer setup
   useEffect(() => {
     if (!selectedId) {
       transformerRef.current?.nodes([]);
@@ -581,7 +564,6 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
-  // CRITICAL: Mağaza adını getir
   const getStoreName = (storeId?: string) => {
     if (!storeId) return 'Mağaza seçilmemiş';
     const store = stores.find(s => s.id === storeId);
@@ -638,7 +620,6 @@ const MockupTemplatesPage: React.FC = () => {
                   onChange={(e) => setTemplateName(e.target.value)}
                   className="w-64"
                 />
-                {/* CRITICAL: Mağaza seçimi - Design Type yerine */}
                 <div className="flex items-center space-x-2">
                   <Store className="h-5 w-5 text-orange-500" />
                   <select
@@ -649,12 +630,11 @@ const MockupTemplatesPage: React.FC = () => {
                     <option value="">Mağaza seçin...</option>
                     {stores.map((store) => (
                       <option key={store.id} value={store.id}>
-                        {store.store_name} {store.store_url && `(${store.store_url})`}
+                        {store.store_name}
                       </option>
                     ))}
                   </select>
                 </div>
-                {/* CRITICAL: Buton metni "Mockup Yükle" olarak değiştirildi */}
                 <Button
                   onClick={() => fileInputRef.current?.click()}
                   variant="secondary"
@@ -663,16 +643,6 @@ const MockupTemplatesPage: React.FC = () => {
                   📁 Mockup Yükle
                 </Button>
               </div>
-
-              {/* Store Info */}
-              {stores.length > 0 && selectedStore && (
-                <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                  <p className="text-green-700 dark:text-green-400 text-sm flex items-center">
-                    <Store className="h-4 w-4 mr-2" />
-                    Seçili mağaza: <strong className="ml-1">{getStoreName(selectedStore)}</strong>
-                  </p>
-                </div>
-              )}
 
               {/* Canvas */}
               <div 
@@ -846,30 +816,6 @@ const MockupTemplatesPage: React.FC = () => {
           {/* Properties Panel */}
           <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 p-4 overflow-y-auto">
             <div className="space-y-4">
-              {/* Selected Store Info */}
-              {selectedStore && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <Store className="h-5 w-5 mr-2 text-orange-500" />
-                      Seçili Mağaza
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-sm">
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {getStoreName(selectedStore)}
-                      </p>
-                      {stores.find(s => s.id === selectedStore)?.store_url && (
-                        <p className="text-gray-500 dark:text-gray-400 mt-1">
-                          {stores.find(s => s.id === selectedStore)?.store_url}
-                        </p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
               {/* Add Areas */}
               <Card>
                 <CardHeader>
@@ -1178,23 +1124,6 @@ const MockupTemplatesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Store Info */}
-      {stores.length > 0 && (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-          <div className="flex items-center space-x-3">
-            <Store className="h-5 w-5 text-green-500" />
-            <div>
-              <h3 className="text-green-700 dark:text-green-400 font-medium">
-                Etsy Mağazası Bağlı ✅
-              </h3>
-              <p className="text-green-600 dark:text-green-500 text-sm mt-1">
-                {stores.length} mağaza bağlı. Mockup template'leri oluşturabilirsiniz.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-4 items-center">
         <div className="relative flex-1">
@@ -1281,7 +1210,6 @@ const MockupTemplatesPage: React.FC = () => {
                     </h3>
                     
                     <div className="flex items-center justify-between text-sm">
-                      {/* CRITICAL: Mağaza bilgisi göster */}
                       <div className="flex items-center space-x-1">
                         <Store className="h-3 w-3 text-orange-500" />
                         <span className="text-xs text-gray-600 dark:text-gray-400 truncate">
