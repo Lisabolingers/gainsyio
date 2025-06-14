@@ -163,6 +163,91 @@ const TextTemplatesPage: React.FC = () => {
     }
   };
 
+  // CRITICAL: Template Preview Component
+  const TemplatePreview: React.FC<{ template: TextTemplate }> = ({ template }) => {
+    const canvasAspectRatio = template.canvas_size.width / template.canvas_size.height;
+    const previewWidth = 280;
+    const previewHeight = previewWidth / canvasAspectRatio;
+    
+    // Scale factor for preview
+    const scale = previewWidth / template.canvas_size.width;
+
+    return (
+      <div 
+        className="relative bg-white border-2 border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden shadow-sm"
+        style={{ 
+          width: `${previewWidth}px`, 
+          height: `${Math.min(previewHeight, 160)}px`,
+          margin: '0 auto'
+        }}
+      >
+        {/* Canvas Background */}
+        <div 
+          className="absolute inset-0 bg-white"
+          style={{
+            width: `${previewWidth}px`,
+            height: `${previewHeight}px`,
+            transform: previewHeight > 160 ? `scale(${160 / previewHeight})` : 'none',
+            transformOrigin: 'top left'
+          }}
+        >
+          {/* Render Text Elements */}
+          {template.texts.map((text, index) => {
+            // Calculate scaled position and size
+            const scaledX = (text.x || 0) * scale;
+            const scaledY = (text.y || 0) * scale;
+            const scaledFontSize = (text.maxFontSize || 24) * scale;
+            const scaledWidth = (text.width || 200) * scale;
+            
+            // Determine text color based on colorOption
+            let textColor = '#000000';
+            if (text.colorOption === 'bw') {
+              textColor = '#000000';
+            } else if (text.colorOption === 'all' && text.selectedColor) {
+              textColor = text.selectedColor;
+            } else if (text.fill) {
+              textColor = text.fill;
+            }
+
+            return (
+              <div
+                key={index}
+                className="absolute pointer-events-none"
+                style={{
+                  left: `${scaledX - scaledWidth/2}px`,
+                  top: `${scaledY - scaledFontSize/2}px`,
+                  width: `${scaledWidth}px`,
+                  fontSize: `${Math.max(scaledFontSize, 8)}px`,
+                  fontFamily: text.fontFamily || 'Arial',
+                  color: textColor,
+                  textAlign: text.align || 'center',
+                  lineHeight: text.lineHeight || 1,
+                  letterSpacing: `${(text.letterSpacing || 0) * scale}px`,
+                  fontWeight: text.fontWeight || 'normal',
+                  transform: text.rotation ? `rotate(${text.rotation}deg)` : 'none',
+                  transformOrigin: 'center',
+                  whiteSpace: 'pre-wrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}
+              >
+                {text.text || 'Sample Text'}
+              </div>
+            );
+          })}
+        </div>
+        
+        {/* Overlay with canvas info */}
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+          <div className="text-white text-xs text-center">
+            <div className="font-medium">{template.texts.length} element(s)</div>
+            <div className="opacity-75">{template.canvas_size.width} × {template.canvas_size.height}</div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -321,17 +406,9 @@ const TextTemplatesPage: React.FC = () => {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    {/* Template Preview */}
-                    <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 mb-4 min-h-[120px] flex items-center justify-center">
-                      <div className="text-center">
-                        <Type className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {template.texts.length} text element(s)
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {template.canvas_size.width} × {template.canvas_size.height}
-                        </p>
-                      </div>
+                    {/* CRITICAL: Real Template Preview */}
+                    <div className="mb-4">
+                      <TemplatePreview template={template} />
                     </div>
 
                     {/* Template Info */}
@@ -354,7 +431,6 @@ const TextTemplatesPage: React.FC = () => {
                     <div className="flex space-x-2 mt-4">
                       <Button
                         onClick={() => {
-                          // TODO: Load template in Auto Text to Image editor
                           window.location.href = `/admin/templates/auto-text-to-image?template=${template.id}`;
                         }}
                         size="sm"
@@ -399,6 +475,9 @@ const TextTemplatesPage: React.FC = () => {
                       Name
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Preview
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Elements
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -426,6 +505,11 @@ const TextTemplatesPage: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900 dark:text-white">
                           {template.name}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="w-20 h-16 bg-gray-100 dark:bg-gray-700 rounded border overflow-hidden">
+                          <TemplatePreview template={template} />
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
