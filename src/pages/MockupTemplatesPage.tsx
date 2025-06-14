@@ -905,7 +905,7 @@ const MockupTemplatesPage: React.FC = () => {
                                     size="sm"
                                     className="w-full"
                                   >
-                                    📁 Store Images'dan Seç
+                                    📁 Logo Seç
                                   </Button>
                                 </div>
                                 
