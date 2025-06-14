@@ -71,22 +71,24 @@ const AccordionTextControls: React.FC<Props> = ({
     }
   }, [text.id, text.colorOption, updateTextProperty]);
 
-  // CRITICAL: Akordiyon toggle - sadece bir bölüm açık, tıklanan zaten açıksa kapat
+  // CRITICAL: Akordiyon toggle fonksiyonu - düzeltildi
   const toggleSection = (section: 'textOptions' | 'colorOptions' | 'styleOptions') => {
-    console.log(`🔄 Akordiyon toggle: ${section} - Aktif bölüm:`, activeSection);
+    console.log(`🔄 Akordiyon toggle: ${section} - Mevcut aktif bölüm:`, activeSection);
     
-    if (activeSection === section) {
-      // Aynı bölüme tıklandıysa kapat
-      setActiveSection(null);
-      console.log(`❌ Bölüm kapatıldı: ${section}`);
-    } else {
-      // Farklı bölüme tıklandıysa o bölümü aç
-      setActiveSection(section);
-      console.log(`✅ Bölüm açıldı: ${section}`);
-    }
+    setActiveSection(prevActive => {
+      if (prevActive === section) {
+        // Aynı bölüme tıklandıysa kapat
+        console.log(`❌ Bölüm kapatıldı: ${section}`);
+        return null;
+      } else {
+        // Farklı bölüme tıklandıysa o bölümü aç
+        console.log(`✅ Bölüm açıldı: ${section}`);
+        return section;
+      }
+    });
   };
 
-  // CRITICAL: Akordiyon başlık bileşeni
+  // CRITICAL: Akordiyon başlık bileşeni - Event handling düzeltildi
   const AccordionHeader: React.FC<{
     title: string;
     section: 'textOptions' | 'colorOptions' | 'styleOptions';
@@ -100,10 +102,10 @@ const AccordionTextControls: React.FC<Props> = ({
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          console.log(`🖱️ Akordiyon başlığına tıklandı: ${title}`);
+          console.log(`🖱️ Akordiyon başlığına tıklandı: ${title} - Şu anki durum: ${isOpen ? 'açık' : 'kapalı'}`);
           toggleSection(section);
         }}
-        className={`w-full flex items-center justify-between p-3 transition-colors rounded-lg border cursor-pointer ${
+        className={`w-full flex items-center justify-between p-3 transition-all duration-200 rounded-lg border cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500 ${
           isOpen 
             ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800' 
             : 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border-gray-200 dark:border-gray-600'
@@ -115,11 +117,13 @@ const AccordionTextControls: React.FC<Props> = ({
             {title}
           </span>
         </div>
-        {isOpen ? (
-          <ChevronDown className="h-4 w-4 text-orange-500 transition-transform" />
-        ) : (
-          <ChevronRight className="h-4 w-4 text-gray-500 transition-transform" />
-        )}
+        <div className={`transition-transform duration-200 ${isOpen ? 'rotate-90' : 'rotate-0'}`}>
+          {isOpen ? (
+            <ChevronDown className="h-4 w-4 text-orange-500" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-gray-500" />
+          )}
+        </div>
       </button>
     );
   };
