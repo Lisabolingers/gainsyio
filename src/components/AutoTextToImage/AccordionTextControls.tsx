@@ -45,7 +45,7 @@ interface Props {
   alignText: (alignment: string) => void;
   updateTextProperty: (textId: number, property: string, value: any) => void;
   onDelete: (textId: number) => void;
-  onFontUploaded?: () => void; // CRITICAL: Font yüklendiğinde callback
+  onFontUploaded?: () => void;
 }
 
 const AccordionTextControls: React.FC<Props> = ({
@@ -63,21 +63,17 @@ const AccordionTextControls: React.FC<Props> = ({
   onDelete,
   onFontUploaded
 }) => {
-  // CRITICAL: Her text için ayrı state - sadece bir bölüm açık olabilir
   const [activeSection, setActiveSection] = useState<'textOptions' | 'colorOptions' | 'styleOptions' | null>('textOptions');
 
-  // CRITICAL: Black & White'ı default olarak ayarla
   React.useEffect(() => {
     if (!text.colorOption) {
       updateTextProperty(text.id, 'colorOption', 'bw');
     }
   }, [text.id, text.colorOption, updateTextProperty]);
 
-  // CRITICAL: Akordiyon toggle fonksiyonu - basitleştirildi ve güçlendirildi
   const toggleSection = (section: 'textOptions' | 'colorOptions' | 'styleOptions') => {
     console.log(`🔄 Toggle çağrıldı - Section: ${section}, Current: ${activeSection}`);
     
-    // Eğer aynı bölüme tıklanırsa kapat, değilse o bölümü aç
     if (activeSection === section) {
       console.log(`❌ Aynı bölüm, kapatılıyor: ${section}`);
       setActiveSection(null);
@@ -87,14 +83,11 @@ const AccordionTextControls: React.FC<Props> = ({
     }
   };
 
-  // CRITICAL: Font yüklendiğinde callback'i çağır
   const handleFontUploadWithCallback = (fontData: { display: string, value: string }) => {
     console.log('🎉 Font yüklendi, callback çağrılıyor:', fontData);
     
-    // Yeni font'u seçili text'e otomatik uygula
     updateTextProperty(text.id, 'fontFamily', fontData.display);
     
-    // Parent component'e bildir
     if (onFontUploaded) {
       onFontUploaded();
     }
@@ -124,7 +117,6 @@ const AccordionTextControls: React.FC<Props> = ({
             onChange={(e) => updateTextProperty(text.id, 'text', e.target.value)} 
             rows={1} 
             className="border border-gray-300 dark:border-gray-600 p-2 rounded flex-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none overflow-hidden" 
-            placeholder="Enter your text..."
           />
           <Button 
             className="p-2 h-10 w-10 flex items-center justify-center" 
@@ -140,7 +132,6 @@ const AccordionTextControls: React.FC<Props> = ({
           
           {/* 1. TEXT OPTIONS ACCORDION */}
           <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-            {/* Header */}
             <button
               type="button"
               onClick={() => toggleSection('textOptions')}
@@ -161,7 +152,6 @@ const AccordionTextControls: React.FC<Props> = ({
               </div>
             </button>
             
-            {/* Content */}
             {activeSection === 'textOptions' && (
               <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 space-y-4">
                 {/* Font and Size Controls */}
@@ -170,7 +160,7 @@ const AccordionTextControls: React.FC<Props> = ({
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Font:</label>
                     <div className="flex gap-2">
                       <select 
-                        key={`font-select-${text.id}-${allFonts.length}`} // CRITICAL: Key ile zorla re-render
+                        key={`font-select-${text.id}-${allFonts.length}`}
                         value={text.fontFamily} 
                         onChange={(e) => {
                           console.log(`🔄 Font değiştiriliyor: ${e.target.value}`);
@@ -302,7 +292,6 @@ const AccordionTextControls: React.FC<Props> = ({
 
           {/* 2. COLOR OPTIONS ACCORDION */}
           <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-            {/* Header */}
             <button
               type="button"
               onClick={() => toggleSection('colorOptions')}
@@ -323,7 +312,6 @@ const AccordionTextControls: React.FC<Props> = ({
               </div>
             </button>
             
-            {/* Content */}
             {activeSection === 'colorOptions' && (
               <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
                 <ColorOptions text={text} setTexts={setTexts} texts={texts} />
@@ -333,7 +321,6 @@ const AccordionTextControls: React.FC<Props> = ({
 
           {/* 3. STYLE OPTIONS ACCORDION */}
           <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-            {/* Header */}
             <button
               type="button"
               onClick={() => toggleSection('styleOptions')}
@@ -354,7 +341,6 @@ const AccordionTextControls: React.FC<Props> = ({
               </div>
             </button>
             
-            {/* Content */}
             {activeSection === 'styleOptions' && (
               <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 space-y-4">
                 {/* Style Selection */}
