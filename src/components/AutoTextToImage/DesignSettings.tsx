@@ -12,15 +12,15 @@ import { useAuth } from '../../context/AuthContext';
 
 const DesignSettings = () => {
   const { user } = useAuth();
-  const { userFonts, loadUserFonts, loading: fontsLoading, googleFontsLoaded } = useFonts();
+  const { userFonts, loadUserFonts, loading: fontsLoading } = useFonts();
   
-  // CRITICAL: Enhanced system fonts list with proper font names for Konva
+  // CRITICAL: System fonts list with proper font names for Konva
   const systemFonts = [
     'Arial', 'Times New Roman', 'Helvetica', 'Georgia', 'Verdana',
-    'Comic Sans MS', 'Courier New', 'Roboto', 'Open Sans', 'Lobster'
+    'Comic Sans MS', 'Courier New'
   ];
   
-  // Tüm fontları birleştir
+  // All fonts combined
   const allFonts = [
     ...systemFonts,
     ...userFonts.map(font => font.font_name)
@@ -57,54 +57,35 @@ const DesignSettings = () => {
   const groupRefs = useRef({});
   const fileInputRef = useRef();
 
-  // CRITICAL: Enhanced font initialization with Google Fonts support
+  // CRITICAL: Enhanced font initialization
   useEffect(() => {
     const initializeFonts = async () => {
       if (!user || fontsLoading || fontsInitialized) return;
       
-      console.log('🚀 SAYFA YÜKLENDİ - FONTLAR İNİTİALİZE EDİLİYOR...');
-      setFontLoadingStatus('Fontlar yükleniyor...');
+      console.log('🚀 PAGE LOADED - INITIALIZING FONTS...');
+      setFontLoadingStatus('Loading fonts...');
       
       try {
-        // Wait for Google Fonts to be loaded first
-        if (!googleFontsLoaded) {
-          console.log('⏳ Google Fonts bekleniyor...');
-          setFontLoadingStatus('Google Fonts yükleniyor...');
-          
-          // Wait for Google Fonts with timeout
-          let attempts = 0;
-          while (!googleFontsLoaded && attempts < 50) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            attempts++;
-          }
-          
-          if (googleFontsLoaded) {
-            console.log('✅ Google Fonts hazır');
-          } else {
-            console.warn('⚠️ Google Fonts timeout, devam ediliyor');
-          }
-        }
-        
         // Wait for document fonts to be ready
         await document.fonts.ready;
         console.log('✅ Document fonts ready');
         
-        // Kullanıcı fontlarını Supabase'den yükle
+        // Load user fonts from Supabase
         await loadUserFonts();
         
-        // Tüm kullanıcı fontlarını canvas'a yükle
+        // Load all user fonts into canvas
         if (userFonts.length > 0) {
-          console.log(`🔄 ${userFonts.length} kullanıcı fontu canvas'a yükleniyor...`);
-          setFontLoadingStatus(`${userFonts.length} font canvas'a yükleniyor...`);
+          console.log(`🔄 Loading ${userFonts.length} user fonts into canvas...`);
+          setFontLoadingStatus(`Loading ${userFonts.length} fonts into canvas...`);
           
           // CRITICAL: Sequential font loading with proper waiting
           for (let i = 0; i < userFonts.length; i++) {
             const font = userFonts[i];
             try {
-              console.log(`📝 Canvas'a yükleniyor (${i + 1}/${userFonts.length}): ${font.font_name}`);
-              setFontLoadingStatus(`Font yükleniyor: ${font.font_name} (${i + 1}/${userFonts.length})`);
+              console.log(`📝 Loading into canvas (${i + 1}/${userFonts.length}): ${font.font_name}`);
+              setFontLoadingStatus(`Loading font: ${font.font_name} (${i + 1}/${userFonts.length})`);
               
-              // Font'u browser'a yükle
+              // Load font into browser
               await FontService.loadFontInBrowser(font);
               
               // CRITICAL: Wait for font to be fully loaded and ready
@@ -123,27 +104,27 @@ const DesignSettings = () => {
               }
               
             } catch (error) {
-              console.warn(`⚠️ Font yüklenemedi: ${font.font_name}`, error);
+              console.warn(`⚠️ Font loading failed: ${font.font_name}`, error);
             }
           }
           
-          console.log('✅ Tüm fontlar canvas\'a yüklendi');
-          setFontLoadingStatus('Fontlar hazır!');
+          console.log('✅ All fonts loaded into canvas');
+          setFontLoadingStatus('Fonts ready!');
           
           // CRITICAL: Multiple canvas refreshes to ensure fonts are applied
           setTimeout(() => {
             setForceRender(prev => prev + 1);
-            console.log('🎨 Canvas ilk yenileme');
+            console.log('🎨 Canvas first refresh');
           }, 500);
           
           setTimeout(() => {
             setForceRender(prev => prev + 1);
-            console.log('🎨 Canvas ikinci yenileme');
+            console.log('🎨 Canvas second refresh');
           }, 1500);
           
           setTimeout(() => {
             setForceRender(prev => prev + 1);
-            console.log('🎨 Canvas final yenileme');
+            console.log('🎨 Canvas final refresh');
             setFontLoadingStatus('');
           }, 3000);
         } else {
@@ -151,23 +132,23 @@ const DesignSettings = () => {
         }
         
         setFontsInitialized(true);
-        console.log('🎉 FONT İNİTİALİZASYONU TAMAMLANDI');
+        console.log('🎉 FONT INITIALIZATION COMPLETE');
         
       } catch (error) {
-        console.error('❌ Font initialization hatası:', error);
-        setFontLoadingStatus('Font yükleme hatası!');
-        setFontsInitialized(true); // Hata olsa bile devam et
+        console.error('❌ Font initialization error:', error);
+        setFontLoadingStatus('Font loading error!');
+        setFontsInitialized(true); // Continue even if error
         setTimeout(() => setFontLoadingStatus(''), 3000);
       }
     };
 
     initializeFonts();
-  }, [user, userFonts.length, fontsLoading, googleFontsLoaded]);
+  }, [user, userFonts.length, fontsLoading]);
 
   // CRITICAL: Additional effect to handle font changes and re-renders
   useEffect(() => {
     if (fontsInitialized && userFonts.length > 0) {
-      console.log('🔄 Font listesi değişti, canvas güncelleniyor...');
+      console.log('🔄 Font list changed, updating canvas...');
       
       // Multiple staged re-renders for better font application
       const timeouts = [100, 500, 1000, 2000];
@@ -198,16 +179,6 @@ const DesignSettings = () => {
       document.fonts.removeEventListener('loadingdone', handleFontsReady);
     };
   }, [fontsInitialized]);
-
-  // CRITICAL: Google Fonts ready effect
-  useEffect(() => {
-    if (googleFontsLoaded && fontsInitialized) {
-      console.log('🎯 Google Fonts loaded, refreshing canvas');
-      setTimeout(() => {
-        setForceRender(prev => prev + 1);
-      }, 500);
-    }
-  }, [googleFontsLoaded, fontsInitialized]);
 
   // Fixed canvas container size - always 700x700px
   const maxContainerSize = 700;
@@ -356,7 +327,7 @@ const DesignSettings = () => {
 
   const downloadImage = () => {
     if (texts.some(text => text.colorOption === 'bw')) {
-      // 🖤 Siyah yazı çıktısı
+      // 🖤 Black text output
       setTexts(prevTexts => prevTexts.map(text =>
         text.colorOption === 'bw' ? { ...text, tempFill: '#000000' } : text
       ));
@@ -367,7 +338,7 @@ const DesignSettings = () => {
         linkBlack.href = uriBlack;
         linkBlack.click();
 
-        // 🤍 Beyaz yazı çıktısı
+        // 🤍 White text output
         setTexts(prevTexts => prevTexts.map(text =>
           text.colorOption === 'bw' ? { ...text, tempFill: '#FFFFFF' } : text
         ));
@@ -378,7 +349,7 @@ const DesignSettings = () => {
           linkWhite.href = uriWhite;
           linkWhite.click();
 
-          // 🎨 Renk geçişini geri al
+          // 🎨 Reset color transition
           setTexts(prevTexts => prevTexts.map(text =>
             text.colorOption === 'bw' ? { ...text, tempFill: undefined } : text
           ));
@@ -394,74 +365,74 @@ const DesignSettings = () => {
     }
   };
 
-  // ENHANCED: Font yükleme - hem canvas'a hem Supabase'e kaydet
+  // ENHANCED: Font upload - both to canvas and Supabase
   const handleFontUpload = async (event) => {
     const file = event.target.files[0];
     if (!file || !user) {
-      console.log('❌ Dosya seçilmedi veya kullanıcı giriş yapmamış');
+      console.log('❌ No file selected or user not logged in');
       return;
     }
 
     setFontUploading(true);
-    console.log(`🚀 FONT YÜKLEME BAŞLADI: ${file.name}`);
+    console.log(`🚀 FONT UPLOAD STARTED: ${file.name}`);
 
     try {
-      // 1. ADIM: Canvas için hemen yükle (eski sistem)
+      // 1. STEP: Load to canvas immediately (old system)
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
           const fontName = file.name.split('.')[0].replace(/\s+/g, '-');
           const fontData = e.target.result;
           
-          console.log(`📝 Canvas için font yükleniyor: ${fontName}`);
+          console.log(`📝 Loading font to canvas: ${fontName}`);
           
-          // Canvas'a hemen yükle
+          // Load to canvas immediately
           const newFontFace = new FontFace(fontName, `url(${fontData})`);
           const loadedFace = await newFontFace.load();
           document.fonts.add(loadedFace);
           
-          console.log(`✅ Canvas'a font yüklendi: ${fontName}`);
+          console.log(`✅ Font loaded to canvas: ${fontName}`);
           
-          // Canvas'ı güncelle
+          // Update canvas
           setForceRender(prev => prev + 1);
           
-          // Seçili text'e uygula
+          // Apply to selected text
           if (selectedId) {
             updateTextProperty(selectedId, 'fontFamily', fontName);
           }
           
-          // 2. ADIM: Supabase'e kaydet
-          console.log(`💾 Supabase'e kaydediliyor: ${fontName}`);
+          // 2. STEP: Save to Supabase
+          console.log(`💾 Saving to Supabase: ${fontName}`);
           
           const savedFont = await FontService.uploadAndSaveFont(file, user.id);
-          console.log(`🎉 SUPABASE'E KAYDEDİLDİ:`, savedFont);
+          console.log(`🎉 SAVED TO SUPABASE:`, savedFont);
           
-          // Font listesini yenile
+          // Refresh font list
           await loadUserFonts();
-          console.log(`🔄 Font listesi yenilendi`);
+          console.log(`🔄 Font list refreshed`);
           
         } catch (error) {
-          console.error(`❌ Font yükleme hatası:`, error);
-          alert(`Font yükleme hatası: ${error.message}`);
+          console.error(`❌ Font upload error:`, error);
+          alert(`Font upload error: ${error.message}`);
         } finally {
           setFontUploading(false);
         }
       };
       
       reader.onerror = (err) => {
-        console.error(`❌ Dosya okuma hatası:`, err);
+        console.error(`❌ File reading error:`, err);
         setFontUploading(false);
       };
       
       reader.readAsDataURL(file);
       
     } catch (error) {
-      console.error(`❌ Font yükleme genel hatası:`, error);
-      alert(`Font yükleme hatası: ${error.message}`);
+      console.error(`❌ Font upload general error:`, error);
+      alert(`Font upload error: ${error.message}`);
       setFontUploading(false);
     }
     
-    // Input'u temizle
+    // Clear input
     if (event.target) {
       event.target.value = '';
     }
@@ -508,7 +479,7 @@ const DesignSettings = () => {
 
   // Update text properties with constraints
   const updateTextProperty = (textId, property, value) => {
-    console.log(`🔄 Text özelliği güncelleniyor: ${property} = ${value}`);
+    console.log(`🔄 Updating text property: ${property} = ${value}`);
     
     setTexts(prevTexts =>
       prevTexts.map(text =>
@@ -518,20 +489,20 @@ const DesignSettings = () => {
       )
     );
     
-    // Font değiştiğinde canvas'ı zorla yeniden render et
+    // Force canvas re-render when font changes
     if (property === 'fontFamily') {
-      console.log(`🎨 Font değişti, canvas yeniden render ediliyor: ${value}`);
+      console.log(`🎨 Font changed, re-rendering canvas: ${value}`);
       setTimeout(() => {
         setForceRender(prev => prev + 1);
       }, 100);
     }
   };
 
-  // CRITICAL: Enhanced text rendering with better font handling and Google Fonts support
+  // CRITICAL: Enhanced text rendering with better font handling
   const renderKonvaText = (text) => {
-    console.log(`🎨 Text render ediliyor: "${text.text.substring(0, 20)}..." font: ${text.fontFamily}`);
+    console.log(`🎨 Rendering text: "${text.text.substring(0, 20)}..." font: ${text.fontFamily}`);
     
-    // CRITICAL: Enhanced font availability check with Google Fonts support
+    // CRITICAL: Enhanced font availability check
     const isSystemFont = systemFonts.includes(text.fontFamily);
     const isUserFont = userFonts.some(f => f.font_name === text.fontFamily);
     const isFontLoaded = isSystemFont || isUserFont || document.fonts.check(`16px "${text.fontFamily}"`);
@@ -540,7 +511,7 @@ const DesignSettings = () => {
     let actualFontFamily = text.fontFamily;
     
     if (!isFontLoaded && text.fontFamily !== 'Arial') {
-      console.warn(`⚠️ Font yüklenmemiş, fallback kullanılıyor: ${text.fontFamily} -> Arial`);
+      console.warn(`⚠️ Font not loaded, using fallback: ${text.fontFamily} -> Arial`);
       actualFontFamily = 'Arial';
     }
     
@@ -551,15 +522,9 @@ const DesignSettings = () => {
       console.log(`🎯 User font found, using full family: ${actualFontFamily}`);
     }
     
-    // CRITICAL: For Google Fonts, ensure proper font family name
-    if (isSystemFont && ['Roboto', 'Open Sans', 'Lobster'].includes(text.fontFamily)) {
-      actualFontFamily = text.fontFamily; // Use exact Google Font name
-      console.log(`🎯 Google Font detected: ${actualFontFamily}`);
-    }
-    
     return (
       <Group
-        key={`${text.id}-${forceRender}-${fontsInitialized}-${userFonts.length}-${googleFontsLoaded}`}
+        key={`${text.id}-${forceRender}-${fontsInitialized}-${userFonts.length}`}
         ref={(node) => (groupRefs.current[text.id] = node)}
         x={text.x}
         y={text.y}
@@ -624,7 +589,7 @@ const DesignSettings = () => {
               })()
             ) : (
               <KonvaText
-                key={`text-${text.id}-${forceRender}-${fontsInitialized}-${userFonts.length}-${googleFontsLoaded}`}
+                key={`text-${text.id}-${forceRender}-${fontsInitialized}-${userFonts.length}`}
                 text={text.text}
                 fontSize={text.maxFontSize}
                 fontFamily={actualFontFamily}
@@ -675,13 +640,13 @@ const DesignSettings = () => {
               backgroundColor: 'white'
             }}>
               <Stage 
-                key={`stage-${forceRender}-${fontsInitialized}-${userFonts.length}-${googleFontsLoaded}`}
+                key={`stage-${forceRender}-${fontsInitialized}-${userFonts.length}`}
                 width={canvasSize.width} 
                 height={canvasSize.height} 
                 ref={stageRef} 
                 onClick={handleStageClick}
               >
-                <Layer key={`layer-${forceRender}-${fontsInitialized}-${userFonts.length}-${googleFontsLoaded}`}>
+                <Layer key={`layer-${forceRender}-${fontsInitialized}-${userFonts.length}`}>
                   {texts.map((text) => renderKonvaText(text))}
 
                   {selectedId && (
@@ -763,19 +728,7 @@ const DesignSettings = () => {
             <div className="flex items-center space-x-2">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
               <span className="text-blue-700 dark:text-blue-400 text-sm">
-                {fontLoadingStatus || `Fontlar yükleniyor... (${userFonts.length} font)`}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Google Fonts Status */}
-        {!googleFontsLoaded && (
-          <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
-            <div className="flex items-center space-x-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-500"></div>
-              <span className="text-orange-700 dark:text-orange-400 text-sm">
-                Google Fonts yükleniyor... (Roboto, Open Sans, Lobster)
+                {fontLoadingStatus || `Loading fonts... (${userFonts.length} fonts)`}
               </span>
             </div>
           </div>
@@ -809,7 +762,7 @@ const DesignSettings = () => {
                 <select 
                   value={text.fontFamily} 
                   onChange={(e) => {
-                    console.log(`🔄 FONT DEĞİŞTİRİLİYOR: ${e.target.value}`);
+                    console.log(`🔄 CHANGING FONT: ${e.target.value}`);
                     updateTextProperty(text.id, 'fontFamily', e.target.value);
                   }} 
                   className="w-32 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
