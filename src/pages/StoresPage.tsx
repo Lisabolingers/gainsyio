@@ -18,23 +18,11 @@ interface StoreData {
   updated_at: string;
 }
 
-interface StoreFormData {
-  store_name: string;
-  store_url: string;
-}
-
 const StoresPage: React.FC = () => {
   const { user, loading: authLoading, error: authError } = useAuth();
   const [stores, setStores] = useState<StoreData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [editingStore, setEditingStore] = useState<StoreData | null>(null);
-  const [formData, setFormData] = useState<StoreFormData>({
-    store_name: '',
-    store_url: ''
-  });
-  const [formLoading, setFormLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -91,6 +79,24 @@ const StoresPage: React.FC = () => {
     }
   };
 
+  const generateEtsyOAuthURL = () => {
+    // TODO: Replace with actual Etsy API credentials from environment variables
+    const CLIENT_ID = process.env.VITE_ETSY_CLIENT_ID || 'your_etsy_client_id';
+    const REDIRECT_URI = `${window.location.origin}/admin/stores`; // Current page as callback
+    const STATE = `new_store_${Date.now()}`; // Unique state for new store
+    const SCOPE = 'shops_r listings_r listings_w'; // Read shops, read/write listings
+    
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: CLIENT_ID,
+      redirect_uri: REDIRECT_URI,
+      scope: SCOPE,
+      state: STATE
+    });
+
+    return `https://www.etsy.com/oauth/connect?${params.toString()}`;
+  };
+
   const handleAddStore = () => {
     // Check for auth errors
     if (authError) {
@@ -110,98 +116,194 @@ const StoresPage: React.FC = () => {
       return;
     }
 
-    setEditingStore(null);
-    setFormData({
-      store_name: '',
-      store_url: ''
-    });
-    setShowAddModal(true);
+    // Start Etsy OAuth flow directly
+    initiateEtsyOAuth();
   };
 
-  const handleEditStore = (store: StoreData) => {
-    // Same checks for edit
-    if (authError) {
-      alert('Connection error: ' + authError + '\n\nPlease refresh the page and try again.');
-      return;
-    }
-
-    if (authLoading) {
-      alert('Please wait, user information is loading...');
-      return;
-    }
-
-    if (!user) {
-      alert('You need to sign in to edit a store.');
-      return;
-    }
-
-    setEditingStore(store);
-    setFormData({
-      store_name: store.store_name,
-      store_url: store.store_url || ''
-    });
-    setShowAddModal(true);
-  };
-
-  const handleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.store_name.trim()) {
-      alert('Store name is required!');
-      return;
-    }
-
+  const initiateEtsyOAuth = async () => {
     try {
-      setFormLoading(true);
-      console.log('💾 Saving Etsy store...');
+      console.log('🔗 Starting Etsy OAuth flow for new store...');
+      
+      // Store that we're adding a new store
+      localStorage.setItem('etsy_oauth_action', 'add_new_store');
+      localStorage.setItem('etsy_oauth_timestamp', Date.now().toString());
+      
+      // Generate OAuth URL and redirect
+      const oauthUrl = generateEtsyOAuthURL();
+      
+      // Show info to user before redirect
+      if (window.confirm('You will be redirected to Etsy to authorize your store connection. Do you want to continue?')) {
+        console.log('🚀 Redirecting to Etsy OAuth:', oauthUrl);
+        window.location.href = oauthUrl;
+      }
+    } catch (error) {
+      console.error('❌ Etsy OAuth initiation error:', error);
+      alert('Error occurred while starting Etsy connection');
+    }
+  };
 
+  const connectExistingStore = async (storeId: string) => {
+    try {
+      console.log('🔗 Initiating Etsy OAuth for existing store:', storeId);
+      
+      // Store the store ID for callback handling
+      localStorage.setItem('etsy_oauth_action', 'connect_existing');
+      localStorage.setItem('etsy_connecting_store_id', storeId);
+      localStorage.setItem('etsy_oauth_timestamp', Date.now().toString());
+      
+      // Generate OAuth URL with store-specific state
+      const CLIENT_ID = process.env.VITE_ETSY_CLIENT_ID || 'your_etsy_client_id';
+      const REDIRECT_URI = `${window.location.origin}/admin/stores`;
+      const STATE = `existing_store_${storeId}_${Date.now()}`;
+      const SCOPE = 'shops_r listings_r listings_w';
+      
+      const params = new URLSearchParams({
+        response_type: 'code',
+        client_id: CLIENT_ID,
+        redirect_uri: REDIRECT_URI,
+        scope: SCOPE,
+        state: STATE
+      });
+
+      const oauthUrl = `https://www.etsy.com/oauth/connect?${params.toString()}`;
+      
+      // Show info to user before redirect
+      if (window.confirm('You will be redirected to Etsy authorization page. Do you want to continue?')) {
+        window.location.href = oauthUrl;
+      }
+    } catch (error) {
+      console.error('❌ Etsy OAuth initiation error:', error);
+      alert('Error occurred while initiating Etsy connection');
+    }
+  };
+
+  const handleEtsyCallback = async (code: string, state: string) => {
+    try {
+      console.log('🔄 Processing Etsy OAuth callback...');
+      
+      const oauthAction = localStorage.getItem('etsy_oauth_action');
+      const timestamp = localStorage.getItem('etsy_oauth_timestamp');
+      
+      // Security check: ensure callback is recent (within 10 minutes)
+      if (!timestamp || Date.now() - parseInt(timestamp) > 600000) {
+        throw new Error('OAuth session expired. Please try again.');
+      }
+
+      if (oauthAction === 'add_new_store') {
+        await handleNewStoreCallback(code, state);
+      } else if (oauthAction === 'connect_existing') {
+        await handleExistingStoreCallback(code, state);
+      } else {
+        throw new Error('Invalid OAuth action');
+      }
+
+      // Clean up localStorage
+      localStorage.removeItem('etsy_oauth_action');
+      localStorage.removeItem('etsy_connecting_store_id');
+      localStorage.removeItem('etsy_oauth_timestamp');
+      
+    } catch (error) {
+      console.error('❌ Etsy callback processing error:', error);
+      alert('Error occurred while processing Etsy connection: ' + error.message);
+      
+      // Clean up localStorage on error
+      localStorage.removeItem('etsy_oauth_action');
+      localStorage.removeItem('etsy_connecting_store_id');
+      localStorage.removeItem('etsy_oauth_timestamp');
+    }
+  };
+
+  const handleNewStoreCallback = async (code: string, state: string) => {
+    console.log('🆕 Processing new store OAuth callback...');
+    
+    // TODO: Exchange authorization code for access token on backend
+    // For now, we'll create a store with mock data
+    
+    try {
+      // Extract shop info from state or make API call to get shop details
+      // This would normally be done after token exchange
+      const mockShopName = `Etsy Store ${Date.now()}`;
+      
       const storeData = {
         user_id: user?.id,
         platform: 'etsy' as const,
-        store_name: formData.store_name.trim(),
-        store_url: formData.store_url.trim() || null,
-        api_credentials: {}, // Empty for now, will be filled by Etsy OAuth
-        is_active: true
+        store_name: mockShopName, // This will come from Etsy API
+        store_url: null, // This will come from Etsy API
+        api_credentials: { 
+          connected: true,
+          connected_at: new Date().toISOString(),
+          authorization_code: code,
+          state: state,
+          // TODO: Store actual tokens here after backend exchange
+          // access_token: 'xxx',
+          // refresh_token: 'xxx',
+          // shop_id: 'xxx'
+        },
+        is_active: true,
+        last_sync_at: new Date().toISOString()
       };
 
-      let result;
+      const { data, error } = await supabase
+        .from('stores')
+        .insert(storeData)
+        .select()
+        .single();
 
-      if (editingStore) {
-        result = await supabase
-          .from('stores')
-          .update({
-            ...storeData,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', editingStore.id)
-          .eq('user_id', user?.id)
-          .select()
-          .single();
-      } else {
-        result = await supabase
-          .from('stores')
-          .insert(storeData)
-          .select()
-          .single();
-      }
+      if (error) throw error;
 
-      if (result.error) {
-        console.error('❌ Store save error:', result.error);
-        alert('Failed to save store: ' + result.error.message);
-        return;
-      }
-
-      console.log('✅ Store saved successfully:', result.data);
+      console.log('✅ New Etsy store created:', data);
       await loadStores();
-      setShowAddModal(false);
       
-      alert(`Etsy store ${editingStore ? 'updated' : 'added'} successfully! 🎉`);
-
+      alert('🎉 Etsy store connected successfully! You can now manage your products.');
+      
     } catch (error) {
-      console.error('❌ Store save general error:', error);
-      alert('Failed to save store: ' + error.message);
-    } finally {
-      setFormLoading(false);
+      console.error('❌ New store creation error:', error);
+      throw error;
+    }
+  };
+
+  const handleExistingStoreCallback = async (code: string, state: string) => {
+    console.log('🔗 Processing existing store OAuth callback...');
+    
+    const storeId = localStorage.getItem('etsy_connecting_store_id');
+    if (!storeId) {
+      throw new Error('Store ID not found in callback');
+    }
+
+    // Extract store ID from state as additional security check
+    const stateStoreId = state.split('_')[2];
+    if (storeId !== stateStoreId) {
+      throw new Error('State mismatch - possible security issue');
+    }
+
+    try {
+      // TODO: Exchange authorization code for access token on backend
+      const { error } = await supabase
+        .from('stores')
+        .update({ 
+          last_sync_at: new Date().toISOString(),
+          api_credentials: { 
+            connected: true, 
+            connected_at: new Date().toISOString(),
+            authorization_code: code,
+            state: state,
+            // TODO: Store actual tokens here after backend exchange
+          },
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', storeId)
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      console.log('✅ Existing store connected:', storeId);
+      await loadStores();
+      
+      alert('🎉 Etsy store connected successfully!');
+      
+    } catch (error) {
+      console.error('❌ Existing store connection error:', error);
+      throw error;
     }
   };
 
@@ -246,95 +348,6 @@ const StoresPage: React.FC = () => {
     } catch (error) {
       console.error('Store status toggle error:', error);
       alert('Error occurred while updating store status');
-    }
-  };
-
-  const generateEtsyOAuthURL = (storeId: string) => {
-    // TODO: Replace with actual Etsy API credentials
-    const CLIENT_ID = 'your_etsy_client_id'; // This will come from environment variables
-    const REDIRECT_URI = `${window.location.origin}/admin/stores`; // Current page as callback
-    const STATE = `${storeId}_${Date.now()}`; // Include store ID in state for identification
-    const SCOPE = 'shops_r listings_r'; // Read shops and listings
-    
-    const params = new URLSearchParams({
-      response_type: 'code',
-      client_id: CLIENT_ID,
-      redirect_uri: REDIRECT_URI,
-      scope: SCOPE,
-      state: STATE
-    });
-
-    return `https://www.etsy.com/oauth/connect?${params.toString()}`;
-  };
-
-  const connectToEtsy = async (storeId: string) => {
-    try {
-      console.log('🔗 Initiating Etsy OAuth for store:', storeId);
-      
-      // Store the store ID in localStorage for callback handling
-      localStorage.setItem('etsy_connecting_store_id', storeId);
-      
-      // Generate OAuth URL and redirect
-      const oauthUrl = generateEtsyOAuthURL(storeId);
-      
-      // Show info to user before redirect
-      if (window.confirm('You will be redirected to Etsy authorization page. Do you want to continue?')) {
-        window.location.href = oauthUrl;
-      }
-    } catch (error) {
-      console.error('Etsy OAuth initiation error:', error);
-      alert('Error occurred while initiating Etsy connection');
-    }
-  };
-
-  const handleEtsyCallback = async (code: string, state: string) => {
-    try {
-      console.log('🔄 Processing Etsy OAuth callback...');
-      
-      // Extract store ID from state
-      const storeId = state.split('_')[0];
-      const storedStoreId = localStorage.getItem('etsy_connecting_store_id');
-      
-      if (storeId !== storedStoreId) {
-        throw new Error('State mismatch - possible security issue');
-      }
-
-      // TODO: Exchange authorization code for access token
-      // This should be done on the backend for security
-      console.log('📝 Authorization code received:', code);
-      console.log('🏪 Store ID:', storeId);
-      
-      // For now, just update the store as connected
-      const { error } = await supabase
-        .from('stores')
-        .update({ 
-          last_sync_at: new Date().toISOString(),
-          api_credentials: { 
-            connected: true, 
-            connected_at: new Date().toISOString(),
-            // TODO: Store actual tokens here after backend exchange
-          },
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', storeId)
-        .eq('user_id', user?.id);
-
-      if (error) throw error;
-
-      // Clean up localStorage
-      localStorage.removeItem('etsy_connecting_store_id');
-      
-      // Reload stores to show updated status
-      await loadStores();
-      
-      alert('🎉 Etsy store connected successfully!');
-      
-    } catch (error) {
-      console.error('❌ Etsy callback processing error:', error);
-      alert('Error occurred while processing Etsy connection: ' + error.message);
-      
-      // Clean up localStorage on error
-      localStorage.removeItem('etsy_connecting_store_id');
     }
   };
 
@@ -437,7 +450,7 @@ const StoresPage: React.FC = () => {
             disabled={authLoading || !!authError}
           >
             <Plus className="h-4 w-4" />
-            <span>Add Store</span>
+            <span>Connect Etsy Store</span>
           </Button>
         </div>
       </div>
@@ -448,11 +461,13 @@ const StoresPage: React.FC = () => {
           <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
           <div>
             <h3 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
-              Etsy Integration Status
+              🔐 Secure Etsy Integration
             </h3>
             <p className="text-sm text-blue-600 dark:text-blue-300">
-              <strong>Development Mode:</strong> OAuth integration is under development. 
-              Currently using mock connection for testing. Real Etsy API integration will be available soon.
+              <strong>OAuth Ready:</strong> Click "Connect Etsy Store" to authorize through Etsy's secure OAuth system. 
+              You'll be redirected to Etsy, grant permissions, and automatically return here with your store connected.
+              <br />
+              <strong>Development Mode:</strong> Currently using mock tokens. Real API integration will be activated when Etsy API keys are configured.
             </p>
           </div>
         </div>
@@ -484,7 +499,7 @@ const StoresPage: React.FC = () => {
           <p className="text-gray-500 dark:text-gray-400 mb-6">
             {searchTerm
               ? 'Try adjusting your search terms'
-              : 'Connect your first Etsy store to start managing your products'
+              : 'Connect your first Etsy store through secure OAuth to start managing your products'
             }
           </p>
           {!searchTerm && (
@@ -494,7 +509,7 @@ const StoresPage: React.FC = () => {
               disabled={authLoading || !!authError}
             >
               <Plus className="h-4 w-4" />
-              <span>Add First Store</span>
+              <span>Connect First Store</span>
             </Button>
           )}
         </div>
@@ -603,7 +618,7 @@ const StoresPage: React.FC = () => {
                         </button>
                       ) : (
                         <button
-                          onClick={() => connectToEtsy(store.id)}
+                          onClick={() => connectExistingStore(store.id)}
                           className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300 flex items-center space-x-1"
                           title="Connect to Etsy via OAuth"
                         >
@@ -611,13 +626,6 @@ const StoresPage: React.FC = () => {
                           <span>Connect</span>
                         </button>
                       )}
-                      <button
-                        onClick={() => handleEditStore(store)}
-                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                        title="Edit store"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
                       <button
                         onClick={() => deleteStore(store.id)}
                         className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
@@ -631,97 +639,6 @@ const StoresPage: React.FC = () => {
               ))}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {/* Add/Edit Store Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
-                  <span className="text-2xl mr-2">🛍️</span>
-                  {editingStore ? 'Edit Etsy Store' : 'Add Etsy Store'}
-                </h2>
-                <button
-                  onClick={() => setShowAddModal(false)}
-                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-            </div>
-            
-            <form onSubmit={handleFormSubmit} className="p-6 space-y-4">
-              {/* Store Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Store Name *
-                </label>
-                <Input
-                  value={formData.store_name}
-                  onChange={(e) => setFormData({ ...formData, store_name: e.target.value })}
-                  placeholder="Enter your Etsy store name"
-                  required
-                />
-              </div>
-
-              {/* Store URL */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Store URL (Optional)
-                </label>
-                <Input
-                  value={formData.store_url}
-                  onChange={(e) => setFormData({ ...formData, store_url: e.target.value })}
-                  placeholder="https://your-store.etsy.com"
-                  type="url"
-                />
-              </div>
-
-              {/* OAuth Info Box */}
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <div className="flex items-start space-x-2">
-                  <div className="text-blue-500 mt-0.5">
-                    <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
-                      🔐 Secure OAuth Integration
-                    </h4>
-                    <p className="text-sm text-blue-600 dark:text-blue-300">
-                      After adding your store, click the "Connect" button to authorize through Etsy's secure OAuth system. 
-                      You'll be redirected to Etsy, grant permissions, and automatically return here.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </form>
-            
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex space-x-3">
-                <Button
-                  type="submit"
-                  onClick={handleFormSubmit}
-                  className="flex-1"
-                  disabled={formLoading || !formData.store_name.trim()}
-                >
-                  {formLoading ? 'Saving...' : (editingStore ? 'Update Store' : 'Add Store')}
-                </Button>
-                <Button
-                  onClick={() => setShowAddModal(false)}
-                  variant="secondary"
-                  className="flex-1"
-                  disabled={formLoading}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </div>
         </div>
       )}
     </div>
