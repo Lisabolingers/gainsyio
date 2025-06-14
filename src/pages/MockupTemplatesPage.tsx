@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Konva from 'konva';
 import { Stage, Layer, Rect, Text as KonvaText, Transformer, Group, Image as KonvaImage } from 'react-konva';
-import { Image, Plus, Edit, Trash2, Copy, Search, Filter, Grid, List, Save, Download, Upload, Eye, EyeOff, Move, RotateCw, Palette, Type, Square, Circle } from 'lucide-react';
+import { Image, Plus, Edit, Trash2, Copy, Search, Filter, Grid, List, Save, Download, Upload, Eye, EyeOff, Move, RotateCw, Palette, Type, Square, Circle, Store } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
@@ -16,7 +16,7 @@ interface MockupTemplate {
   design_areas: DesignArea[];
   text_areas: TextArea[];
   logo_area?: LogoArea;
-  design_type: 'standard' | 'black_white' | 'color';
+  store_id?: string; // CRITICAL: Mağaza ID'si eklendi
   is_default: boolean;
   created_at: string;
   updated_at: string;
@@ -61,9 +61,17 @@ interface LogoArea {
   visible: boolean;
 }
 
+interface EtsyStore {
+  id: string;
+  store_name: string;
+  store_url?: string;
+  is_active: boolean;
+}
+
 const MockupTemplatesPage: React.FC = () => {
   const { user } = useAuth();
   const [templates, setTemplates] = useState<MockupTemplate[]>([]);
+  const [stores, setStores] = useState<EtsyStore[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -75,7 +83,7 @@ const MockupTemplatesPage: React.FC = () => {
   const [canvasSize, setCanvasSize] = useState({ width: 600, height: 600 });
   const [templateName, setTemplateName] = useState('');
   const [backgroundImage, setBackgroundImage] = useState<string>('');
-  const [designType, setDesignType] = useState<'standard' | 'black_white' | 'color'>('standard');
+  const [selectedStore, setSelectedStore] = useState<string>(''); // CRITICAL: Mağaza seçimi
   const [designAreas, setDesignAreas] = useState<DesignArea[]>([]);
   const [textAreas, setTextAreas] = useState<TextArea[]>([]);
   const [logoArea, setLogoArea] = useState<LogoArea | null>(null);
@@ -94,6 +102,7 @@ const MockupTemplatesPage: React.FC = () => {
   useEffect(() => {
     if (user) {
       loadTemplates();
+      loadStores(); // CRITICAL: Mağazaları yükle
     }
   }, [user]);
 
@@ -122,11 +131,41 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
+  // CRITICAL: Mağaza yükleme fonksiyonu
+  const loadStores = async () => {
+    try {
+      console.log('🔄 Etsy mağazaları yükleniyor...');
+      
+      const { data, error } = await supabase
+        .from('stores')
+        .select('*')
+        .eq('user_id', user?.id)
+        .eq('platform', 'etsy')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Mağaza yükleme hatası:', error);
+        throw error;
+      }
+
+      console.log(`✅ ${data?.length || 0} Etsy mağazası yüklendi`);
+      setStores(data || []);
+      
+      // İlk mağazayı otomatik seç
+      if (data && data.length > 0) {
+        setSelectedStore(data[0].id);
+      }
+    } catch (error) {
+      console.error('❌ Mağaza yükleme genel hatası:', error);
+    }
+  };
+
   const createNewTemplate = () => {
     setEditingTemplate(null);
     setTemplateName('');
     setBackgroundImage('');
-    setDesignType('standard');
+    setSelectedStore(stores.length > 0 ? stores[0].id : ''); // CRITICAL: İlk mağazayı seç
     setDesignAreas([]);
     setTextAreas([]);
     setLogoArea(null);
@@ -139,7 +178,7 @@ const MockupTemplatesPage: React.FC = () => {
     setEditingTemplate(template);
     setTemplateName(template.name);
     setBackgroundImage(template.image_url);
-    setDesignType(template.design_type);
+    setSelectedStore(template.store_id || (stores.length > 0 ? stores[0].id : '')); // CRITICAL: Template'in mağazasını seç
     setDesignAreas(template.design_areas || []);
     setTextAreas(template.text_areas || []);
     setLogoArea(template.logo_area || null);
@@ -168,6 +207,11 @@ const MockupTemplatesPage: React.FC = () => {
       return;
     }
 
+    if (!selectedStore) {
+      alert('Mağaza seçimi gerekli!');
+      return;
+    }
+
     try {
       console.log('💾 Template kaydediliyor...');
 
@@ -178,7 +222,7 @@ const MockupTemplatesPage: React.FC = () => {
         design_areas: designAreas,
         text_areas: textAreas,
         logo_area: logoArea,
-        design_type: designType,
+        store_id: selectedStore, // CRITICAL: Mağaza ID'sini kaydet
         is_default: false
       };
 
@@ -253,7 +297,7 @@ const MockupTemplatesPage: React.FC = () => {
           design_areas: template.design_areas,
           text_areas: template.text_areas,
           logo_area: template.logo_area,
-          design_type: template.design_type,
+          store_id: template.store_id, // CRITICAL: Mağaza ID'sini de kopyala
           is_default: false
         });
 
@@ -502,6 +546,13 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
+  // CRITICAL: Mağaza adını getir
+  const getStoreName = (storeId?: string) => {
+    if (!storeId) return 'Mağaza seçilmemiş';
+    const store = stores.find(s => s.id === storeId);
+    return store ? store.store_name : 'Bilinmeyen mağaza';
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -532,7 +583,7 @@ const MockupTemplatesPage: React.FC = () => {
               </h1>
             </div>
             <div className="flex items-center space-x-3">
-              <Button onClick={saveTemplate} disabled={!templateName || !backgroundImage}>
+              <Button onClick={saveTemplate} disabled={!templateName || !backgroundImage || !selectedStore}>
                 💾 Kaydet
               </Button>
             </div>
@@ -552,15 +603,22 @@ const MockupTemplatesPage: React.FC = () => {
                   onChange={(e) => setTemplateName(e.target.value)}
                   className="w-64"
                 />
-                <select
-                  value={designType}
-                  onChange={(e) => setDesignType(e.target.value as any)}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  <option value="standard">Standard</option>
-                  <option value="black_white">Black & White</option>
-                  <option value="color">Color</option>
-                </select>
+                {/* CRITICAL: Mağaza seçimi - Design Type yerine */}
+                <div className="flex items-center space-x-2">
+                  <Store className="h-5 w-5 text-orange-500" />
+                  <select
+                    value={selectedStore}
+                    onChange={(e) => setSelectedStore(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  >
+                    <option value="">Mağaza seçin...</option>
+                    {stores.map((store) => (
+                      <option key={store.id} value={store.id}>
+                        {store.store_name} {store.store_url && `(${store.store_url})`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <Button
                   onClick={() => fileInputRef.current?.click()}
                   variant="secondary"
@@ -569,6 +627,18 @@ const MockupTemplatesPage: React.FC = () => {
                   📁 Background Yükle
                 </Button>
               </div>
+
+              {/* Store Warning */}
+              {stores.length === 0 && (
+                <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                  <p className="text-yellow-700 dark:text-yellow-400 text-sm">
+                    Henüz Etsy mağazası eklenmemiş. 
+                    <a href="/admin/stores" target="_blank" className="underline ml-1">
+                      Mağaza ekleyin
+                    </a>
+                  </p>
+                </div>
+              )}
 
               {/* Canvas */}
               <div 
@@ -742,6 +812,30 @@ const MockupTemplatesPage: React.FC = () => {
           {/* Properties Panel */}
           <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 p-4 overflow-y-auto">
             <div className="space-y-4">
+              {/* Selected Store Info */}
+              {selectedStore && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <Store className="h-5 w-5 mr-2 text-orange-500" />
+                      Seçili Mağaza
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-sm">
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {getStoreName(selectedStore)}
+                      </p>
+                      {stores.find(s => s.id === selectedStore)?.store_url && (
+                        <p className="text-gray-500 dark:text-gray-400 mt-1">
+                          {stores.find(s => s.id === selectedStore)?.store_url}
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Add Areas */}
               <Card>
                 <CardHeader>
@@ -1043,12 +1137,36 @@ const MockupTemplatesPage: React.FC = () => {
           <Button
             onClick={createNewTemplate}
             className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
+            disabled={stores.length === 0}
           >
             <Plus className="h-4 w-4" />
             <span>Yeni Template</span>
           </Button>
         </div>
       </div>
+
+      {/* Store Warning */}
+      {stores.length === 0 && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+          <div className="flex items-center space-x-3">
+            <Store className="h-5 w-5 text-yellow-500" />
+            <div>
+              <h3 className="text-yellow-700 dark:text-yellow-400 font-medium">
+                Etsy Mağazası Gerekli
+              </h3>
+              <p className="text-yellow-600 dark:text-yellow-500 text-sm mt-1">
+                Mockup template oluşturmak için önce bir Etsy mağazası eklemeniz gerekiyor.
+              </p>
+              <a 
+                href="/admin/stores" 
+                className="text-yellow-700 dark:text-yellow-400 underline text-sm mt-2 inline-block"
+              >
+                Mağaza eklemek için tıklayın →
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-4 items-center">
@@ -1091,10 +1209,12 @@ const MockupTemplatesPage: React.FC = () => {
           <p className="text-gray-500 dark:text-gray-400 mb-6">
             {searchTerm
               ? 'Arama terimlerinizi değiştirmeyi deneyin'
-              : 'İlk mockup template\'inizi oluşturmaya başlayın'
+              : stores.length === 0 
+                ? 'Önce bir Etsy mağazası ekleyin'
+                : 'İlk mockup template\'inizi oluşturmaya başlayın'
             }
           </p>
-          {!searchTerm && (
+          {!searchTerm && stores.length > 0 && (
             <Button
               onClick={createNewTemplate}
               className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
@@ -1136,17 +1256,14 @@ const MockupTemplatesPage: React.FC = () => {
                     </h3>
                     
                     <div className="flex items-center justify-between text-sm">
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        template.design_type === 'black_white' 
-                          ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                          : template.design_type === 'color'
-                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
-                          : 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                      }`}>
-                        {template.design_type === 'black_white' ? 'B&W' : 
-                         template.design_type === 'color' ? 'Color' : 'Standard'}
-                      </span>
-                      <span className="text-gray-500 dark:text-gray-400">
+                      {/* CRITICAL: Mağaza bilgisi göster */}
+                      <div className="flex items-center space-x-1">
+                        <Store className="h-3 w-3 text-orange-500" />
+                        <span className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                          {getStoreName(template.store_id)}
+                        </span>
+                      </div>
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">
                         {formatDate(template.created_at)}
                       </span>
                     </div>
