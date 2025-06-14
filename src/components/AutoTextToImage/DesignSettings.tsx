@@ -4,7 +4,7 @@ import { Stage, Layer, Text as KonvaText, Transformer, Group } from 'react-konva
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
-import ColorOptions from './ColorOptions';
+import AccordionTextControls from './AccordionTextControls';
 import { renderTextByStyle } from './styleOption';
 import { useFonts } from '../../hooks/useFonts';
 import { FontService } from '../../lib/fontService';
@@ -44,7 +44,7 @@ const DesignSettings = () => {
       width: 400,
       height: 100,
       align: 'center',
-      colorOption: 'normal',
+      colorOption: 'bw', // CRITICAL: Default olarak Black & White
       styleOption: 'normal',
     }
   ]);
@@ -109,7 +109,7 @@ const DesignSettings = () => {
             // Diğer default değerleri de kontrol et
             letterSpacing: text.letterSpacing || 0,
             align: text.align || 'center',
-            colorOption: text.colorOption || 'normal',
+            colorOption: text.colorOption || 'bw', // CRITICAL: Default Black & White
             styleOption: text.styleOption || 'normal',
             fill: text.fill || '#000000',
             maxFontSize: text.maxFontSize || 50,
@@ -301,7 +301,8 @@ const DesignSettings = () => {
       id: newId, 
       text: '', 
       x: canvasSize.width / 2, 
-      y: canvasSize.height / 2
+      y: canvasSize.height / 2,
+      colorOption: 'bw' // CRITICAL: Yeni text için de Black & White default
     });
     setTexts([...texts, newText]);
     setSelectedId(newId);
@@ -598,6 +599,24 @@ const DesignSettings = () => {
     }
   };
 
+  // Text silme fonksiyonu
+  const deleteText = (textId) => {
+    if (texts.length <= 1) {
+      alert('En az bir text elementi olmalı!');
+      return;
+    }
+    
+    setTexts(prev => prev.filter(t => t.id !== textId));
+    
+    // Eğer silinen text seçiliyse, başka bir text'i seç
+    if (selectedId === textId) {
+      const remainingTexts = texts.filter(t => t.id !== textId);
+      if (remainingTexts.length > 0) {
+        setSelectedId(remainingTexts[0].id);
+      }
+    }
+  };
+
   // CRITICAL: Enhanced text rendering with proper font handling
   const renderKonvaText = (text) => {
     console.log(`🎨 Text render ediliyor: "${text.text.substring(0, 20)}..." font: ${text.fontFamily}`);
@@ -836,197 +855,23 @@ const DesignSettings = () => {
           </div>
         )}
 
+        {/* CRITICAL: Accordion Text Controls */}
         {texts.map((text) => (
-          <Card key={text.id} className="mb-4">
-            <CardHeader>
-              <CardTitle>Text {text.id}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Text Input */}
-              <div className="flex gap-2 items-start">
-                <textarea 
-                  value={text.text} 
-                  onChange={(e) => updateTextProperty(text.id, 'text', e.target.value)} 
-                  rows={1} 
-                  className="border border-gray-300 dark:border-gray-600 p-2 rounded flex-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none overflow-hidden" 
-                />
-                <Button 
-                  className="p-2 h-10 w-10 flex items-center justify-center" 
-                  onClick={() => updateTextProperty(text.id, 'text', text.text + '\n')}
-                >
-                  +
-                </Button>
-              </div>
-
-              {/* Font and Size Controls */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Font:</label>
-                  <div className="flex gap-2">
-                    <select 
-                      value={text.fontFamily} 
-                      onChange={(e) => {
-                        console.log(`🔄 FONT DEĞİŞTİRİLİYOR: ${e.target.value}`);
-                        updateTextProperty(text.id, 'fontFamily', e.target.value);
-                      }} 
-                      className="flex-1 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      disabled={fontsLoading || !fontsInitialized}
-                    >
-                      {allFonts.map((font) => (
-                        <option key={font} value={font}>{font}</option>
-                      ))}
-                    </select>
-                    
-                    {/* Enhanced Font Upload Button */}
-                    <Button 
-                      className="p-2 h-10 w-10 flex items-center justify-center" 
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={fontUploading}
-                      title="Upload custom font"
-                    >
-                      {fontUploading ? (
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      ) : (
-                        '+'
-                      )}
-                    </Button>
-                    <input 
-                      type="file" 
-                      accept=".ttf,.otf,.woff,.woff2" 
-                      ref={fileInputRef} 
-                      onChange={handleFontUpload} 
-                      style={{ display: 'none' }} 
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Font Size (px):</label>
-                  <input 
-                    type="number" 
-                    value={text.maxFontSize} 
-                    min="1"
-                    step="1" 
-                    onChange={(e) => updateTextProperty(text.id, 'maxFontSize', parseInt(e.target.value))} 
-                    className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
-                  />
-                </div>
-              </div>
-
-              {/* Additional Controls */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Line Height:</label>
-                  <input 
-                    type="number" 
-                    value={text.lineHeight} 
-                    step="0.1"
-                    min="0.1"
-                    onChange={(e) => updateTextProperty(text.id, 'lineHeight', parseFloat(e.target.value))} 
-                    className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Letter Spacing:</label>
-                  <input 
-                    type="number" 
-                    value={text.letterSpacing} 
-                    onChange={(e) => updateTextProperty(text.id, 'letterSpacing', parseFloat(e.target.value))} 
-                    className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Align:</label>
-                  <select 
-                    value={text.align} 
-                    onChange={(e) => updateTextProperty(text.id, 'align', e.target.value)} 
-                    className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="left">Left</option>
-                    <option value="center">Center</option>
-                    <option value="right">Right</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Alignment Buttons */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Alignment:</label>
-                <div className="flex gap-2 text-2xl">
-                  <button onClick={() => alignText('left')} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded">
-                    <span className="material-icons text-lg">format_align_left</span>
-                  </button>
-                  <button onClick={() => alignText('centerX')} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded">
-                    <span className="material-icons text-lg">format_align_center</span>
-                  </button>
-                  <button onClick={() => alignText('right')} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded">
-                    <span className="material-icons text-lg">format_align_right</span>
-                  </button>
-                  <button onClick={() => alignText('top')} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded">
-                    <span className="material-icons text-lg">vertical_align_top</span>
-                  </button>
-                  <button onClick={() => alignText('centerY')} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded">
-                    <span className="material-icons text-lg">vertical_align_center</span>
-                  </button>
-                  <button onClick={() => alignText('bottom')} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded">
-                    <span className="material-icons text-lg">vertical_align_bottom</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Color Options */}
-              <ColorOptions text={text} setTexts={setTexts} texts={texts} />
-
-              {/* Style Options */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Style:</label>
-                <select
-                  value={text.styleOption || 'normal'}
-                  onChange={(e) => updateTextProperty(text.id, 'styleOption', e.target.value)}
-                  className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  <option value="normal">Normal</option>
-                  <option value="arc">Arc</option>
-                  <option value="wave">Wave</option>
-                </select>
-              </div>
-
-              {/* Style Parameters */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Bend (%):</label>
-                  <input 
-                    type="number" 
-                    value={text.bend || 50} 
-                    onChange={(e) => updateTextProperty(text.id, 'bend', parseFloat(e.target.value))} 
-                    className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Distortion H:</label>
-                  <input 
-                    type="number" 
-                    value={text.distortionH || 0} 
-                    onChange={(e) => updateTextProperty(text.id, 'distortionH', parseFloat(e.target.value))} 
-                    className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Distortion V:</label>
-                  <input 
-                    type="number" 
-                    value={text.distortionV || 0} 
-                    onChange={(e) => updateTextProperty(text.id, 'distortionV', parseFloat(e.target.value))} 
-                    className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <AccordionTextControls
+            key={text.id}
+            text={text}
+            texts={texts}
+            setTexts={setTexts}
+            allFonts={allFonts}
+            fontsLoading={fontsLoading}
+            fontsInitialized={fontsInitialized}
+            fontUploading={fontUploading}
+            fileInputRef={fileInputRef}
+            handleFontUpload={handleFontUpload}
+            alignText={alignText}
+            updateTextProperty={updateTextProperty}
+            onDelete={deleteText}
+          />
         ))}
         
         <Button className="mt-4 w-full" onClick={addText}>
