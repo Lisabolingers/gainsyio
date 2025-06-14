@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
+import LogoSelector from '../components/AutoTextToImage/LogoSelector';
 
 interface MockupTemplate {
   id: string;
@@ -59,6 +60,7 @@ interface LogoArea {
   rotation: number;
   opacity: number;
   visible: boolean;
+  logoUrl?: string; // CRITICAL: Logo URL'si için yeni field
 }
 
 interface EtsyStore {
@@ -88,6 +90,10 @@ const MockupTemplatesPage: React.FC = () => {
   const [logoArea, setLogoArea] = useState<LogoArea | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAreaVisibility, setShowAreaVisibility] = useState(true);
+
+  // CRITICAL: Logo Selector States
+  const [showLogoSelector, setShowLogoSelector] = useState(false);
+  const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null);
 
   const stageRef = useRef<any>();
   const transformerRef = useRef<any>();
@@ -196,6 +202,7 @@ const MockupTemplatesPage: React.FC = () => {
     setDesignAreas([]);
     setTextAreas([]);
     setLogoArea(null);
+    setLogoImage(null); // CRITICAL: Logo image'ı da temizle
     setSelectedId(null);
     setCanvasSize({ width: 2000, height: 2000 });
     setShowEditor(true);
@@ -210,6 +217,17 @@ const MockupTemplatesPage: React.FC = () => {
     setTextAreas(template.text_areas || []);
     setLogoArea(template.logo_area || null);
     setSelectedId(null);
+    
+    // CRITICAL: Eğer logo area'da logo URL'si varsa, logo image'ı yükle
+    if (template.logo_area?.logoUrl) {
+      const img = new window.Image();
+      img.onload = () => {
+        setLogoImage(img);
+      };
+      img.src = template.logo_area.logoUrl;
+    } else {
+      setLogoImage(null);
+    }
     
     if (template.image_url) {
       const img = new window.Image();
@@ -429,6 +447,41 @@ const MockupTemplatesPage: React.FC = () => {
 
     setLogoArea(newArea);
     setSelectedId(newArea.id);
+    
+    // CRITICAL: Logo alanı eklendikten hemen sonra logo selector'ı aç
+    setShowLogoSelector(true);
+  };
+
+  // CRITICAL: Logo seçildiğinde çağrılacak fonksiyon
+  const handleLogoSelect = (logoUrl: string) => {
+    console.log('🖼️ Logo seçildi:', logoUrl);
+    
+    // Logo image'ı yükle
+    const img = new window.Image();
+    img.onload = () => {
+      setLogoImage(img);
+      console.log('✅ Logo image yüklendi:', img.width, 'x', img.height);
+    };
+    img.onerror = () => {
+      console.error('❌ Logo image yüklenemedi:', logoUrl);
+      alert('Logo yüklenirken hata oluştu');
+    };
+    img.src = logoUrl;
+    
+    // Logo area'ya URL'yi kaydet
+    if (logoArea) {
+      setLogoArea(prev => prev ? { ...prev, logoUrl } : null);
+    }
+    
+    // Modal'ı kapat
+    setShowLogoSelector(false);
+  };
+
+  // CRITICAL: Logo area'ya tıklandığında logo selector'ı aç
+  const handleLogoAreaClick = () => {
+    console.log('🖼️ Logo alanına tıklandı, logo selector açılıyor...');
+    setSelectedId(logoArea?.id || null);
+    setShowLogoSelector(true);
   };
 
   const deleteArea = (areaId: string) => {
@@ -438,6 +491,7 @@ const MockupTemplatesPage: React.FC = () => {
       setTextAreas(prev => prev.filter(area => area.id !== areaId));
     } else if (areaId.startsWith('logo-')) {
       setLogoArea(null);
+      setLogoImage(null); // CRITICAL: Logo image'ı da temizle
     }
     
     if (selectedId === areaId) {
@@ -766,33 +820,48 @@ const MockupTemplatesPage: React.FC = () => {
                           x={logoArea.x}
                           y={logoArea.y}
                           draggable
-                          onClick={() => setSelectedId(logoArea.id)}
+                          onClick={handleLogoAreaClick} // CRITICAL: Logo area'ya tıklandığında logo selector'ı aç
                           onDragEnd={(e) => handleDragEnd(logoArea.id, e)}
                           onTransformEnd={(e) => handleTransformEnd(logoArea.id, e)}
                         >
-                          <Rect
-                            width={logoArea.width}
-                            height={logoArea.height}
-                            fill="rgba(168, 85, 247, 0.3)"
-                            stroke="#a855f7"
-                            strokeWidth={4}
-                            offsetX={logoArea.width / 2}
-                            offsetY={logoArea.height / 2}
-                            opacity={logoArea.opacity}
-                            rotation={logoArea.rotation}
-                          />
-                          <KonvaText
-                            text="LOGO"
-                            fontSize={48}
-                            fontFamily="Arial"
-                            fill="#a855f7"
-                            width={logoArea.width}
-                            height={logoArea.height}
-                            align="center"
-                            verticalAlign="middle"
-                            offsetX={logoArea.width / 2}
-                            offsetY={logoArea.height / 2}
-                          />
+                          {/* CRITICAL: Eğer logo image varsa onu göster, yoksa placeholder */}
+                          {logoImage ? (
+                            <KonvaImage
+                              image={logoImage}
+                              width={logoArea.width}
+                              height={logoArea.height}
+                              offsetX={logoArea.width / 2}
+                              offsetY={logoArea.height / 2}
+                              opacity={logoArea.opacity}
+                              rotation={logoArea.rotation}
+                            />
+                          ) : (
+                            <>
+                              <Rect
+                                width={logoArea.width}
+                                height={logoArea.height}
+                                fill="rgba(168, 85, 247, 0.3)"
+                                stroke="#a855f7"
+                                strokeWidth={4}
+                                offsetX={logoArea.width / 2}
+                                offsetY={logoArea.height / 2}
+                                opacity={logoArea.opacity}
+                                rotation={logoArea.rotation}
+                              />
+                              <KonvaText
+                                text="LOGO\n(Tıklayın)"
+                                fontSize={36}
+                                fontFamily="Arial"
+                                fill="#a855f7"
+                                width={logoArea.width}
+                                height={logoArea.height}
+                                align="center"
+                                verticalAlign="middle"
+                                offsetX={logoArea.width / 2}
+                                offsetY={logoArea.height / 2}
+                              />
+                            </>
+                          )}
                         </Group>
                       )}
 
@@ -816,6 +885,11 @@ const MockupTemplatesPage: React.FC = () => {
               <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
                 <p>💡 <strong>İpucu:</strong> Template kaydedilebilmesi için lütfen template adı ve tasarım alanı eklemelisiniz. Logo ve yazı eklemek isteğe bağlıdır.</p>
                 <p>Canvas boyutu: {canvasSize.width} × {canvasSize.height} px</p>
+                {logoArea && !logoImage && (
+                  <p className="text-orange-600 dark:text-orange-400 mt-2">
+                    🖼️ <strong>Logo alanına tıklayarak Store Images'dan logo seçebilirsiniz</strong>
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -856,6 +930,70 @@ const MockupTemplatesPage: React.FC = () => {
                   </Button>
                 </CardContent>
               </Card>
+
+              {/* CRITICAL: Logo Area için özel bilgi paneli */}
+              {logoArea && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      🖼️ Logo Alanı
+                      <Button
+                        onClick={() => setShowLogoSelector(true)}
+                        size="sm"
+                        className="text-xs"
+                      >
+                        Logo Seç
+                      </Button>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {logoImage ? (
+                      <div className="space-y-2">
+                        <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+                          <div className="text-xs text-gray-600 dark:text-gray-400 mb-2">Seçili Logo:</div>
+                          <img 
+                            src={logoArea.logoUrl} 
+                            alt="Seçili logo" 
+                            className="w-16 h-16 object-cover rounded border mx-auto"
+                          />
+                        </div>
+                        <Button
+                          onClick={() => setShowLogoSelector(true)}
+                          variant="secondary"
+                          size="sm"
+                          className="w-full"
+                        >
+                          Logo Değiştir
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setLogoImage(null);
+                            setLogoArea(prev => prev ? { ...prev, logoUrl: undefined } : null);
+                          }}
+                          variant="danger"
+                          size="sm"
+                          className="w-full"
+                        >
+                          Logo Kaldır
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="text-center py-4">
+                        <div className="text-gray-500 dark:text-gray-400 mb-3">
+                          Henüz logo seçilmedi
+                        </div>
+                        <Button
+                          onClick={() => setShowLogoSelector(true)}
+                          className="w-full"
+                          size="sm"
+                        >
+                          Store Images'dan Logo Seç
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Selected Area Properties */}
               {selectedId && getSelectedArea() && (
@@ -955,6 +1093,14 @@ const MockupTemplatesPage: React.FC = () => {
           onChange={handleBackgroundUpload}
           className="hidden"
         />
+
+        {/* CRITICAL: Logo Selector Modal */}
+        {showLogoSelector && (
+          <LogoSelector
+            onSelect={handleLogoSelect}
+            onClose={() => setShowLogoSelector(false)}
+          />
+        )}
       </div>
     );
   }
