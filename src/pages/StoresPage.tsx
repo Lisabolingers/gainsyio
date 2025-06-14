@@ -18,9 +18,17 @@ interface StoreData {
   updated_at: string;
 }
 
+interface StoreImage {
+  id: string;
+  image_url: string;
+  image_type: string;
+  name: string;
+}
+
 const StoresPage: React.FC = () => {
   const { user, loading: authLoading, error: authError } = useAuth();
   const [stores, setStores] = useState<StoreData[]>([]);
+  const [storeLogos, setStoreLogos] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -72,10 +80,62 @@ const StoresPage: React.FC = () => {
 
       console.log(`✅ ${data?.length || 0} Etsy stores loaded`);
       setStores(data || []);
+      
+      // Load store logos after stores are loaded
+      if (data && data.length > 0) {
+        await loadStoreLogos(data);
+      }
     } catch (error) {
       console.error('❌ Store loading general error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadStoreLogos = async (stores: StoreData[]) => {
+    try {
+      console.log('🖼️ Loading store logos...');
+      
+      const logoMap: Record<string, string> = {};
+      
+      for (const store of stores) {
+        // Get logo from store_images table for this specific store
+        const { data: logoData, error } = await supabase
+          .from('store_images')
+          .select('image_url, name')
+          .eq('user_id', user?.id)
+          .eq('store_id', store.id)
+          .eq('image_type', 'logo')
+          .limit(1)
+          .single();
+
+        if (!error && logoData) {
+          logoMap[store.id] = logoData.image_url;
+          console.log(`✅ Logo found for store ${store.store_name}:`, logoData.name);
+        } else {
+          // Fallback: Try to get logo from logos folder (general logos)
+          const { data: folderLogoData, error: folderError } = await supabase
+            .from('store_images')
+            .select('image_url, name')
+            .eq('user_id', user?.id)
+            .eq('folder_path', 'logos')
+            .limit(1)
+            .single();
+
+          if (!folderError && folderLogoData) {
+            logoMap[store.id] = folderLogoData.image_url;
+            console.log(`✅ Fallback logo found for store ${store.store_name}:`, folderLogoData.name);
+          } else {
+            console.log(`ℹ️ No logo found for store ${store.store_name}`);
+          }
+        }
+      }
+      
+      setStoreLogos(logoMap);
+      console.log(`🎉 Store logos loaded:`, Object.keys(logoMap).length, 'logos found');
+      
+    } catch (error) {
+      console.error('❌ Store logos loading error:', error);
     }
   };
 
@@ -320,6 +380,11 @@ const StoresPage: React.FC = () => {
       if (error) throw error;
 
       setStores(prev => prev.filter(s => s.id !== storeId));
+      setStoreLogos(prev => {
+        const newLogos = { ...prev };
+        delete newLogos[storeId];
+        return newLogos;
+      });
       alert('Etsy store deleted successfully!');
     } catch (error) {
       console.error('Store deletion error:', error);
@@ -540,8 +605,25 @@ const StoresPage: React.FC = () => {
                 <tr key={store.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
-                        <span className="text-sm">🛍️</span>
+                      <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center overflow-hidden">
+                        {storeLogos[store.id] ? (
+                          <img 
+                            src={storeLogos[store.id]} 
+                            alt={`${store.store_name} logo`}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              // Fallback to emoji if image fails to load
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.nextElementSibling!.style.display = 'block';
+                            }}
+                          />
+                        ) : null}
+                        <span 
+                          className="text-sm"
+                          style={{ display: storeLogos[store.id] ? 'none' : 'block' }}
+                        >
+                          🛍️
+                        </span>
                       </div>
                       <div>
                         <div className="text-sm font-medium text-gray-900 dark:text-white">
