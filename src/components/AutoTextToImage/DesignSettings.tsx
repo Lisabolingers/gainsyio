@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Konva from 'konva';
-import { Stage, Layer, Text as KonvaText, Transformer, Group } from 'react-konva';
+import { Stage, Layer, Text as KonvaText, Transformer, Group, Image as KonvaImage } from 'react-konva';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
@@ -907,16 +907,6 @@ const DesignSettings = () => {
               <span className="text-blue-700 dark:text-blue-400 text-sm">
                 Loading fonts... ({userFonts.length} fonts)
               </span>
-            </div>
-          </div>
-        )}
-
-        {/* Selection status indicator */}
-        {selectedId && (
-          <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
-            <div className="text-sm text-orange-700 dark:text-orange-400">
-              <p><strong>📝 Selected Text:</strong> Text {selectedId}</p>
-              <p className="text-xs mt-1">Editing frame active - you can modify properties</p>
             </div>
           </div>
         )}
