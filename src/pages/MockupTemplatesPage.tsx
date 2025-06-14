@@ -212,13 +212,21 @@ const MockupTemplatesPage: React.FC = () => {
     setSelectedArea(newArea.id);
   };
 
-  // CRITICAL: Canvas tıklama işleyicisi - boş alana tıklandığında seçimi kaldır
+  // CRITICAL: Canvas tıklama işleyicisi - SADECE background'a tıklandığında seçimi kaldır
   const handleCanvasClick = (e: React.MouseEvent) => {
-    // Eğer tıklanan element canvas'ın kendisi ise (background) seçimi kaldır
-    if (e.target === e.currentTarget) {
-      console.log('🖱️ Canvas boş alanına tıklandı, seçim kaldırılıyor');
+    // CRITICAL: Sadece canvas'ın kendisine (background) tıklandığında seçimi kaldır
+    if (e.target === canvasRef.current) {
+      console.log('🖱️ Canvas background\'ına tıklandı, seçim kaldırılıyor');
       setSelectedArea(null);
     }
+  };
+
+  // CRITICAL: Area tıklama işleyicisi - seçimi ayarla ve event propagation'ı durdur
+  const handleAreaClick = (e: React.MouseEvent, areaId: string) => {
+    e.preventDefault();
+    e.stopPropagation(); // CRITICAL: Event'in canvas'a ulaşmasını engelle
+    console.log(`🖱️ Area tıklandı: ${areaId}`);
+    setSelectedArea(areaId);
   };
 
   // CRITICAL: Geliştirilmiş mouse event handlers
@@ -356,24 +364,31 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
-  // CRITICAL: Düzeltilmiş font boyutu güncelleme fonksiyonu
+  // CRITICAL: TAMAMEN YENİDEN YAZILMIŞ font boyutu güncelleme fonksiyonu
   const updateTextAreaProperty = (areaId: string, property: string, value: any) => {
-    console.log(`🔄 Text area property güncelleniyor: ${areaId}, ${property} = ${value}`);
-    
-    // CRITICAL: Font boyutu için özel işlem
-    let processedValue = value;
-    if (property === 'font_size') {
-      // String'i number'a çevir, geçersizse default değer kullan
-      const numValue = typeof value === 'string' ? parseInt(value, 10) : value;
-      processedValue = isNaN(numValue) ? 12 : Math.max(8, Math.min(72, numValue));
-      console.log(`📝 Font size işlendi: ${value} -> ${processedValue}`);
-    }
+    console.log(`🔄 Text area property güncelleniyor: ${areaId}, ${property} = ${value} (type: ${typeof value})`);
     
     setTextAreas(prev => {
-      const updated = prev.map(area => 
-        area.id === areaId ? { ...area, [property]: processedValue } : area
-      );
-      console.log(`✅ Text areas güncellendi:`, updated.find(a => a.id === areaId));
+      const updated = prev.map(area => {
+        if (area.id === areaId) {
+          let processedValue = value;
+          
+          // CRITICAL: Font boyutu için özel işlem
+          if (property === 'font_size') {
+            // String'den number'a çevir
+            const numValue = typeof value === 'string' ? parseInt(value, 10) : Number(value);
+            processedValue = isNaN(numValue) ? 24 : Math.max(8, Math.min(72, numValue));
+            console.log(`📝 Font size işlendi: "${value}" -> ${processedValue} (number)`);
+          }
+          
+          const updatedArea = { ...area, [property]: processedValue };
+          console.log(`✅ Area güncellendi:`, updatedArea);
+          return updatedArea;
+        }
+        return area;
+      });
+      
+      console.log(`🔄 Tüm text areas:`, updated);
       return updated;
     });
   };
@@ -839,12 +854,14 @@ const MockupTemplatesPage: React.FC = () => {
                                 </div>
                                 
                                 <div>
-                                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Font Boyutu:</label>
+                                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                    Font Boyutu: {(area as TextArea).font_size}px
+                                  </label>
                                   <input
                                     type="number"
                                     value={(area as TextArea).font_size}
                                     onChange={(e) => {
-                                      console.log(`🔄 Font size input değişti: ${e.target.value}`);
+                                      console.log(`🔄 Font size input değişti: "${e.target.value}" (${typeof e.target.value})`);
                                       updateTextAreaProperty(area.id, 'font_size', e.target.value);
                                     }}
                                     className="w-full text-sm p-2 border rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
@@ -942,6 +959,7 @@ const MockupTemplatesPage: React.FC = () => {
                           transform: `rotate(${area.rotation}deg)`,
                           opacity: area.opacity
                         }}
+                        onClick={(e) => handleAreaClick(e, area.id)}
                         onMouseDown={(e) => handleMouseDown(e, area.id, 'move')}
                       >
                         <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-700 pointer-events-none">
@@ -972,6 +990,7 @@ const MockupTemplatesPage: React.FC = () => {
                           fontSize: `${area.font_size}px`,
                           color: area.color
                         }}
+                        onClick={(e) => handleAreaClick(e, area.id)}
                         onMouseDown={(e) => handleMouseDown(e, area.id, 'move')}
                       >
                         <div className="absolute inset-0 flex items-center justify-center text-xs font-medium p-1 overflow-hidden pointer-events-none">
@@ -999,6 +1018,7 @@ const MockupTemplatesPage: React.FC = () => {
                           transform: `rotate(${logoArea.rotation}deg)`,
                           opacity: logoArea.opacity
                         }}
+                        onClick={(e) => handleAreaClick(e, logoArea.id)}
                         onMouseDown={(e) => handleMouseDown(e, logoArea.id, 'move')}
                       >
                         <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-700 pointer-events-none">
