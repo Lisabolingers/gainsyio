@@ -10,19 +10,18 @@ import { useFonts } from '../../hooks/useFonts';
 import { FontService } from '../../lib/fontService';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { ChevronDown, ChevronRight, Trash2, Save, Upload } from 'lucide-react';
 
 const DesignSettings = () => {
   const { user } = useAuth();
   const { userFonts, loadUserFonts, loading: fontsLoading } = useFonts();
   
-  // CRITICAL: System fonts list with proper font names for Konva
+  // Sistem fontları + kullanıcı fontları
   const systemFonts = [
     'Arial', 'Times New Roman', 'Helvetica', 'Georgia', 'Verdana',
     'Comic Sans MS', 'Courier New'
   ];
   
-  // All fonts combined
+  // Tüm fontları birleştir
   const allFonts = [
     ...systemFonts,
     ...userFonts.map(font => font.font_name)
@@ -45,7 +44,7 @@ const DesignSettings = () => {
       width: 400,
       height: 100,
       align: 'center',
-      colorOption: 'bw', // Default to Black & White
+      colorOption: 'normal',
       styleOption: 'normal',
     }
   ]);
@@ -53,33 +52,28 @@ const DesignSettings = () => {
   const [forceRender, setForceRender] = useState(0);
   const [fontUploading, setFontUploading] = useState(false);
   const [fontsInitialized, setFontsInitialized] = useState(false);
-  const [fontLoadingStatus, setFontLoadingStatus] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [loadingTemplate, setLoadingTemplate] = useState(false);
-  
-  // Accordion state for each text
-  const [accordionStates, setAccordionStates] = useState({});
-  
+  const [templateLoading, setTemplateLoading] = useState(false);
+  const [currentTemplateId, setCurrentTemplateId] = useState<string | null>(null);
   const stageRef = useRef();
   const transformerRef = useRef();
   const groupRefs = useRef({});
   const fileInputRef = useRef();
 
-  // CRITICAL: Check for template ID in URL and load template
+  // CRITICAL: Template yükleme - URL'den template ID'si al
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const templateId = urlParams.get('template');
     
     if (templateId && user) {
-      loadTemplateFromId(templateId);
+      loadTemplate(templateId);
     }
   }, [user]);
 
-  // CRITICAL: Load template from database
-  const loadTemplateFromId = async (templateId: string) => {
+  // Template yükleme fonksiyonu
+  const loadTemplate = async (templateId: string) => {
     try {
-      setLoadingTemplate(true);
-      console.log('🔄 Loading template:', templateId);
+      setTemplateLoading(true);
+      console.log(`🔄 Template yükleniyor: ${templateId}`);
 
       const { data, error } = await supabase
         .from('auto_text_templates')
@@ -89,297 +83,122 @@ const DesignSettings = () => {
         .single();
 
       if (error) {
-        console.error('❌ Error loading template:', error);
-        alert('Template not found or access denied');
+        console.error('❌ Template yükleme hatası:', error);
         return;
       }
 
-      if (data && data.style_settings) {
-        console.log('✅ Template loaded:', data);
+      if (data) {
+        console.log('✅ Template verisi alındı:', data);
         
-        // Load canvas size
-        if (data.style_settings.canvas_size) {
-          setCanvasSize(data.style_settings.canvas_size);
-        }
-
-        // Load template name
+        // Template verilerini ayarla
+        setCurrentTemplateId(templateId);
         setTemplateName(data.name);
-
-        // Load texts with proper ID assignment
-        if (data.style_settings.texts && Array.isArray(data.style_settings.texts)) {
-          const loadedTexts = data.style_settings.texts.map((text, index) => ({
+        
+        // Canvas boyutunu ayarla
+        if (data.style_settings?.canvas_size) {
+          setCanvasSize(data.style_settings.canvas_size);
+          console.log('📐 Canvas boyutu ayarlandı:', data.style_settings.canvas_size);
+        }
+        
+        // Text elementlerini ayarla
+        if (data.style_settings?.texts && Array.isArray(data.style_settings.texts)) {
+          const loadedTexts = data.style_settings.texts.map((text: any) => ({
             ...text,
-            id: index + 1, // Ensure proper ID sequence
-            // Ensure all required properties exist
-            colorOption: text.colorOption || 'bw',
+            // CRITICAL: Line height default değerini 1 olarak ayarla
+            lineHeight: text.lineHeight || 1,
+            // Diğer default değerleri de kontrol et
+            letterSpacing: text.letterSpacing || 0,
+            align: text.align || 'center',
+            colorOption: text.colorOption || 'normal',
             styleOption: text.styleOption || 'normal',
-            fontFamily: text.fontFamily || 'Arial',
             fill: text.fill || '#000000',
             maxFontSize: text.maxFontSize || 50,
-            lineHeight: text.lineHeight || 1,
-            letterSpacing: text.letterSpacing || 0,
+            fontFamily: text.fontFamily || 'Arial',
             width: text.width || 400,
             height: text.height || 100,
-            align: text.align || 'center',
             x: text.x || 500,
             y: text.y || 500,
-            text: text.text || 'Sample Text'
+            rotation: text.rotation || 0
           }));
-
+          
           setTexts(loadedTexts);
-          setSelectedId(loadedTexts.length > 0 ? loadedTexts[0].id : 1);
-
-          console.log('🎨 Template texts loaded:', loadedTexts);
+          console.log('📝 Text elementleri yüklendi:', loadedTexts.length, 'element');
+          
+          // İlk text'i seç
+          if (loadedTexts.length > 0) {
+            setSelectedId(loadedTexts[0].id);
+          }
         }
-
-        // Force canvas re-render after loading
+        
+        // Canvas'ı yeniden render et
         setTimeout(() => {
           setForceRender(prev => prev + 1);
-          console.log('🎨 Canvas refreshed after template load');
         }, 500);
-
-        alert(`Template "${data.name}" loaded successfully!`);
+        
+        console.log('🎉 Template başarıyla yüklendi!');
       }
-
     } catch (error) {
-      console.error('❌ Failed to load template:', error);
-      alert('Failed to load template');
+      console.error('❌ Template yükleme genel hatası:', error);
     } finally {
-      setLoadingTemplate(false);
+      setTemplateLoading(false);
     }
   };
 
-  // Load template from file (JSON import)
-  const loadTemplateFromFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setLoadingTemplate(true);
-      const text = await file.text();
-      const templateData = JSON.parse(text);
-
-      if (templateData.canvas_size) {
-        setCanvasSize(templateData.canvas_size);
-      }
-
-      if (templateData.template_name) {
-        setTemplateName(templateData.template_name);
-      }
-
-      if (templateData.texts && Array.isArray(templateData.texts)) {
-        const loadedTexts = templateData.texts.map((text, index) => ({
-          ...text,
-          id: index + 1,
-          colorOption: text.colorOption || 'bw',
-          styleOption: text.styleOption || 'normal',
-          fontFamily: text.fontFamily || 'Arial',
-          fill: text.fill || '#000000'
-        }));
-
-        setTexts(loadedTexts);
-        setSelectedId(loadedTexts.length > 0 ? loadedTexts[0].id : 1);
-      }
-
-      setTimeout(() => {
-        setForceRender(prev => prev + 1);
-      }, 500);
-
-      alert('Template loaded successfully from file!');
-
-    } catch (error) {
-      console.error('❌ Failed to load template from file:', error);
-      alert('Failed to load template file. Please check the file format.');
-    } finally {
-      setLoadingTemplate(false);
-      // Clear file input
-      if (event.target) {
-        event.target.value = '';
-      }
-    }
-  };
-
-  // Export template to JSON file
-  const exportTemplate = () => {
-    if (!templateName.trim()) {
-      alert('Please enter a template name before exporting');
-      return;
-    }
-
-    const templateData = {
-      template_name: templateName,
-      canvas_size: canvasSize,
-      texts: texts.map(text => ({
-        ...text,
-        // Remove temporary properties
-        tempFill: undefined
-      })),
-      exported_at: new Date().toISOString(),
-      version: '1.0'
-    };
-
-    const blob = new Blob([JSON.stringify(templateData, null, 2)], {
-      type: 'application/json'
-    });
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${templateName.replace(/[^a-zA-Z0-9]/g, '_')}_template.json`;
-    link.click();
-
-    URL.revokeObjectURL(url);
-  };
-
-  // Initialize accordion state for new texts
-  useEffect(() => {
-    texts.forEach(text => {
-      if (!accordionStates[text.id]) {
-        setAccordionStates(prev => ({
-          ...prev,
-          [text.id]: {
-            textOptions: true, // Default open
-            colorOptions: false,
-            styleOptions: false
-          }
-        }));
-      }
-    });
-  }, [texts]);
-
-  // Toggle accordion section
-  const toggleAccordion = (textId, section) => {
-    setAccordionStates(prev => ({
-      ...prev,
-      [textId]: {
-        ...prev[textId],
-        [section]: !prev[textId]?.[section]
-      }
-    }));
-  };
-
-  // CRITICAL: Enhanced font initialization
+  // CRITICAL: Sayfa yüklendiğinde tüm fontları canvas'a yükle
   useEffect(() => {
     const initializeFonts = async () => {
       if (!user || fontsLoading || fontsInitialized) return;
       
-      console.log('🚀 PAGE LOADED - INITIALIZING FONTS...');
-      setFontLoadingStatus('Loading fonts...');
+      console.log('🚀 SAYFA YÜKLENDİ - FONTLAR İNİTİALİZE EDİLİYOR...');
       
       try {
-        // Wait for document fonts to be ready
-        await document.fonts.ready;
-        console.log('✅ Document fonts ready');
-        
-        // Load user fonts from Supabase
+        // Kullanıcı fontlarını Supabase'den yükle
         await loadUserFonts();
         
-        // Load all user fonts into canvas
+        // Tüm kullanıcı fontlarını canvas'a yükle
         if (userFonts.length > 0) {
-          console.log(`🔄 Loading ${userFonts.length} user fonts into canvas...`);
-          setFontLoadingStatus(`Loading ${userFonts.length} fonts into canvas...`);
+          console.log(`🔄 ${userFonts.length} kullanıcı fontu canvas'a yükleniyor...`);
           
-          // CRITICAL: Sequential font loading with proper waiting
-          for (let i = 0; i < userFonts.length; i++) {
-            const font = userFonts[i];
+          for (const font of userFonts) {
             try {
-              console.log(`📝 Loading into canvas (${i + 1}/${userFonts.length}): ${font.font_name}`);
-              setFontLoadingStatus(`Loading font: ${font.font_name} (${i + 1}/${userFonts.length})`);
+              console.log(`📝 Canvas'a yükleniyor: ${font.font_name}`);
               
-              // Load font into browser
+              // Font'u browser'a yükle
               await FontService.loadFontInBrowser(font);
               
-              // CRITICAL: Wait for font to be fully loaded and ready
-              await new Promise(resolve => setTimeout(resolve, 500));
-              
-              // CRITICAL: Verify font is actually loaded
-              const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
-              const isLoaded = document.fonts.check(`16px "${mainFontFamily}"`);
-              
-              if (isLoaded) {
-                console.log(`✅ Font verified loaded: ${font.font_name}`);
-              } else {
-                console.warn(`⚠️ Font may not be fully loaded: ${font.font_name}`);
-                // Try one more time with longer wait
-                await new Promise(resolve => setTimeout(resolve, 1000));
-              }
+              // Kısa bir bekleme
+              await new Promise(resolve => setTimeout(resolve, 200));
               
             } catch (error) {
-              console.warn(`⚠️ Font loading failed: ${font.font_name}`, error);
+              console.warn(`⚠️ Font yüklenemedi: ${font.font_name}`, error);
             }
           }
           
-          console.log('✅ All fonts loaded into canvas');
-          setFontLoadingStatus('Fonts ready!');
+          console.log('✅ Tüm fontlar canvas\'a yüklendi');
           
-          // CRITICAL: Multiple canvas refreshes to ensure fonts are applied
-          setTimeout(() => {
-            setForceRender(prev => prev + 1);
-            console.log('🎨 Canvas first refresh');
-          }, 500);
-          
-          setTimeout(() => {
-            setForceRender(prev => prev + 1);
-            console.log('🎨 Canvas second refresh');
-          }, 1500);
-          
-          setTimeout(() => {
-            setForceRender(prev => prev + 1);
-            console.log('🎨 Canvas final refresh');
-            setFontLoadingStatus('');
-          }, 3000);
-        } else {
-          setFontLoadingStatus('');
+          // Canvas'ı zorla yeniden render et
+          setForceRender(prev => prev + 1);
         }
         
         setFontsInitialized(true);
-        console.log('🎉 FONT INITIALIZATION COMPLETE');
+        console.log('🎉 FONT İNİTİALİZASYONU TAMAMLANDI');
         
       } catch (error) {
-        console.error('❌ Font initialization error:', error);
-        setFontLoadingStatus('Font loading error!');
-        setFontsInitialized(true); // Continue even if error
-        setTimeout(() => setFontLoadingStatus(''), 3000);
+        console.error('❌ Font initialization hatası:', error);
+        setFontsInitialized(true); // Hata olsa bile devam et
       }
     };
 
     initializeFonts();
   }, [user, userFonts.length, fontsLoading]);
 
-  // CRITICAL: Additional effect to handle font changes and re-renders
+  // CRITICAL: userFonts değiştiğinde canvas'ı güncelle
   useEffect(() => {
     if (fontsInitialized && userFonts.length > 0) {
-      console.log('🔄 Font list changed, updating canvas...');
-      
-      // Multiple staged re-renders for better font application
-      const timeouts = [100, 500, 1000, 2000];
-      timeouts.forEach((delay, index) => {
-        setTimeout(() => {
-          setForceRender(prev => prev + 1);
-          console.log(`🎨 Staged canvas refresh ${index + 1}/${timeouts.length}`);
-        }, delay);
-      });
+      console.log('🔄 Font listesi değişti, canvas güncelleniyor...');
+      setForceRender(prev => prev + 1);
     }
   }, [userFonts, fontsInitialized]);
-
-  // CRITICAL: Force re-render when fonts are ready
-  useEffect(() => {
-    const handleFontsReady = () => {
-      console.log('🎯 Document fonts ready event triggered');
-      if (fontsInitialized) {
-        setTimeout(() => {
-          setForceRender(prev => prev + 1);
-          console.log('🎨 Canvas refresh after fonts ready');
-        }, 200);
-      }
-    };
-
-    document.fonts.addEventListener('loadingdone', handleFontsReady);
-    
-    return () => {
-      document.fonts.removeEventListener('loadingdone', handleFontsReady);
-    };
-  }, [fontsInitialized]);
 
   // Fixed canvas container size - always 700x700px
   const maxContainerSize = 700;
@@ -482,31 +301,10 @@ const DesignSettings = () => {
       id: newId, 
       text: '', 
       x: canvasSize.width / 2, 
-      y: canvasSize.height / 2,
-      colorOption: 'bw' // Default to Black & White
+      y: canvasSize.height / 2
     });
     setTexts([...texts, newText]);
     setSelectedId(newId);
-  };
-
-  // Delete text function
-  const deleteText = (textId) => {
-    if (texts.length <= 1) return; // Don't delete if it's the last text
-    
-    setTexts(prevTexts => prevTexts.filter(text => text.id !== textId));
-    
-    // Remove accordion state
-    setAccordionStates(prev => {
-      const newState = { ...prev };
-      delete newState[textId];
-      return newState;
-    });
-    
-    // Update selected ID if needed
-    if (selectedId === textId) {
-      const remainingTexts = texts.filter(text => text.id !== textId);
-      setSelectedId(remainingTexts.length > 0 ? remainingTexts[0].id : null);
-    }
   };
 
   // Handle text drag with boundary constraints
@@ -549,7 +347,7 @@ const DesignSettings = () => {
 
   const downloadImage = () => {
     if (texts.some(text => text.colorOption === 'bw')) {
-      // 🖤 Black text output
+      // 🖤 Siyah yazı çıktısı
       setTexts(prevTexts => prevTexts.map(text =>
         text.colorOption === 'bw' ? { ...text, tempFill: '#000000' } : text
       ));
@@ -560,7 +358,7 @@ const DesignSettings = () => {
         linkBlack.href = uriBlack;
         linkBlack.click();
 
-        // 🤍 White text output
+        // 🤍 Beyaz yazı çıktısı
         setTexts(prevTexts => prevTexts.map(text =>
           text.colorOption === 'bw' ? { ...text, tempFill: '#FFFFFF' } : text
         ));
@@ -571,7 +369,7 @@ const DesignSettings = () => {
           linkWhite.href = uriWhite;
           linkWhite.click();
 
-          // 🎨 Reset color transition
+          // 🎨 Renk geçişini geri al
           setTexts(prevTexts => prevTexts.map(text =>
             text.colorOption === 'bw' ? { ...text, tempFill: undefined } : text
           ));
@@ -587,60 +385,55 @@ const DesignSettings = () => {
     }
   };
 
-  // ENHANCED: Save template to database
+  // Template kaydetme fonksiyonu
   const saveTemplate = async () => {
     if (!templateName.trim()) {
-      alert('Please enter a template name');
+      alert('Lütfen template adı girin!');
       return;
     }
 
     if (!user) {
-      alert('You must be logged in to save templates');
+      alert('Kullanıcı girişi gerekli!');
       return;
     }
 
-    setSaving(true);
-    
     try {
-      console.log('💾 Saving text template:', templateName);
-      
-      // Check if we're updating an existing template
-      const urlParams = new URLSearchParams(window.location.search);
-      const templateId = urlParams.get('template');
-      
-      // Prepare template data
+      console.log('💾 Template kaydediliyor...');
+
       const templateData = {
         user_id: user.id,
-        name: templateName.trim(),
-        font_family: 'Arial', // Default font family for compatibility
-        font_size: 24, // Default font size
+        name: templateName,
+        font_family: 'Arial', // Default değer
+        font_size: 24, // Default değer
         font_weight: 'normal',
         text_color: '#000000',
         background_color: '#ffffff',
         style_settings: {
           canvas_size: canvasSize,
-          texts: texts.map(text => ({
-            ...text,
-            // Clean up any temporary properties
-            tempFill: undefined
-          }))
+          texts: texts
         },
         is_default: false
       };
 
       let result;
-      
-      if (templateId) {
-        // Update existing template
+
+      if (currentTemplateId) {
+        // Mevcut template'i güncelle
+        console.log(`🔄 Mevcut template güncelleniyor: ${currentTemplateId}`);
         result = await supabase
           .from('auto_text_templates')
-          .update(templateData)
-          .eq('id', templateId)
+          .update({
+            name: templateName,
+            style_settings: templateData.style_settings,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', currentTemplateId)
           .eq('user_id', user.id)
           .select()
           .single();
       } else {
-        // Create new template
+        // Yeni template oluştur
+        console.log('✨ Yeni template oluşturuluyor...');
         result = await supabase
           .from('auto_text_templates')
           .insert(templateData)
@@ -648,98 +441,98 @@ const DesignSettings = () => {
           .single();
       }
 
-      const { data, error } = result;
-
-      if (error) {
-        console.error('❌ Error saving template:', error);
-        throw error;
+      if (result.error) {
+        console.error('❌ Template kaydetme hatası:', result.error);
+        alert('Template kaydedilemedi: ' + result.error.message);
+        return;
       }
 
-      console.log('✅ Template saved successfully:', data);
-      alert(`Template "${templateName}" ${templateId ? 'updated' : 'saved'} successfully!`);
-      
-      // Update URL if this was a new template
-      if (!templateId && data) {
-        const newUrl = `${window.location.pathname}?template=${data.id}`;
-        window.history.replaceState({}, '', newUrl);
+      console.log('✅ Template başarıyla kaydedildi:', result.data);
+
+      // URL'yi güncelle
+      if (!currentTemplateId && result.data) {
+        setCurrentTemplateId(result.data.id);
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('template', result.data.id);
+        window.history.replaceState({}, '', newUrl.toString());
       }
-      
+
+      alert('Template başarıyla kaydedildi! 🎉');
+
     } catch (error) {
-      console.error('❌ Failed to save template:', error);
-      alert(`Failed to save template: ${error.message}`);
-    } finally {
-      setSaving(false);
+      console.error('❌ Template kaydetme genel hatası:', error);
+      alert('Template kaydedilemedi: ' + error.message);
     }
   };
 
-  // ENHANCED: Font upload - both to canvas and Supabase
+  // ENHANCED: Font yükleme - hem canvas'a hem Supabase'e kaydet
   const handleFontUpload = async (event) => {
     const file = event.target.files[0];
     if (!file || !user) {
-      console.log('❌ No file selected or user not logged in');
+      console.log('❌ Dosya seçilmedi veya kullanıcı giriş yapmamış');
       return;
     }
 
     setFontUploading(true);
-    console.log(`🚀 FONT UPLOAD STARTED: ${file.name}`);
+    console.log(`🚀 FONT YÜKLEME BAŞLADI: ${file.name}`);
 
     try {
-      // 1. STEP: Load to canvas immediately (old system)
+      // 1. ADIM: Canvas için hemen yükle (eski sistem)
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
           const fontName = file.name.split('.')[0].replace(/\s+/g, '-');
           const fontData = e.target.result;
           
-          console.log(`📝 Loading font to canvas: ${fontName}`);
+          console.log(`📝 Canvas için font yükleniyor: ${fontName}`);
           
-          // Load to canvas immediately
+          // Canvas'a hemen yükle
           const newFontFace = new FontFace(fontName, `url(${fontData})`);
           const loadedFace = await newFontFace.load();
           document.fonts.add(loadedFace);
           
-          console.log(`✅ Font loaded to canvas: ${fontName}`);
+          console.log(`✅ Canvas'a font yüklendi: ${fontName}`);
           
-          // Update canvas
+          // Canvas'ı güncelle
           setForceRender(prev => prev + 1);
           
-          // Apply to selected text
+          // Seçili text'e uygula
           if (selectedId) {
             updateTextProperty(selectedId, 'fontFamily', fontName);
           }
           
-          // 2. STEP: Save to Supabase
-          console.log(`💾 Saving to Supabase: ${fontName}`);
+          // 2. ADIM: Supabase'e kaydet
+          console.log(`💾 Supabase'e kaydediliyor: ${fontName}`);
           
           const savedFont = await FontService.uploadAndSaveFont(file, user.id);
-          console.log(`🎉 SAVED TO SUPABASE:`, savedFont);
+          console.log(`🎉 SUPABASE'E KAYDEDİLDİ:`, savedFont);
           
-          // Refresh font list
+          // Font listesini yenile
           await loadUserFonts();
-          console.log(`🔄 Font list refreshed`);
+          console.log(`🔄 Font listesi yenilendi`);
           
         } catch (error) {
-          console.error(`❌ Font upload error:`, error);
-          alert(`Font upload error: ${error.message}`);
+          console.error(`❌ Font yükleme hatası:`, error);
+          alert(`Font yükleme hatası: ${error.message}`);
         } finally {
           setFontUploading(false);
         }
       };
       
       reader.onerror = (err) => {
-        console.error(`❌ File reading error:`, err);
+        console.error(`❌ Dosya okuma hatası:`, err);
         setFontUploading(false);
       };
       
       reader.readAsDataURL(file);
       
     } catch (error) {
-      console.error(`❌ Font upload general error:`, error);
-      alert(`Font upload error: ${error.message}`);
+      console.error(`❌ Font yükleme genel hatası:`, error);
+      alert(`Font yükleme hatası: ${error.message}`);
       setFontUploading(false);
     }
     
-    // Clear input
+    // Input'u temizle
     if (event.target) {
       event.target.value = '';
     }
@@ -786,7 +579,7 @@ const DesignSettings = () => {
 
   // Update text properties with constraints
   const updateTextProperty = (textId, property, value) => {
-    console.log(`🔄 Updating text property: ${property} = ${value}`);
+    console.log(`🔄 Text özelliği güncelleniyor: ${property} = ${value}`);
     
     setTexts(prevTexts =>
       prevTexts.map(text =>
@@ -796,42 +589,34 @@ const DesignSettings = () => {
       )
     );
     
-    // Force canvas re-render when font changes
+    // Font değiştiğinde canvas'ı zorla yeniden render et
     if (property === 'fontFamily') {
-      console.log(`🎨 Font changed, re-rendering canvas: ${value}`);
+      console.log(`🎨 Font değişti, canvas yeniden render ediliyor: ${value}`);
       setTimeout(() => {
         setForceRender(prev => prev + 1);
       }, 100);
     }
   };
 
-  // CRITICAL: Enhanced text rendering with better font handling
+  // CRITICAL: Enhanced text rendering with proper font handling
   const renderKonvaText = (text) => {
-    console.log(`🎨 Rendering text: "${text.text.substring(0, 20)}..." font: ${text.fontFamily}`);
+    console.log(`🎨 Text render ediliyor: "${text.text.substring(0, 20)}..." font: ${text.fontFamily}`);
     
-    // CRITICAL: Enhanced font availability check
-    const isSystemFont = systemFonts.includes(text.fontFamily);
-    const isUserFont = userFonts.some(f => f.font_name === text.fontFamily);
-    const isFontLoaded = isSystemFont || isUserFont || document.fonts.check(`16px "${text.fontFamily}"`);
+    // CRITICAL: Font'un yüklenip yüklenmediğini kontrol et
+    const isFontLoaded = systemFonts.includes(text.fontFamily) || 
+                        userFonts.some(f => f.font_name === text.fontFamily) ||
+                        document.fonts.check(`16px "${text.fontFamily}"`);
     
-    // CRITICAL: Better fallback strategy
-    let actualFontFamily = text.fontFamily;
+    // Fallback font kullan eğer font yüklenmemişse
+    const actualFontFamily = isFontLoaded ? text.fontFamily : 'Arial';
     
     if (!isFontLoaded && text.fontFamily !== 'Arial') {
-      console.warn(`⚠️ Font not loaded, using fallback: ${text.fontFamily} -> Arial`);
-      actualFontFamily = 'Arial';
-    }
-    
-    // CRITICAL: For user fonts, try to find the full font family with fallbacks
-    const userFont = userFonts.find(f => f.font_name === text.fontFamily);
-    if (userFont) {
-      actualFontFamily = userFont.font_family; // This includes fallbacks
-      console.log(`🎯 User font found, using full family: ${actualFontFamily}`);
+      console.warn(`⚠️ Font yüklenmemiş, fallback kullanılıyor: ${text.fontFamily} -> ${actualFontFamily}`);
     }
     
     return (
       <Group
-        key={`${text.id}-${forceRender}-${fontsInitialized}-${userFonts.length}`}
+        key={`${text.id}-${forceRender}-${fontsInitialized}`}
         ref={(node) => (groupRefs.current[text.id] = node)}
         x={text.x}
         y={text.y}
@@ -896,7 +681,7 @@ const DesignSettings = () => {
               })()
             ) : (
               <KonvaText
-                key={`text-${text.id}-${forceRender}-${fontsInitialized}-${userFonts.length}`}
+                key={`text-${text.id}-${forceRender}-${fontsInitialized}`}
                 text={text.text}
                 fontSize={text.maxFontSize}
                 fontFamily={actualFontFamily}
@@ -926,6 +711,16 @@ const DesignSettings = () => {
 
   return (
     <div className="flex h-full gap-[10px] p-4">
+      {/* Template Loading Indicator */}
+      {templateLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 flex items-center space-x-3">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
+            <span className="text-gray-900 dark:text-white">Template yükleniyor...</span>
+          </div>
+        </div>
+      )}
+
       {/* Canvas Section - Left Side */}
       <div className="flex flex-col w-1/2">
         <div className="flex-1 flex items-center justify-center p-4">
@@ -947,13 +742,13 @@ const DesignSettings = () => {
               backgroundColor: 'white'
             }}>
               <Stage 
-                key={`stage-${forceRender}-${fontsInitialized}-${userFonts.length}`}
+                key={`stage-${forceRender}-${fontsInitialized}`}
                 width={canvasSize.width} 
                 height={canvasSize.height} 
                 ref={stageRef} 
                 onClick={handleStageClick}
               >
-                <Layer key={`layer-${forceRender}-${fontsInitialized}-${userFonts.length}`}>
+                <Layer key={`layer-${forceRender}-${fontsInitialized}`}>
                   {texts.map((text) => renderKonvaText(text))}
 
                   {selectedId && (
@@ -1016,65 +811,13 @@ const DesignSettings = () => {
               className="flex-1"
             />
           </div>
-          
-          {/* Action Buttons */}
           <div className="flex flex-col gap-2">
-            <div className="flex gap-2">
-              <Button onClick={downloadImage} disabled={!templateName} className="flex-1">
-                DOWNLOAD DESIGN
-              </Button>
-              <Button onClick={exportTemplate} disabled={!templateName} variant="secondary" className="flex-1">
-                EXPORT JSON
-              </Button>
-            </div>
-            
-            <div className="flex gap-2">
-              <Button 
-                onClick={saveTemplate} 
-                disabled={!templateName || saving} 
-                variant="secondary" 
-                className="flex-1 flex items-center justify-center space-x-2"
-              >
-                {saving ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
-                    <span>SAVING...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4" />
-                    <span>SAVE TEMPLATE</span>
-                  </>
-                )}
-              </Button>
-              
-              <Button 
-                onClick={() => document.getElementById('template-file-input')?.click()}
-                disabled={loadingTemplate}
-                variant="secondary"
-                className="flex-1 flex items-center justify-center space-x-2"
-              >
-                {loadingTemplate ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
-                    <span>LOADING...</span>
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4" />
-                    <span>LOAD JSON</span>
-                  </>
-                )}
-              </Button>
-              
-              <input
-                id="template-file-input"
-                type="file"
-                accept=".json"
-                onChange={loadTemplateFromFile}
-                style={{ display: 'none' }}
-              />
-            </div>
+            <Button onClick={downloadImage} disabled={!templateName} className="w-full">
+              DOWNLOAD DESIGN
+            </Button>
+            <Button onClick={saveTemplate} disabled={!templateName} variant="secondary" className="w-full">
+              {currentTemplateId ? 'UPDATE TEMPLATE' : 'SAVE TEMPLATE'}
+            </Button>
           </div>
         </div>
       </div>
@@ -1082,12 +825,12 @@ const DesignSettings = () => {
       {/* Text Controls Section - Right Side */}
       <div className="w-1/2 p-4 overflow-y-auto max-h-screen">
         {/* Font Loading Status */}
-        {(!fontsInitialized || fontLoadingStatus || loadingTemplate) && (
+        {!fontsInitialized && (
           <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <div className="flex items-center space-x-2">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
               <span className="text-blue-700 dark:text-blue-400 text-sm">
-                {loadingTemplate ? 'Loading template...' : fontLoadingStatus || `Loading fonts... (${userFonts.length} fonts)`}
+                Fontlar yükleniyor... ({userFonts.length} font)
               </span>
             </div>
           </div>
@@ -1096,19 +839,7 @@ const DesignSettings = () => {
         {texts.map((text) => (
           <Card key={text.id} className="mb-4">
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Text {text.id}</CardTitle>
-                {texts.length > 1 && (
-                  <Button
-                    onClick={() => deleteText(text.id)}
-                    variant="danger"
-                    size="sm"
-                    className="p-2 h-8 w-8 flex items-center justify-center"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
+              <CardTitle>Text {text.id}</CardTitle>
             </CardHeader>
             <CardContent>
               {/* Text Input */}
@@ -1127,212 +858,159 @@ const DesignSettings = () => {
                 </Button>
               </div>
 
-              {/* 1. TEXT OPTIONS ACCORDION */}
-              <div className="border border-gray-200 dark:border-gray-700 rounded-lg mb-3">
-                <button
-                  onClick={() => toggleAccordion(text.id, 'textOptions')}
-                  className="w-full flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors rounded-t-lg"
+              {/* Font and Size Controls */}
+              <div className="flex items-center gap-2 mt-2 w-full mb-4">
+                <label className="text-gray-700 dark:text-gray-300 text-sm">Font:</label>
+                <select 
+                  value={text.fontFamily} 
+                  onChange={(e) => {
+                    console.log(`🔄 FONT DEĞİŞTİRİLİYOR: ${e.target.value}`);
+                    updateTextProperty(text.id, 'fontFamily', e.target.value);
+                  }} 
+                  className="w-32 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  disabled={fontsLoading || !fontsInitialized}
                 >
-                  <span className="font-medium text-gray-900 dark:text-white">📝 Text Options</span>
-                  {accordionStates[text.id]?.textOptions ? (
-                    <ChevronDown className="h-4 w-4 text-gray-500" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 text-gray-500" />
-                  )}
-                </button>
+                  {allFonts.map((font) => (
+                    <option key={font} value={font}>{font}</option>
+                  ))}
+                </select>
                 
-                {accordionStates[text.id]?.textOptions && (
-                  <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-                    {/* Font and Size Controls */}
-                    <div className="flex items-center gap-2 mb-4">
-                      <label className="text-gray-700 dark:text-gray-300 text-sm">Font:</label>
-                      <select 
-                        value={text.fontFamily} 
-                        onChange={(e) => {
-                          console.log(`🔄 CHANGING FONT: ${e.target.value}`);
-                          updateTextProperty(text.id, 'fontFamily', e.target.value);
-                        }} 
-                        className="w-32 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        disabled={fontsLoading || !fontsInitialized}
-                      >
-                        {allFonts.map((font) => (
-                          <option key={font} value={font}>{font}</option>
-                        ))}
-                      </select>
-                      
-                      <Button 
-                        className="p-2 h-10 w-10 flex items-center justify-center" 
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={fontUploading}
-                        title="Upload custom font"
-                      >
-                        {fontUploading ? (
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        ) : (
-                          '+'
-                        )}
-                      </Button>
-                      <input 
-                        type="file" 
-                        accept=".ttf,.otf,.woff,.woff2" 
-                        ref={fileInputRef} 
-                        onChange={handleFontUpload} 
-                        style={{ display: 'none' }} 
-                      />
+                {/* Enhanced Font Upload Button */}
+                <Button 
+                  className="p-2 h-10 w-10 flex items-center justify-center" 
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={fontUploading}
+                  title="Upload custom font"
+                >
+                  {fontUploading ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    '+'
+                  )}
+                </Button>
+                <input 
+                  type="file" 
+                  accept=".ttf,.otf,.woff,.woff2" 
+                  ref={fileInputRef} 
+                  onChange={handleFontUpload} 
+                  style={{ display: 'none' }} 
+                />
 
-                      <label className="text-gray-700 dark:text-gray-300 text-sm">Font Size (px):</label>
-                      <input 
-                        type="number" 
-                        value={text.maxFontSize} 
-                        min="1"
-                        step="1" 
-                        onChange={(e) => updateTextProperty(text.id, 'maxFontSize', parseInt(e.target.value))} 
-                        className="w-20 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
-                      />
-                    </div>
-
-                    {/* Additional Controls */}
-                    <div className="flex items-center gap-2 mb-4 flex-wrap">
-                      <label className="text-gray-700 dark:text-gray-300 text-sm">Line Height:</label>
-                      <input 
-                        type="number" 
-                        value={text.lineHeight} 
-                        onChange={(e) => updateTextProperty(text.id, 'lineHeight', parseFloat(e.target.value))} 
-                        className="w-20 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
-                      />
-                      
-                      <label className="text-gray-700 dark:text-gray-300 text-sm">Letter Spacing:</label>
-                      <input 
-                        type="number" 
-                        value={text.letterSpacing} 
-                        onChange={(e) => updateTextProperty(text.id, 'letterSpacing', parseFloat(e.target.value))} 
-                        className="w-20 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
-                      />
-                      
-                      <label className="text-gray-700 dark:text-gray-300 text-sm">Align:</label>
-                      <select 
-                        value={text.align} 
-                        onChange={(e) => updateTextProperty(text.id, 'align', e.target.value)} 
-                        className="w-24 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      >
-                        <option value="left">Left</option>
-                        <option value="center">Center</option>
-                        <option value="right">Right</option>
-                      </select>
-                    </div>
-
-                    {/* Alignment Buttons */}
-                    <div className="flex gap-3 text-3xl">
-                      <button onClick={() => alignText('left')} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
-                        <span className="material-icons">format_align_left</span>
-                      </button>
-                      <button onClick={() => alignText('centerX')} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
-                        <span className="material-icons">format_align_center</span>
-                      </button>
-                      <button onClick={() => alignText('right')} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
-                        <span className="material-icons">format_align_right</span>
-                      </button>
-                      <button onClick={() => alignText('top')} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
-                        <span className="material-icons">vertical_align_top</span>
-                      </button>
-                      <button onClick={() => alignText('centerY')} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
-                        <span className="material-icons">vertical_align_center</span>
-                      </button>
-                      <button onClick={() => alignText('bottom')} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
-                        <span className="material-icons">vertical_align_bottom</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <label className="text-gray-700 dark:text-gray-300 text-sm">Font Size (px):</label>
+                <input 
+                  type="number" 
+                  value={text.maxFontSize} 
+                  min="1"
+                  step="1" 
+                  onChange={(e) => updateTextProperty(text.id, 'maxFontSize', parseInt(e.target.value))} 
+                  className="w-20 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
+                />
               </div>
 
-              {/* 2. COLOR OPTIONS ACCORDION */}
-              <div className="border border-gray-200 dark:border-gray-700 rounded-lg mb-3">
-                <button
-                  onClick={() => toggleAccordion(text.id, 'colorOptions')}
-                  className="w-full flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors rounded-t-lg"
-                >
-                  <span className="font-medium text-gray-900 dark:text-white">🎨 Color Options</span>
-                  {accordionStates[text.id]?.colorOptions ? (
-                    <ChevronDown className="h-4 w-4 text-gray-500" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 text-gray-500" />
-                  )}
-                </button>
+              {/* Additional Controls */}
+              <div className="flex items-center gap-2 mb-4 flex-wrap">
+                <label className="text-gray-700 dark:text-gray-300 text-sm">Line Height:</label>
+                <input 
+                  type="number" 
+                  value={text.lineHeight} 
+                  step="0.1"
+                  min="0.1"
+                  onChange={(e) => updateTextProperty(text.id, 'lineHeight', parseFloat(e.target.value))} 
+                  className="w-20 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
+                />
                 
-                {accordionStates[text.id]?.colorOptions && (
-                  <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-                    <ColorOptions text={text} setTexts={setTexts} texts={texts} />
-                  </div>
-                )}
+                <label className="text-gray-700 dark:text-gray-300 text-sm">Letter Spacing:</label>
+                <input 
+                  type="number" 
+                  value={text.letterSpacing} 
+                  onChange={(e) => updateTextProperty(text.id, 'letterSpacing', parseFloat(e.target.value))} 
+                  className="w-20 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
+                />
+                
+                <label className="text-gray-700 dark:text-gray-300 text-sm">Align:</label>
+                <select 
+                  value={text.align} 
+                  onChange={(e) => updateTextProperty(text.id, 'align', e.target.value)} 
+                  className="w-24 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  <option value="left">Left</option>
+                  <option value="center">Center</option>
+                  <option value="right">Right</option>
+                </select>
               </div>
 
-              {/* 3. STYLE OPTIONS ACCORDION */}
-              <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
-                <button
-                  onClick={() => toggleAccordion(text.id, 'styleOptions')}
-                  className="w-full flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors rounded-t-lg"
-                >
-                  <span className="font-medium text-gray-900 dark:text-white">✨ Style Options</span>
-                  {accordionStates[text.id]?.styleOptions ? (
-                    <ChevronDown className="h-4 w-4 text-gray-500" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 text-gray-500" />
-                  )}
+              {/* Alignment Buttons */}
+              <div className="mt-4 flex gap-3 text-3xl mb-4">
+                <button onClick={() => alignText('left')} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+                  <span className="material-icons">format_align_left</span>
                 </button>
-                
-                {accordionStates[text.id]?.styleOptions && (
-                  <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-                    {/* Style Options */}
-                    <div className="flex items-center gap-4 mb-4">
-                      <div className="flex items-center gap-2">
-                        <label className="text-gray-700 dark:text-gray-300 text-sm">Style:</label>
-                        <select
-                          value={text.styleOption || 'normal'}
-                          onChange={(e) => updateTextProperty(text.id, 'styleOption', e.target.value)}
-                          className="w-24 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        >
-                          <option value="normal">Normal</option>
-                          <option value="arc">Arc</option>
-                          <option value="wave">Wave</option>
-                        </select>
-                      </div>
-                    </div>
+                <button onClick={() => alignText('centerX')} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+                  <span className="material-icons">format_align_center</span>
+                </button>
+                <button onClick={() => alignText('right')} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+                  <span className="material-icons">format_align_right</span>
+                </button>
+                <button onClick={() => alignText('top')} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+                  <span className="material-icons">vertical_align_top</span>
+                </button>
+                <button onClick={() => alignText('centerY')} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+                  <span className="material-icons">vertical_align_center</span>
+                </button>
+                <button onClick={() => alignText('bottom')} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+                  <span className="material-icons">vertical_align_bottom</span>
+                </button>
+              </div>
 
-                    {/* Style Parameters */}
-                    <div className="flex items-center gap-4 flex-wrap">
-                      <div className="flex items-center gap-2">
-                        <label className="text-gray-700 dark:text-gray-300 text-sm">Bend (%):</label>
-                        <input 
-                          type="number" 
-                          value={text.bend || 50} 
-                          onChange={(e) => updateTextProperty(text.id, 'bend', parseFloat(e.target.value))} 
-                          className="w-20 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
-                        />
-                      </div>
+              {/* Color Options */}
+              <ColorOptions text={text} setTexts={setTexts} texts={texts} />
 
-                      <div className="flex items-center gap-2">
-                        <label className="text-gray-700 dark:text-gray-300 text-sm">Distortion H:</label>
-                        <input 
-                          type="number" 
-                          value={text.distortionH || 0} 
-                          onChange={(e) => updateTextProperty(text.id, 'distortionH', parseFloat(e.target.value))} 
-                          className="w-20 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
-                        />
-                      </div>
+              {/* Style Options */}
+              <div className="mt-2 flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <label className="text-gray-700 dark:text-gray-300 text-sm">Style:</label>
+                  <select
+                    value={text.styleOption || 'normal'}
+                    onChange={(e) => updateTextProperty(text.id, 'styleOption', e.target.value)}
+                    className="w-24 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="normal">Normal</option>
+                    <option value="arc">Arc</option>
+                    <option value="wave">Wave</option>
+                  </select>
+                </div>
+              </div>
 
-                      <div className="flex items-center gap-2">
-                        <label className="text-gray-700 dark:text-gray-300 text-sm">Distortion V:</label>
-                        <input 
-                          type="number" 
-                          value={text.distortionV || 0} 
-                          onChange={(e) => updateTextProperty(text.id, 'distortionV', parseFloat(e.target.value))} 
-                          className="w-20 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
+              {/* Style Parameters */}
+              <div className="mt-2 flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <label className="text-gray-700 dark:text-gray-300 text-sm">Bend (%):</label>
+                  <input 
+                    type="number" 
+                    value={text.bend || 50} 
+                    onChange={(e) => updateTextProperty(text.id, 'bend', parseFloat(e.target.value))} 
+                    className="w-20 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label className="text-gray-700 dark:text-gray-300 text-sm">Distortion H:</label>
+                  <input 
+                    type="number" 
+                    value={text.distortionH || 0} 
+                    onChange={(e) => updateTextProperty(text.id, 'distortionH', parseFloat(e.target.value))} 
+                    className="w-20 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label className="text-gray-700 dark:text-gray-300 text-sm">Distortion V:</label>
+                  <input 
+                    type="number" 
+                    value={text.distortionV || 0} 
+                    onChange={(e) => updateTextProperty(text.id, 'distortionV', parseFloat(e.target.value))} 
+                    className="w-20 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>
