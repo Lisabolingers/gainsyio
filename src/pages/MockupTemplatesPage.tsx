@@ -367,7 +367,6 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
-  // CRITICAL: Tasarım alanı boyutlarını 2000px canvas için optimize et
   const addDesignArea = () => {
     if (designAreas.length >= 1) {
       alert('Sadece 1 tasarım alanı ekleyebilirsiniz!');
@@ -378,8 +377,8 @@ const MockupTemplatesPage: React.FC = () => {
       id: `design-${Date.now()}`,
       x: canvasSize.width / 2,
       y: canvasSize.height / 2,
-      width: 600, // 200 -> 600 (3x büyük)
-      height: 600, // 200 -> 600 (3x büyük)
+      width: 600,
+      height: 600,
       rotation: 0,
       opacity: 0.7,
       visible: true
@@ -389,17 +388,16 @@ const MockupTemplatesPage: React.FC = () => {
     setSelectedId(newArea.id);
   };
 
-  // CRITICAL: Yazı alanı boyutlarını 2000px canvas için optimize et
   const addTextArea = () => {
     const newArea: TextArea = {
       id: `text-${Date.now()}`,
       x: canvasSize.width / 2,
       y: canvasSize.height / 2,
-      width: 800, // 200 -> 800 (4x büyük)
-      height: 150, // 50 -> 150 (3x büyük)
+      width: 800,
+      height: 150,
       rotation: 0,
       text: 'Sample Text',
-      fontSize: 72, // 24 -> 72 (3x büyük)
+      fontSize: 72,
       fontFamily: 'Arial',
       color: '#000000',
       align: 'center',
@@ -412,7 +410,6 @@ const MockupTemplatesPage: React.FC = () => {
     setSelectedId(newArea.id);
   };
 
-  // CRITICAL: Logo alanı boyutlarını 2000px canvas için optimize et
   const addLogoArea = () => {
     if (logoArea) {
       alert('Sadece 1 logo alanı ekleyebilirsiniz!');
@@ -423,8 +420,8 @@ const MockupTemplatesPage: React.FC = () => {
       id: `logo-${Date.now()}`,
       x: canvasSize.width / 2,
       y: canvasSize.height / 2,
-      width: 450, // 150 -> 450 (3x büyük)
-      height: 450, // 150 -> 450 (3x büyük)
+      width: 450,
+      height: 450,
       rotation: 0,
       opacity: 0.8,
       visible: true
@@ -486,8 +483,8 @@ const MockupTemplatesPage: React.FC = () => {
           ...area,
           x: node.x(),
           y: node.y(),
-          width: Math.max(100, area.width * scaleX), // Min boyut 100px
-          height: Math.max(100, area.height * scaleY), // Min boyut 100px
+          width: Math.max(100, area.width * scaleX),
+          height: Math.max(100, area.height * scaleY),
         } : area
       ));
     } else if (areaId.startsWith('text-')) {
@@ -496,8 +493,8 @@ const MockupTemplatesPage: React.FC = () => {
           ...area,
           x: node.x(),
           y: node.y(),
-          width: Math.max(200, area.width * scaleX), // Min boyut 200px
-          height: Math.max(60, area.height * scaleY), // Min boyut 60px
+          width: Math.max(200, area.width * scaleX),
+          height: Math.max(60, area.height * scaleY),
         } : area
       ));
     } else if (areaId.startsWith('logo-')) {
@@ -505,8 +502,8 @@ const MockupTemplatesPage: React.FC = () => {
         ...prev,
         x: node.x(),
         y: node.y(),
-        width: Math.max(150, prev.width * scaleX), // Min boyut 150px
-        height: Math.max(150, prev.height * scaleY), // Min boyut 150px
+        width: Math.max(150, prev.width * scaleX),
+        height: Math.max(150, prev.height * scaleY),
       } : null);
     }
   };
@@ -702,7 +699,7 @@ const MockupTemplatesPage: React.FC = () => {
                             height={area.height}
                             fill="rgba(59, 130, 246, 0.3)"
                             stroke="#3b82f6"
-                            strokeWidth={4} // 2 -> 4 (daha kalın çerçeve)
+                            strokeWidth={4}
                             offsetX={area.width / 2}
                             offsetY={area.height / 2}
                             opacity={area.opacity}
@@ -710,7 +707,7 @@ const MockupTemplatesPage: React.FC = () => {
                           />
                           <KonvaText
                             text="DESIGN"
-                            fontSize={48} // 16 -> 48 (3x büyük)
+                            fontSize={48}
                             fontFamily="Arial"
                             fill="#3b82f6"
                             width={area.width}
@@ -778,7 +775,7 @@ const MockupTemplatesPage: React.FC = () => {
                             height={logoArea.height}
                             fill="rgba(168, 85, 247, 0.3)"
                             stroke="#a855f7"
-                            strokeWidth={4} // 2 -> 4 (daha kalın çerçeve)
+                            strokeWidth={4}
                             offsetX={logoArea.width / 2}
                             offsetY={logoArea.height / 2}
                             opacity={logoArea.opacity}
@@ -786,7 +783,7 @@ const MockupTemplatesPage: React.FC = () => {
                           />
                           <KonvaText
                             text="LOGO"
-                            fontSize={48} // 16 -> 48 (3x büyük)
+                            fontSize={48}
                             fontFamily="Arial"
                             fill="#a855f7"
                             width={logoArea.width}
@@ -804,8 +801,8 @@ const MockupTemplatesPage: React.FC = () => {
                         <Transformer
                           ref={transformerRef}
                           borderStroke="#0066ff"
-                          borderStrokeWidth={Math.max(2, 4 / scale)} // Scale'e göre ayarla
-                          anchorSize={Math.max(8, 16 / scale)} // Scale'e göre ayarla
+                          borderStrokeWidth={Math.max(2, 4 / scale)}
+                          anchorSize={Math.max(8, 16 / scale)}
                           anchorStroke="#0066ff"
                           anchorFill="#ffffff"
                         />
@@ -819,9 +816,6 @@ const MockupTemplatesPage: React.FC = () => {
               <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
                 <p>💡 <strong>İpucu:</strong> Template kaydedilebilmesi için lütfen template adı ve tasarım alanı eklemelisiniz. Logo ve yazı eklemek isteğe bağlıdır.</p>
                 <p>Canvas boyutu: {canvasSize.width} × {canvasSize.height} px</p>
-                <p className="text-orange-600 dark:text-orange-400 font-medium">
-                  ✨ Alanlar 2000px canvas için optimize edildi - daha büyük ve kolay kontrol edilebilir!
-                </p>
               </div>
             </div>
           </div>
@@ -841,7 +835,7 @@ const MockupTemplatesPage: React.FC = () => {
                     disabled={designAreas.length >= 1}
                   >
                     <Square className="h-4 w-4 mr-2" />
-                    Tasarım Alanı (600×600px) {designAreas.length >= 1 && '(Max 1)'}
+                    Tasarım Alanı {designAreas.length >= 1 && '(Max 1)'}
                   </Button>
                   <Button
                     onClick={addTextArea}
@@ -849,7 +843,7 @@ const MockupTemplatesPage: React.FC = () => {
                     className="w-full"
                   >
                     <Type className="h-4 w-4 mr-2" />
-                    Yazı Alanı (800×150px)
+                    Yazı Alanı
                   </Button>
                   <Button
                     onClick={addLogoArea}
@@ -858,7 +852,7 @@ const MockupTemplatesPage: React.FC = () => {
                     disabled={!!logoArea}
                   >
                     <Circle className="h-4 w-4 mr-2" />
-                    Logo Alanı (450×450px) {logoArea && '(Max 1)'}
+                    Logo Alanı {logoArea && '(Max 1)'}
                   </Button>
                 </CardContent>
               </Card>
@@ -906,7 +900,7 @@ const MockupTemplatesPage: React.FC = () => {
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-gray-600 dark:text-gray-400">Font Boyutu (önerilen: 48-120px):</label>
+                          <label className="text-xs text-gray-600 dark:text-gray-400">Font Boyutu:</label>
                           <Input
                             type="number"
                             value={(getSelectedArea() as TextArea)?.fontSize || 72}
@@ -949,22 +943,6 @@ const MockupTemplatesPage: React.FC = () => {
                   </CardContent>
                 </Card>
               )}
-
-              {/* Size Guide */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>📏 Boyut Rehberi</CardTitle>
-                </CardHeader>
-                <CardContent className="text-xs text-gray-600 dark:text-gray-400 space-y-2">
-                  <div>• <strong>Tasarım Alanı:</strong> 600×600px (büyük tasarımlar için)</div>
-                  <div>• <strong>Yazı Alanı:</strong> 800×150px (uzun metinler için)</div>
-                  <div>• <strong>Logo Alanı:</strong> 450×450px (logolar için)</div>
-                  <div>• <strong>Font Boyutu:</strong> 48-120px önerilir</div>
-                  <div className="text-orange-600 dark:text-orange-400 font-medium">
-                    ✨ Tüm boyutlar 2000px canvas için optimize edildi!
-                  </div>
-                </CardContent>
-              </Card>
             </div>
           </div>
         </div>
