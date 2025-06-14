@@ -47,15 +47,14 @@ const DesignSettings = () => {
   ]);
   const [selectedId, setSelectedId] = useState(1);
   
-  // CRITICAL: Seçim çerçevesini gösterip gizlemek için state
-  const [showSelectionFrame, setShowSelectionFrame] = useState(false);
+  // CRITICAL: Seçim çerçevesini kontrol eden state
+  const [showTransformer, setShowTransformer] = useState(false);
   
   const [forceRender, setForceRender] = useState(0);
   const [fontUploading, setFontUploading] = useState(false);
   const [fontsInitialized, setFontsInitialized] = useState(false);
   const [templateLoading, setTemplateLoading] = useState(false);
   const [currentTemplateId, setCurrentTemplateId] = useState<string | null>(null);
-  
   const stageRef = useRef();
   const transformerRef = useRef();
   const groupRefs = useRef({});
@@ -255,9 +254,9 @@ const DesignSettings = () => {
     );
   }, [canvasSize.width, canvasSize.height]);
 
-  // CRITICAL: Transformer'ı sadece showSelectionFrame true olduğunda göster
+  // CRITICAL: Transformer'ı sadece showTransformer true olduğunda göster
   useEffect(() => {
-    if (!showSelectionFrame || selectedId === null) {
+    if (!showTransformer || selectedId === null) {
       transformerRef.current?.nodes([]);
       return;
     }
@@ -279,7 +278,7 @@ const DesignSettings = () => {
       
       transformer.getLayer()?.batchDraw();
     }
-  }, [selectedId, texts, scale, showSelectionFrame]);
+  }, [selectedId, texts, scale, showTransformer]);
 
   const adjustFontSize = (text) => {
     const baseFontSize = text.maxFontSize || 50;
@@ -305,13 +304,13 @@ const DesignSettings = () => {
     );
   }, [texts.map(t => t.text + t.letterSpacing + t.lineHeight + t.width + t.height)]);
 
-  // CRITICAL: Canvas tıklama işleyicisi - boş alana tıklandığında seçimi kaldır
+  // CRITICAL: Canvas tıklama işleyicisi - boş alana tıklandığında seçimi kaldır ve transformer'ı gizle
   const handleStageClick = (e) => {
-    // Eğer tıklanan element stage'in kendisiyse (boş alan), seçimi kaldır
+    // Eğer tıklanan element stage'in kendisiyse (boş alan)
     if (e.target === e.target.getStage()) {
-      console.log('🖱️ Boş alana tıklandı, seçim kaldırılıyor');
+      console.log('🖱️ Boş alana tıklandı, seçim çerçevesi gizleniyor');
       setSelectedId(null);
-      setShowSelectionFrame(false);
+      setShowTransformer(false); // CRITICAL: Transformer'ı gizle
     }
   };
 
@@ -328,7 +327,14 @@ const DesignSettings = () => {
     });
     setTexts([...texts, newText]);
     setSelectedId(newId);
-    setShowSelectionFrame(true); // Yeni text eklendiğinde seçim çerçevesini göster
+    setShowTransformer(true); // Yeni text eklendiğinde transformer'ı göster
+  };
+
+  // CRITICAL: Text tıklama işleyicisi - transformer'ı göster
+  const handleTextClick = (textId) => {
+    console.log('📝 Text tıklandı, seçim çerçevesi gösteriliyor:', textId);
+    setSelectedId(textId);
+    setShowTransformer(true); // CRITICAL: Text tıklandığında transformer'ı göster
   };
 
   // Handle text drag with boundary constraints
@@ -367,13 +373,6 @@ const DesignSettings = () => {
           : text
       )
     );
-  };
-
-  // CRITICAL: Text tıklama işleyicisi - seçim çerçevesini göster
-  const handleTextClick = (textId) => {
-    console.log('📝 Text tıklandı:', textId);
-    setSelectedId(textId);
-    setShowSelectionFrame(true);
   };
 
   const downloadImage = () => {
@@ -686,7 +685,7 @@ const DesignSettings = () => {
         ref={(node) => (groupRefs.current[text.id] = node)}
         x={text.x}
         y={text.y}
-        draggable={showSelectionFrame} // CRITICAL: Sadece seçim çerçevesi görünürken sürüklenebilir
+        draggable={showTransformer} // CRITICAL: Sadece transformer görünürken sürüklenebilir
         onClick={() => handleTextClick(text.id)}
         onDragEnd={(e) => handleTextDragEnd(text.id, e)}
         onTransformEnd={(e) => handleTransformEnd(text.id, e)}
@@ -817,8 +816,8 @@ const DesignSettings = () => {
                 <Layer key={`layer-${forceRender}-${fontsInitialized}`}>
                   {texts.map((text) => renderKonvaText(text))}
 
-                  {/* CRITICAL: Transformer sadece showSelectionFrame true olduğunda göster */}
-                  {selectedId && showSelectionFrame && (
+                  {/* CRITICAL: Transformer sadece showTransformer true olduğunda göster */}
+                  {selectedId && showTransformer && (
                     <Transformer 
                       ref={transformerRef} 
                       borderStroke="#0066ff" 
@@ -882,11 +881,11 @@ const DesignSettings = () => {
           {/* CRITICAL: Seçim çerçevesi toggle butonu */}
           <div className="flex flex-col gap-2 mb-4">
             <Button 
-              onClick={() => setShowSelectionFrame(!showSelectionFrame)}
+              onClick={() => setShowTransformer(!showTransformer)}
               variant="secondary" 
               className="w-full"
             >
-              {showSelectionFrame ? '👁️ Seçim Çerçevesini Gizle' : '🔧 Seçim Çerçevesini Göster'}
+              {showTransformer ? '👁️ Seçim Çerçevesini Gizle' : '🔧 Seçim Çerçevesini Göster'}
             </Button>
           </div>
           
@@ -902,7 +901,7 @@ const DesignSettings = () => {
           {/* CRITICAL: Kullanıcı ipucu */}
           <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
             <p>💡 <strong>İpucu:</strong> Boş alana tıklayarak sadece yazıları görebilirsiniz</p>
-            <p>Yazıları düzenlemek için seçim çerçevesini açın</p>
+            <p>Yazıları düzenlemek için seçim çerçevesini açın veya yazıya tıklayın</p>
           </div>
         </div>
       </div>
