@@ -603,15 +603,6 @@ const MockupTemplatesPage: React.FC = () => {
               </h1>
             </div>
             <div className="flex items-center space-x-3">
-              <Button
-                onClick={() => setShowAreaVisibility(!showAreaVisibility)}
-                variant="secondary"
-                size="sm"
-                className="flex items-center space-x-2"
-              >
-                {showAreaVisibility ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                <span>{showAreaVisibility ? 'Alanları Gizle' : 'Alanları Göster'}</span>
-              </Button>
               <Button onClick={saveTemplate} disabled={!templateName || !backgroundImage || !selectedStore}>
                 💾 Kaydet
               </Button>
@@ -731,7 +722,7 @@ const MockupTemplatesPage: React.FC = () => {
                         </Group>
                       ))}
 
-                      {/* Text Areas - Sadece showAreaVisibility true ise göster */}
+                      {/* Text Areas - CRITICAL: Yeşil çerçeveyi transparan yap */}
                       {showAreaVisibility && textAreas.map((area) => (
                         <Group
                           key={area.id}
@@ -746,12 +737,12 @@ const MockupTemplatesPage: React.FC = () => {
                           <Rect
                             width={area.width}
                             height={area.height}
-                            fill="rgba(34, 197, 94, 0.3)"
-                            stroke="#22c55e"
-                            strokeWidth={2}
+                            fill="transparent"
+                            stroke="transparent"
+                            strokeWidth={0}
                             offsetX={area.width / 2}
                             offsetY={area.height / 2}
-                            opacity={0.8}
+                            opacity={0}
                             rotation={area.rotation}
                           />
                           <KonvaText
