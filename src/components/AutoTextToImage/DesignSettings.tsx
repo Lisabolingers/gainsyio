@@ -10,7 +10,7 @@ import { useFonts } from '../../hooks/useFonts';
 import { FontService } from '../../lib/fontService';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { ChevronDown, ChevronRight, Trash2, Save } from 'lucide-react';
+import { ChevronDown, ChevronRight, Trash2, Save, Upload } from 'lucide-react';
 
 const DesignSettings = () => {
   const { user } = useAuth();
@@ -55,6 +55,7 @@ const DesignSettings = () => {
   const [fontsInitialized, setFontsInitialized] = useState(false);
   const [fontLoadingStatus, setFontLoadingStatus] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loadingTemplate, setLoadingTemplate] = useState(false);
   
   // Accordion state for each text
   const [accordionStates, setAccordionStates] = useState({});
@@ -63,6 +64,172 @@ const DesignSettings = () => {
   const transformerRef = useRef();
   const groupRefs = useRef({});
   const fileInputRef = useRef();
+
+  // CRITICAL: Check for template ID in URL and load template
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const templateId = urlParams.get('template');
+    
+    if (templateId && user) {
+      loadTemplateFromId(templateId);
+    }
+  }, [user]);
+
+  // CRITICAL: Load template from database
+  const loadTemplateFromId = async (templateId: string) => {
+    try {
+      setLoadingTemplate(true);
+      console.log('🔄 Loading template:', templateId);
+
+      const { data, error } = await supabase
+        .from('auto_text_templates')
+        .select('*')
+        .eq('id', templateId)
+        .eq('user_id', user?.id)
+        .single();
+
+      if (error) {
+        console.error('❌ Error loading template:', error);
+        alert('Template not found or access denied');
+        return;
+      }
+
+      if (data && data.style_settings) {
+        console.log('✅ Template loaded:', data);
+        
+        // Load canvas size
+        if (data.style_settings.canvas_size) {
+          setCanvasSize(data.style_settings.canvas_size);
+        }
+
+        // Load template name
+        setTemplateName(data.name);
+
+        // Load texts with proper ID assignment
+        if (data.style_settings.texts && Array.isArray(data.style_settings.texts)) {
+          const loadedTexts = data.style_settings.texts.map((text, index) => ({
+            ...text,
+            id: index + 1, // Ensure proper ID sequence
+            // Ensure all required properties exist
+            colorOption: text.colorOption || 'bw',
+            styleOption: text.styleOption || 'normal',
+            fontFamily: text.fontFamily || 'Arial',
+            fill: text.fill || '#000000',
+            maxFontSize: text.maxFontSize || 50,
+            lineHeight: text.lineHeight || 1,
+            letterSpacing: text.letterSpacing || 0,
+            width: text.width || 400,
+            height: text.height || 100,
+            align: text.align || 'center',
+            x: text.x || 500,
+            y: text.y || 500,
+            text: text.text || 'Sample Text'
+          }));
+
+          setTexts(loadedTexts);
+          setSelectedId(loadedTexts.length > 0 ? loadedTexts[0].id : 1);
+
+          console.log('🎨 Template texts loaded:', loadedTexts);
+        }
+
+        // Force canvas re-render after loading
+        setTimeout(() => {
+          setForceRender(prev => prev + 1);
+          console.log('🎨 Canvas refreshed after template load');
+        }, 500);
+
+        alert(`Template "${data.name}" loaded successfully!`);
+      }
+
+    } catch (error) {
+      console.error('❌ Failed to load template:', error);
+      alert('Failed to load template');
+    } finally {
+      setLoadingTemplate(false);
+    }
+  };
+
+  // Load template from file (JSON import)
+  const loadTemplateFromFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setLoadingTemplate(true);
+      const text = await file.text();
+      const templateData = JSON.parse(text);
+
+      if (templateData.canvas_size) {
+        setCanvasSize(templateData.canvas_size);
+      }
+
+      if (templateData.template_name) {
+        setTemplateName(templateData.template_name);
+      }
+
+      if (templateData.texts && Array.isArray(templateData.texts)) {
+        const loadedTexts = templateData.texts.map((text, index) => ({
+          ...text,
+          id: index + 1,
+          colorOption: text.colorOption || 'bw',
+          styleOption: text.styleOption || 'normal',
+          fontFamily: text.fontFamily || 'Arial',
+          fill: text.fill || '#000000'
+        }));
+
+        setTexts(loadedTexts);
+        setSelectedId(loadedTexts.length > 0 ? loadedTexts[0].id : 1);
+      }
+
+      setTimeout(() => {
+        setForceRender(prev => prev + 1);
+      }, 500);
+
+      alert('Template loaded successfully from file!');
+
+    } catch (error) {
+      console.error('❌ Failed to load template from file:', error);
+      alert('Failed to load template file. Please check the file format.');
+    } finally {
+      setLoadingTemplate(false);
+      // Clear file input
+      if (event.target) {
+        event.target.value = '';
+      }
+    }
+  };
+
+  // Export template to JSON file
+  const exportTemplate = () => {
+    if (!templateName.trim()) {
+      alert('Please enter a template name before exporting');
+      return;
+    }
+
+    const templateData = {
+      template_name: templateName,
+      canvas_size: canvasSize,
+      texts: texts.map(text => ({
+        ...text,
+        // Remove temporary properties
+        tempFill: undefined
+      })),
+      exported_at: new Date().toISOString(),
+      version: '1.0'
+    };
+
+    const blob = new Blob([JSON.stringify(templateData, null, 2)], {
+      type: 'application/json'
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${templateName.replace(/[^a-zA-Z0-9]/g, '_')}_template.json`;
+    link.click();
+
+    URL.revokeObjectURL(url);
+  };
 
   // Initialize accordion state for new texts
   useEffect(() => {
@@ -437,6 +604,10 @@ const DesignSettings = () => {
     try {
       console.log('💾 Saving text template:', templateName);
       
+      // Check if we're updating an existing template
+      const urlParams = new URLSearchParams(window.location.search);
+      const templateId = urlParams.get('template');
+      
       // Prepare template data
       const templateData = {
         user_id: user.id,
@@ -457,11 +628,27 @@ const DesignSettings = () => {
         is_default: false
       };
 
-      const { data, error } = await supabase
-        .from('auto_text_templates')
-        .insert(templateData)
-        .select()
-        .single();
+      let result;
+      
+      if (templateId) {
+        // Update existing template
+        result = await supabase
+          .from('auto_text_templates')
+          .update(templateData)
+          .eq('id', templateId)
+          .eq('user_id', user.id)
+          .select()
+          .single();
+      } else {
+        // Create new template
+        result = await supabase
+          .from('auto_text_templates')
+          .insert(templateData)
+          .select()
+          .single();
+      }
+
+      const { data, error } = result;
 
       if (error) {
         console.error('❌ Error saving template:', error);
@@ -469,10 +656,13 @@ const DesignSettings = () => {
       }
 
       console.log('✅ Template saved successfully:', data);
-      alert(`Template "${templateName}" saved successfully!`);
+      alert(`Template "${templateName}" ${templateId ? 'updated' : 'saved'} successfully!`);
       
-      // Optionally redirect to text templates page
-      // window.location.href = '/admin/templates/text';
+      // Update URL if this was a new template
+      if (!templateId && data) {
+        const newUrl = `${window.location.pathname}?template=${data.id}`;
+        window.history.replaceState({}, '', newUrl);
+      }
       
     } catch (error) {
       console.error('❌ Failed to save template:', error);
@@ -826,28 +1016,65 @@ const DesignSettings = () => {
               className="flex-1"
             />
           </div>
+          
+          {/* Action Buttons */}
           <div className="flex flex-col gap-2">
-            <Button onClick={downloadImage} disabled={!templateName} className="w-full">
-              DOWNLOAD DESIGN
-            </Button>
-            <Button 
-              onClick={saveTemplate} 
-              disabled={!templateName || saving} 
-              variant="secondary" 
-              className="w-full flex items-center justify-center space-x-2"
-            >
-              {saving ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
-                  <span>SAVING...</span>
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4" />
-                  <span>SAVE TEMPLATE</span>
-                </>
-              )}
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={downloadImage} disabled={!templateName} className="flex-1">
+                DOWNLOAD DESIGN
+              </Button>
+              <Button onClick={exportTemplate} disabled={!templateName} variant="secondary" className="flex-1">
+                EXPORT JSON
+              </Button>
+            </div>
+            
+            <div className="flex gap-2">
+              <Button 
+                onClick={saveTemplate} 
+                disabled={!templateName || saving} 
+                variant="secondary" 
+                className="flex-1 flex items-center justify-center space-x-2"
+              >
+                {saving ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                    <span>SAVING...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    <span>SAVE TEMPLATE</span>
+                  </>
+                )}
+              </Button>
+              
+              <Button 
+                onClick={() => document.getElementById('template-file-input')?.click()}
+                disabled={loadingTemplate}
+                variant="secondary"
+                className="flex-1 flex items-center justify-center space-x-2"
+              >
+                {loadingTemplate ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                    <span>LOADING...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4" />
+                    <span>LOAD JSON</span>
+                  </>
+                )}
+              </Button>
+              
+              <input
+                id="template-file-input"
+                type="file"
+                accept=".json"
+                onChange={loadTemplateFromFile}
+                style={{ display: 'none' }}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -855,12 +1082,12 @@ const DesignSettings = () => {
       {/* Text Controls Section - Right Side */}
       <div className="w-1/2 p-4 overflow-y-auto max-h-screen">
         {/* Font Loading Status */}
-        {(!fontsInitialized || fontLoadingStatus) && (
+        {(!fontsInitialized || fontLoadingStatus || loadingTemplate) && (
           <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <div className="flex items-center space-x-2">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
               <span className="text-blue-700 dark:text-blue-400 text-sm">
-                {fontLoadingStatus || `Loading fonts... (${userFonts.length} fonts)`}
+                {loadingTemplate ? 'Loading template...' : fontLoadingStatus || `Loading fonts... (${userFonts.length} fonts)`}
               </span>
             </div>
           </div>
