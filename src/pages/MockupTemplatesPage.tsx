@@ -42,8 +42,6 @@ interface TextArea {
   font_family: string;
   font_size: number;
   color: string;
-  text_align: 'left' | 'center' | 'right';
-  max_characters: number;
   placeholder_text: string;
 }
 
@@ -190,8 +188,6 @@ const MockupTemplatesPage: React.FC = () => {
       font_family: 'Arial',
       font_size: 24,
       color: '#000000',
-      text_align: 'center',
-      max_characters: 100,
       placeholder_text: 'Örnek metin'
     };
     setTextAreas([...textAreas, newArea]);
@@ -689,7 +685,7 @@ const MockupTemplatesPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Area Properties */}
+                  {/* Area Properties - Simplified */}
                   {selectedArea && (
                     <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                       <h3 className="font-medium text-gray-900 dark:text-white">
@@ -701,33 +697,7 @@ const MockupTemplatesPage: React.FC = () => {
 
                         return (
                           <div className="space-y-3">
-                            {/* Size Controls - Fixed Layout */}
-                            <div className="space-y-2">
-                              <div>
-                                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Genişlik:</label>
-                                <Input
-                                  type="number"
-                                  value={area.width}
-                                  onChange={(e) => updateAreaSize(area.id, parseInt(e.target.value) || 0, area.height)}
-                                  className="w-full text-sm"
-                                  min="10"
-                                  max="800"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Yükseklik:</label>
-                                <Input
-                                  type="number"
-                                  value={area.height}
-                                  onChange={(e) => updateAreaSize(area.id, area.width, parseInt(e.target.value) || 0)}
-                                  className="w-full text-sm"
-                                  min="10"
-                                  max="800"
-                                />
-                              </div>
-                            </div>
-
-                            {/* Text Area Specific Properties */}
+                            {/* Text Area Specific Properties - Simplified */}
                             {selectedArea.startsWith('text-') && (
                               <div className="space-y-3">
                                 <div>
@@ -775,31 +745,6 @@ const MockupTemplatesPage: React.FC = () => {
                                     value={(area as TextArea).color}
                                     onChange={(e) => updateTextAreaProperty(area.id, 'color', e.target.value)}
                                     className="w-full h-8 rounded border border-gray-300 dark:border-gray-600"
-                                  />
-                                </div>
-                                
-                                <div>
-                                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Hizalama:</label>
-                                  <select
-                                    value={(area as TextArea).text_align}
-                                    onChange={(e) => updateTextAreaProperty(area.id, 'text_align', e.target.value)}
-                                    className="w-full text-sm p-2 border rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
-                                  >
-                                    <option value="left">Sol</option>
-                                    <option value="center">Orta</option>
-                                    <option value="right">Sağ</option>
-                                  </select>
-                                </div>
-                                
-                                <div>
-                                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Max Karakter:</label>
-                                  <Input
-                                    type="number"
-                                    value={(area as TextArea).max_characters}
-                                    onChange={(e) => updateTextAreaProperty(area.id, 'max_characters', parseInt(e.target.value) || 100)}
-                                    className="w-full text-sm"
-                                    min="10"
-                                    max="500"
                                   />
                                 </div>
                               </div>
@@ -905,8 +850,7 @@ const MockupTemplatesPage: React.FC = () => {
                           transform: `rotate(${area.rotation}deg)`,
                           fontFamily: area.font_family,
                           fontSize: `${area.font_size}px`,
-                          color: area.color,
-                          textAlign: area.text_align
+                          color: area.color
                         }}
                         onMouseDown={(e) => handleMouseDown(e, area.id)}
                       >
