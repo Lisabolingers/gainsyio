@@ -380,10 +380,10 @@ const AnalyticsPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
             <BarChart3 className="h-6 w-6 mr-2 text-orange-500" />
-            Analytics
+            Product Analytics
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            {getSelectedStoreName()} • {getSelectedPeriodLabel()}
+            Detailed performance analysis for your products • {getSelectedStoreName()} • {getSelectedPeriodLabel()}
           </p>
         </div>
         
@@ -460,7 +460,7 @@ const AnalyticsPage: React.FC = () => {
                 No Etsy stores connected
               </h3>
               <p className="text-sm text-yellow-600 dark:text-yellow-300 mt-1">
-                Connect your first Etsy store to see analytics data.{' '}
+                Connect your first Etsy store to see product analytics.{' '}
                 <a href="/admin/stores" className="underline hover:text-yellow-800 dark:hover:text-yellow-200">
                   Add store now
                 </a>
@@ -470,7 +470,7 @@ const AnalyticsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Metrics Grid */}
+      {/* Product Performance Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {metrics.map((metric, index) => (
           <Card key={index} className="hover:shadow-lg transition-shadow">
@@ -512,13 +512,13 @@ const AnalyticsPage: React.FC = () => {
         ))}
       </div>
 
-      {/* Charts and Tables */}
+      {/* Product Analysis Charts and Tables */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Performance Chart Placeholder */}
+        {/* Product Performance Chart */}
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>Performance Trend</span>
+              <span>Product Performance Trends</span>
               <Button variant="secondary" size="sm">
                 View Details
               </Button>
@@ -529,23 +529,23 @@ const AnalyticsPage: React.FC = () => {
               <div className="text-center">
                 <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-2" />
                 <p className="text-gray-500 dark:text-gray-400 mb-2">
-                  Interactive charts will be added
+                  Product performance charts
                 </p>
                 <p className="text-sm text-gray-400 dark:text-gray-500">
-                  Views, Sales, Revenue trends over time
+                  Views, conversions, and revenue by product
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Top Products */}
+        {/* Top Performing Products */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span>Top Performing Products</span>
               <Button variant="secondary" size="sm">
-                View All
+                View All Products
               </Button>
             </CardTitle>
           </CardHeader>
@@ -581,10 +581,10 @@ const AnalyticsPage: React.FC = () => {
         </Card>
       </div>
 
-      {/* Detailed Analytics Table */}
+      {/* Product Analytics Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Detailed Analytics</CardTitle>
+          <CardTitle>Product Performance Details</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -592,7 +592,7 @@ const AnalyticsPage: React.FC = () => {
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Date
+                    Product
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Views
@@ -609,31 +609,41 @@ const AnalyticsPage: React.FC = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Conversion Rate
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Trend
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {analyticsData.slice(-7).reverse().map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {new Date(item.date).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric'
-                      })}
+                {topProducts.map((product) => (
+                  <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-medium text-gray-900 dark:text-white max-w-xs truncate">
+                        {product.title}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {item.views.toLocaleString()}
+                      {product.views.toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {item.favorites}
+                      {product.favorites}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {item.sales}
+                      {product.sales}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      ${item.revenue.toFixed(2)}
+                      ${product.revenue.toFixed(2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {item.conversion_rate.toFixed(2)}%
+                      {product.conversion_rate.toFixed(2)}%
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center space-x-1">
+                        {getTrendIcon(product.trend)}
+                        <span className={`text-sm ${getTrendColor(product.trend)}`}>
+                          {product.trend === 'up' ? 'Rising' : product.trend === 'down' ? 'Falling' : 'Stable'}
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -649,16 +659,15 @@ const AnalyticsPage: React.FC = () => {
           <BarChart3 className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
           <div>
             <h3 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
-              📊 Comprehensive Analytics Dashboard
+              📊 Product-Focused Analytics Dashboard
             </h3>
             <p className="text-sm text-blue-600 dark:text-blue-300">
-              This analytics dashboard is ready for real Etsy data integration. Currently showing sample data with:
+              This analytics page is now focused on <strong>individual product performance</strong> rather than overall store metrics.
               <br />
-              <strong>Features:</strong> Performance metrics, trend analysis, top products, detailed tables, 
-              store filtering, time period selection, and export capabilities.
+              <strong>Features:</strong> Product-specific metrics, conversion tracking, performance trends, 
+              top product rankings, and detailed product analytics tables.
               <br />
-              <strong>Ready for:</strong> Real-time Etsy API data, interactive charts, custom date ranges, 
-              and advanced filtering when connected to live stores.
+              <strong>Focus:</strong> Views, favorites, sales, and conversion rates per product to help optimize individual listings.
             </p>
           </div>
         </div>
