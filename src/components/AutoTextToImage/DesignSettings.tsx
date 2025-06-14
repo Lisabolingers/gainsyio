@@ -841,9 +841,9 @@ const DesignSettings = () => {
             <CardHeader>
               <CardTitle>Text {text.id}</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               {/* Text Input */}
-              <div className="flex gap-2 items-start mb-4">
+              <div className="flex gap-2 items-start">
                 <textarea 
                   value={text.text} 
                   onChange={(e) => updateTextProperty(text.id, 'text', e.target.value)} 
@@ -859,156 +859,169 @@ const DesignSettings = () => {
               </div>
 
               {/* Font and Size Controls */}
-              <div className="flex items-center gap-2 mt-2 w-full mb-4">
-                <label className="text-gray-700 dark:text-gray-300 text-sm">Font:</label>
-                <select 
-                  value={text.fontFamily} 
-                  onChange={(e) => {
-                    console.log(`🔄 FONT DEĞİŞTİRİLİYOR: ${e.target.value}`);
-                    updateTextProperty(text.id, 'fontFamily', e.target.value);
-                  }} 
-                  className="w-32 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  disabled={fontsLoading || !fontsInitialized}
-                >
-                  {allFonts.map((font) => (
-                    <option key={font} value={font}>{font}</option>
-                  ))}
-                </select>
-                
-                {/* Enhanced Font Upload Button */}
-                <Button 
-                  className="p-2 h-10 w-10 flex items-center justify-center" 
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={fontUploading}
-                  title="Upload custom font"
-                >
-                  {fontUploading ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  ) : (
-                    '+'
-                  )}
-                </Button>
-                <input 
-                  type="file" 
-                  accept=".ttf,.otf,.woff,.woff2" 
-                  ref={fileInputRef} 
-                  onChange={handleFontUpload} 
-                  style={{ display: 'none' }} 
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Font:</label>
+                  <div className="flex gap-2">
+                    <select 
+                      value={text.fontFamily} 
+                      onChange={(e) => {
+                        console.log(`🔄 FONT DEĞİŞTİRİLİYOR: ${e.target.value}`);
+                        updateTextProperty(text.id, 'fontFamily', e.target.value);
+                      }} 
+                      className="flex-1 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      disabled={fontsLoading || !fontsInitialized}
+                    >
+                      {allFonts.map((font) => (
+                        <option key={font} value={font}>{font}</option>
+                      ))}
+                    </select>
+                    
+                    {/* Enhanced Font Upload Button */}
+                    <Button 
+                      className="p-2 h-10 w-10 flex items-center justify-center" 
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={fontUploading}
+                      title="Upload custom font"
+                    >
+                      {fontUploading ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      ) : (
+                        '+'
+                      )}
+                    </Button>
+                    <input 
+                      type="file" 
+                      accept=".ttf,.otf,.woff,.woff2" 
+                      ref={fileInputRef} 
+                      onChange={handleFontUpload} 
+                      style={{ display: 'none' }} 
+                    />
+                  </div>
+                </div>
 
-                <label className="text-gray-700 dark:text-gray-300 text-sm">Font Size (px):</label>
-                <input 
-                  type="number" 
-                  value={text.maxFontSize} 
-                  min="1"
-                  step="1" 
-                  onChange={(e) => updateTextProperty(text.id, 'maxFontSize', parseInt(e.target.value))} 
-                  className="w-20 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
-                />
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Font Size (px):</label>
+                  <input 
+                    type="number" 
+                    value={text.maxFontSize} 
+                    min="1"
+                    step="1" 
+                    onChange={(e) => updateTextProperty(text.id, 'maxFontSize', parseInt(e.target.value))} 
+                    className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
+                  />
+                </div>
               </div>
 
               {/* Additional Controls */}
-              <div className="flex items-center gap-2 mb-4 flex-wrap">
-                <label className="text-gray-700 dark:text-gray-300 text-sm">Line Height:</label>
-                <input 
-                  type="number" 
-                  value={text.lineHeight} 
-                  step="0.1"
-                  min="0.1"
-                  onChange={(e) => updateTextProperty(text.id, 'lineHeight', parseFloat(e.target.value))} 
-                  className="w-20 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
-                />
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Line Height:</label>
+                  <input 
+                    type="number" 
+                    value={text.lineHeight} 
+                    step="0.1"
+                    min="0.1"
+                    onChange={(e) => updateTextProperty(text.id, 'lineHeight', parseFloat(e.target.value))} 
+                    className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
+                  />
+                </div>
                 
-                <label className="text-gray-700 dark:text-gray-300 text-sm">Letter Spacing:</label>
-                <input 
-                  type="number" 
-                  value={text.letterSpacing} 
-                  onChange={(e) => updateTextProperty(text.id, 'letterSpacing', parseFloat(e.target.value))} 
-                  className="w-20 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
-                />
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Letter Spacing:</label>
+                  <input 
+                    type="number" 
+                    value={text.letterSpacing} 
+                    onChange={(e) => updateTextProperty(text.id, 'letterSpacing', parseFloat(e.target.value))} 
+                    className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
+                  />
+                </div>
                 
-                <label className="text-gray-700 dark:text-gray-300 text-sm">Align:</label>
-                <select 
-                  value={text.align} 
-                  onChange={(e) => updateTextProperty(text.id, 'align', e.target.value)} 
-                  className="w-24 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  <option value="left">Left</option>
-                  <option value="center">Center</option>
-                  <option value="right">Right</option>
-                </select>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Align:</label>
+                  <select 
+                    value={text.align} 
+                    onChange={(e) => updateTextProperty(text.id, 'align', e.target.value)} 
+                    className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="left">Left</option>
+                    <option value="center">Center</option>
+                    <option value="right">Right</option>
+                  </select>
+                </div>
               </div>
 
               {/* Alignment Buttons */}
-              <div className="mt-4 flex gap-3 text-3xl mb-4">
-                <button onClick={() => alignText('left')} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
-                  <span className="material-icons">format_align_left</span>
-                </button>
-                <button onClick={() => alignText('centerX')} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
-                  <span className="material-icons">format_align_center</span>
-                </button>
-                <button onClick={() => alignText('right')} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
-                  <span className="material-icons">format_align_right</span>
-                </button>
-                <button onClick={() => alignText('top')} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
-                  <span className="material-icons">vertical_align_top</span>
-                </button>
-                <button onClick={() => alignText('centerY')} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
-                  <span className="material-icons">vertical_align_center</span>
-                </button>
-                <button onClick={() => alignText('bottom')} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
-                  <span className="material-icons">vertical_align_bottom</span>
-                </button>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Alignment:</label>
+                <div className="flex gap-2 text-2xl">
+                  <button onClick={() => alignText('left')} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded">
+                    <span className="material-icons text-lg">format_align_left</span>
+                  </button>
+                  <button onClick={() => alignText('centerX')} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded">
+                    <span className="material-icons text-lg">format_align_center</span>
+                  </button>
+                  <button onClick={() => alignText('right')} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded">
+                    <span className="material-icons text-lg">format_align_right</span>
+                  </button>
+                  <button onClick={() => alignText('top')} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded">
+                    <span className="material-icons text-lg">vertical_align_top</span>
+                  </button>
+                  <button onClick={() => alignText('centerY')} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded">
+                    <span className="material-icons text-lg">vertical_align_center</span>
+                  </button>
+                  <button onClick={() => alignText('bottom')} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded">
+                    <span className="material-icons text-lg">vertical_align_bottom</span>
+                  </button>
+                </div>
               </div>
 
               {/* Color Options */}
               <ColorOptions text={text} setTexts={setTexts} texts={texts} />
 
               {/* Style Options */}
-              <div className="mt-2 flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <label className="text-gray-700 dark:text-gray-300 text-sm">Style:</label>
-                  <select
-                    value={text.styleOption || 'normal'}
-                    onChange={(e) => updateTextProperty(text.id, 'styleOption', e.target.value)}
-                    className="w-24 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="normal">Normal</option>
-                    <option value="arc">Arc</option>
-                    <option value="wave">Wave</option>
-                  </select>
-                </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Style:</label>
+                <select
+                  value={text.styleOption || 'normal'}
+                  onChange={(e) => updateTextProperty(text.id, 'styleOption', e.target.value)}
+                  className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  <option value="normal">Normal</option>
+                  <option value="arc">Arc</option>
+                  <option value="wave">Wave</option>
+                </select>
               </div>
 
               {/* Style Parameters */}
-              <div className="mt-2 flex items-center gap-4 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <label className="text-gray-700 dark:text-gray-300 text-sm">Bend (%):</label>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Bend (%):</label>
                   <input 
                     type="number" 
                     value={text.bend || 50} 
                     onChange={(e) => updateTextProperty(text.id, 'bend', parseFloat(e.target.value))} 
-                    className="w-20 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
+                    className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
                   />
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <label className="text-gray-700 dark:text-gray-300 text-sm">Distortion H:</label>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Distortion H:</label>
                   <input 
                     type="number" 
                     value={text.distortionH || 0} 
                     onChange={(e) => updateTextProperty(text.id, 'distortionH', parseFloat(e.target.value))} 
-                    className="w-20 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
+                    className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
                   />
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <label className="text-gray-700 dark:text-gray-300 text-sm">Distortion V:</label>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Distortion V:</label>
                   <input 
                     type="number" 
                     value={text.distortionV || 0} 
                     onChange={(e) => updateTextProperty(text.id, 'distortionV', parseFloat(e.target.value))} 
-                    className="w-20 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
+                    className="w-full p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white" 
                   />
                 </div>
               </div>
