@@ -185,6 +185,7 @@ export interface Database {
           design_areas: Json
           text_areas: Json
           logo_area: Json | null
+          design_type: string | null
           is_default: boolean
           created_at: string
           updated_at: string
@@ -197,6 +198,7 @@ export interface Database {
           design_areas?: Json
           text_areas?: Json
           logo_area?: Json | null
+          design_type?: string | null
           is_default?: boolean
           created_at?: string
           updated_at?: string
@@ -209,6 +211,7 @@ export interface Database {
           design_areas?: Json
           text_areas?: Json
           logo_area?: Json | null
+          design_type?: string | null
           is_default?: boolean
           created_at?: string
           updated_at?: string
