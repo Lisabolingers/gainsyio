@@ -568,13 +568,6 @@ const MockupTemplatesPage: React.FC = () => {
                 >
                   📁 Background Yükle
                 </Button>
-                <Button
-                  onClick={() => setShowAreaVisibility(!showAreaVisibility)}
-                  variant="secondary"
-                  size="sm"
-                >
-                  {showAreaVisibility ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
               </div>
 
               {/* Canvas */}
