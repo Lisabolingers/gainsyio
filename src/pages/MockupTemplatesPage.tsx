@@ -79,7 +79,7 @@ const MockupTemplatesPage: React.FC = () => {
   const [editingTemplate, setEditingTemplate] = useState<MockupTemplate | null>(null);
 
   // Editor States
-  const [canvasSize, setCanvasSize] = useState({ width: 600, height: 600 });
+  const [canvasSize, setCanvasSize] = useState({ width: 2000, height: 2000 }); // CRITICAL: 2000x2000 px olarak güncellendi
   const [templateName, setTemplateName] = useState('');
   const [backgroundImage, setBackgroundImage] = useState<string>('');
   const [selectedStore, setSelectedStore] = useState<string>('');
@@ -197,7 +197,7 @@ const MockupTemplatesPage: React.FC = () => {
     setTextAreas([]);
     setLogoArea(null);
     setSelectedId(null);
-    setCanvasSize({ width: 600, height: 600 });
+    setCanvasSize({ width: 2000, height: 2000 }); // CRITICAL: 2000x2000 px olarak güncellendi
     setShowEditor(true);
   };
 
@@ -814,9 +814,9 @@ const MockupTemplatesPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Canvas Info */}
+              {/* Canvas Info - CRITICAL: Mesaj güncellendi */}
               <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
-                <p>💡 <strong>İpucu:</strong> Boş alana tıklayarak seçimi kaldırabilir ve sadece yazıları görebilirsiniz</p>
+                <p>💡 <strong>İpucu:</strong> Template kaydedilebilmesi için lütfen template adı ve tasarım alanı eklemelisiniz. Logo ve yazı eklemek isteğe bağlıdır.</p>
                 <p>Canvas boyutu: {canvasSize.width} × {canvasSize.height} px</p>
               </div>
             </div>
