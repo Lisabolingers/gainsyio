@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Konva from 'konva';
-import { Stage, Layer, Text as KonvaText, Transformer, Group } from 'react-konva';
+import { Stage, Layer, Text as KonvaText, Transformer, Group, Image as KonvaImage } from 'react-konva';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import AccordionTextControls from './AccordionTextControls';
+import LogoSelector from './LogoSelector';
 import { renderTextByStyle } from './styleOption';
 import { useFonts } from '../../hooks/useFonts';
 import { FontService } from '../../lib/fontService';
@@ -45,12 +46,28 @@ const DesignSettings = () => {
       styleOption: 'normal',
     }
   ]);
+  
+  // CRITICAL: Logo state'leri eklendi
+  const [logoArea, setLogoArea] = useState({
+    id: 'logo-1',
+    x: 100,
+    y: 100,
+    width: 150,
+    height: 150,
+    rotation: 0,
+    opacity: 1,
+    imageUrl: '',
+    visible: false
+  });
+  
   const [selectedId, setSelectedId] = useState(1);
   const [forceRender, setForceRender] = useState(0);
   const [fontUploading, setFontUploading] = useState(false);
   const [fontsInitialized, setFontsInitialized] = useState(false);
   const [templateLoading, setTemplateLoading] = useState(false);
   const [currentTemplateId, setCurrentTemplateId] = useState<string | null>(null);
+  const [showLogoSelector, setShowLogoSelector] = useState(false);
+  
   const stageRef = useRef();
   const transformerRef = useRef();
   const groupRefs = useRef({});
@@ -139,6 +156,16 @@ const DesignSettings = () => {
           if (loadedTexts.length > 0) {
             setSelectedId(loadedTexts[0].id);
           }
+        }
+        
+        // CRITICAL: Logo area'yı yükle
+        if (data.style_settings?.logo_area) {
+          setLogoArea({
+            ...logoArea,
+            ...data.style_settings.logo_area,
+            visible: true
+          });
+          console.log('🖼️ Logo area yüklendi:', data.style_settings.logo_area);
         }
         
         // Canvas'ı yeniden render et
@@ -243,6 +270,26 @@ const DesignSettings = () => {
     };
   };
 
+  // CRITICAL: Logo boundary constraint function
+  const constrainLogoToBounds = (logo) => {
+    const halfWidth = logo.width / 2;
+    const halfHeight = logo.height / 2;
+    
+    const minX = halfWidth;
+    const maxX = canvasSize.width - halfWidth;
+    const minY = halfHeight;
+    const maxY = canvasSize.height - halfHeight;
+    
+    const constrainedX = Math.max(minX, Math.min(maxX, logo.x));
+    const constrainedY = Math.max(minY, Math.min(maxY, logo.y));
+    
+    return {
+      ...logo,
+      x: constrainedX,
+      y: constrainedY
+    };
+  };
+
   // Apply constraints whenever texts change
   useEffect(() => {
     setTexts(prevTexts => 
@@ -250,11 +297,41 @@ const DesignSettings = () => {
     );
   }, [canvasSize.width, canvasSize.height]);
 
+  // CRITICAL: Logo constraints
+  useEffect(() => {
+    if (logoArea.visible) {
+      setLogoArea(prev => constrainLogoToBounds(prev));
+    }
+  }, [canvasSize.width, canvasSize.height, logoArea.visible]);
+
   useEffect(() => {
     if (selectedId === null) {
       transformerRef.current?.nodes([]);
       return;
     }
+    
+    // CRITICAL: Logo seçimi için kontrol ekle
+    if (selectedId === 'logo-1' && logoArea.visible) {
+      const logoNode = groupRefs.current['logo-1'];
+      if (logoNode && transformerRef.current) {
+        transformerRef.current.nodes([logoNode]);
+        
+        const transformer = transformerRef.current;
+        const minHandleSize = Math.max(8, 12 / scale);
+        const minBorderWidth = Math.max(1, 2 / scale);
+        
+        transformer.borderStrokeWidth(minBorderWidth);
+        transformer.anchorSize(minHandleSize);
+        transformer.anchorStroke('#0066ff');
+        transformer.anchorFill('#ffffff');
+        transformer.anchorStrokeWidth(Math.max(1, 1 / scale));
+        transformer.borderStroke('#0066ff');
+        
+        transformer.getLayer()?.batchDraw();
+      }
+      return;
+    }
+    
     const node = groupRefs.current[selectedId];
     if (node && transformerRef.current) {
       transformerRef.current.nodes([node]);
@@ -272,7 +349,7 @@ const DesignSettings = () => {
       
       transformer.getLayer()?.batchDraw();
     }
-  }, [selectedId, texts, scale]);
+  }, [selectedId, texts, logoArea, scale]);
 
   const adjustFontSize = (text) => {
     const baseFontSize = text.maxFontSize || 50;
@@ -298,8 +375,13 @@ const DesignSettings = () => {
     );
   }, [texts.map(t => t.text + t.letterSpacing + t.lineHeight + t.width + t.height)]);
 
+  // CRITICAL: Enhanced stage click handler - logo desteği ile
   const handleStageClick = (e) => {
+    console.log('🖱️ Stage tıklandı, target:', e.target);
+    
+    // Eğer stage'in kendisine tıklandıysa seçimi kaldır
     if (e.target === e.target.getStage()) {
+      console.log('✅ Stage background\'ına tıklandı, seçim kaldırılıyor');
       setSelectedId(null);
     }
   };
@@ -319,18 +401,51 @@ const DesignSettings = () => {
     setSelectedId(newId);
   };
 
+  // CRITICAL: Logo seçme fonksiyonu
+  const handleLogoSelect = (imageUrl: string) => {
+    console.log('🖼️ Logo seçildi:', imageUrl);
+    setLogoArea(prev => ({
+      ...prev,
+      imageUrl,
+      visible: true
+    }));
+    setShowLogoSelector(false);
+    setSelectedId('logo-1');
+    setForceRender(prev => prev + 1);
+  };
+
+  // CRITICAL: Logo silme fonksiyonu
+  const removeLogo = () => {
+    setLogoArea(prev => ({
+      ...prev,
+      imageUrl: '',
+      visible: false
+    }));
+    setSelectedId(null);
+    setForceRender(prev => prev + 1);
+  };
+
   // Handle text drag with boundary constraints
   const handleTextDragEnd = (textId, e) => {
     const newX = e.target.x();
     const newY = e.target.y();
     
-    setTexts(prevTexts =>
-      prevTexts.map(text =>
-        text.id === textId
-          ? constrainTextToBounds({ ...text, x: newX, y: newY })
-          : text
-      )
-    );
+    if (textId === 'logo-1') {
+      // CRITICAL: Logo drag handling
+      setLogoArea(prev => constrainLogoToBounds({ 
+        ...prev, 
+        x: newX, 
+        y: newY 
+      }));
+    } else {
+      setTexts(prevTexts =>
+        prevTexts.map(text =>
+          text.id === textId
+            ? constrainTextToBounds({ ...text, x: newX, y: newY })
+            : text
+        )
+      );
+    }
   };
 
   // Handle transformer changes with boundary constraints
@@ -342,19 +457,30 @@ const DesignSettings = () => {
     node.scaleX(1);
     node.scaleY(1);
     
-    setTexts(prevTexts =>
-      prevTexts.map(text =>
-        text.id === textId
-          ? constrainTextToBounds({
-              ...text,
-              x: node.x(),
-              y: node.y(),
-              width: Math.max(50, text.width * scaleX),
-              height: Math.max(20, text.height * scaleY),
-            })
-          : text
-      )
-    );
+    if (textId === 'logo-1') {
+      // CRITICAL: Logo transform handling
+      setLogoArea(prev => constrainLogoToBounds({
+        ...prev,
+        x: node.x(),
+        y: node.y(),
+        width: Math.max(50, prev.width * scaleX),
+        height: Math.max(50, prev.height * scaleY),
+      }));
+    } else {
+      setTexts(prevTexts =>
+        prevTexts.map(text =>
+          text.id === textId
+            ? constrainTextToBounds({
+                ...text,
+                x: node.x(),
+                y: node.y(),
+                width: Math.max(50, text.width * scaleX),
+                height: Math.max(20, text.height * scaleY),
+              })
+            : text
+        )
+      );
+    }
   };
 
   const downloadImage = () => {
@@ -422,7 +548,21 @@ const DesignSettings = () => {
         background_color: '#ffffff',
         style_settings: {
           canvas_size: canvasSize,
-          texts: texts
+          texts: texts,
+          // CRITICAL: Logo area'yı da kaydet
+          ...(logoArea.visible && logoArea.imageUrl && {
+            logo_area: {
+              id: logoArea.id,
+              x: logoArea.x,
+              y: logoArea.y,
+              width: logoArea.width,
+              height: logoArea.height,
+              rotation: logoArea.rotation,
+              opacity: logoArea.opacity,
+              imageUrl: logoArea.imageUrl,
+              visible: logoArea.visible
+            }
+          })
         },
         is_default: false
       };
@@ -552,6 +692,44 @@ const DesignSettings = () => {
 
   const alignText = (alignment) => {
     if (!selectedId) return;
+    
+    // CRITICAL: Logo alignment desteği
+    if (selectedId === 'logo-1') {
+      const halfWidth = logoArea.width / 2;
+      const halfHeight = logoArea.height / 2;
+      let newX = logoArea.x;
+      let newY = logoArea.y;
+
+      switch (alignment) {
+        case 'left':
+          newX = halfWidth;
+          break;
+        case 'centerX':
+          newX = canvasSize.width / 2;
+          break;
+        case 'right':
+          newX = canvasSize.width - halfWidth;
+          break;
+        case 'top':
+          newY = halfHeight;
+          break;
+        case 'centerY':
+          newY = canvasSize.height / 2;
+          break;
+        case 'bottom':
+          newY = canvasSize.height - halfHeight;
+          break;
+        default:
+          break;
+      }
+
+      newX = Math.max(halfWidth, Math.min(canvasSize.width - halfWidth, newX));
+      newY = Math.max(halfHeight, Math.min(canvasSize.height - halfHeight, newY));
+
+      setLogoArea(prev => ({ ...prev, x: newX, y: newY }));
+      return;
+    }
+    
     const text = texts.find(t => t.id === selectedId);
     if (!text) return;
 
@@ -756,6 +934,55 @@ const DesignSettings = () => {
     );
   };
 
+  // CRITICAL: Logo rendering component
+  const LogoImage = ({ logoData }) => {
+    const [image, setImage] = useState(null);
+    
+    useEffect(() => {
+      if (logoData.imageUrl) {
+        const img = new window.Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          setImage(img);
+        };
+        img.src = logoData.imageUrl;
+      }
+    }, [logoData.imageUrl]);
+    
+    if (!image) return null;
+    
+    return (
+      <Group
+        key={`logo-${forceRender}`}
+        ref={(node) => (groupRefs.current['logo-1'] = node)}
+        x={logoData.x}
+        y={logoData.y}
+        draggable
+        onClick={() => setSelectedId('logo-1')}
+        onDragEnd={(e) => handleTextDragEnd('logo-1', e)}
+        onTransformEnd={(e) => handleTransformEnd('logo-1', e)}
+        dragBoundFunc={(pos) => {
+          const halfWidth = logoData.width / 2;
+          const halfHeight = logoData.height / 2;
+          return {
+            x: Math.max(halfWidth, Math.min(canvasSize.width - halfWidth, pos.x)),
+            y: Math.max(halfHeight, Math.min(canvasSize.height - halfHeight, pos.y))
+          };
+        }}
+      >
+        <KonvaImage
+          image={image}
+          width={logoData.width}
+          height={logoData.height}
+          offsetX={logoData.width / 2}
+          offsetY={logoData.height / 2}
+          opacity={logoData.opacity}
+          rotation={logoData.rotation}
+        />
+      </Group>
+    );
+  };
+
   return (
     <div className="flex h-full gap-[10px] p-4">
       {/* Template Loading Indicator */}
@@ -796,6 +1023,12 @@ const DesignSettings = () => {
                 onClick={handleStageClick}
               >
                 <Layer key={`layer-${forceRender}-${fontsInitialized}`}>
+                  {/* CRITICAL: Logo rendering - text'lerden önce (background'da) */}
+                  {logoArea.visible && logoArea.imageUrl && (
+                    <LogoImage logoData={logoArea} />
+                  )}
+                  
+                  {/* Text rendering */}
                   {texts.map((text) => renderKonvaText(text))}
 
                   {selectedId && (
@@ -808,6 +1041,22 @@ const DesignSettings = () => {
                       anchorFill="#ffffff"
                       anchorStrokeWidth={Math.max(1, 1 / scale)}
                       boundBoxFunc={(oldBox, newBox) => {
+                        // CRITICAL: Logo için boundary check
+                        if (selectedId === 'logo-1') {
+                          const minWidth = 50;
+                          const minHeight = 50;
+                          const maxWidth = canvasSize.width - Math.abs(newBox.x);
+                          const maxHeight = canvasSize.height - Math.abs(newBox.y);
+                          
+                          return {
+                            ...newBox,
+                            width: Math.max(minWidth, Math.min(maxWidth, newBox.width)),
+                            height: Math.max(minHeight, Math.min(maxHeight, newBox.height)),
+                            x: Math.max(0, Math.min(canvasSize.width - newBox.width, newBox.x)),
+                            y: Math.max(0, Math.min(canvasSize.height - newBox.height, newBox.y))
+                          };
+                        }
+                        
                         const text = texts.find(t => t.id === selectedId);
                         if (!text) return newBox;
                         
@@ -883,6 +1132,158 @@ const DesignSettings = () => {
           </div>
         )}
 
+        {/* CRITICAL: Logo Controls */}
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>🖼️ Logo Area</span>
+              {logoArea.visible && logoArea.imageUrl && (
+                <Button
+                  onClick={removeLogo}
+                  variant="danger"
+                  size="sm"
+                  className="p-2 h-8 w-8 flex items-center justify-center"
+                  title="Remove logo"
+                >
+                  ✕
+                </Button>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {logoArea.visible && logoArea.imageUrl ? (
+              <div className="space-y-3">
+                {/* Logo Preview */}
+                <div className="flex items-center space-x-3">
+                  <img 
+                    src={logoArea.imageUrl} 
+                    alt="Selected logo" 
+                    className="w-16 h-16 object-cover rounded border"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Logo seçildi</p>
+                    <Button
+                      onClick={() => setShowLogoSelector(true)}
+                      variant="secondary"
+                      size="sm"
+                      className="mt-1"
+                    >
+                      Değiştir
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Logo Properties - Sadece seçiliyse göster */}
+                {selectedId === 'logo-1' && (
+                  <div className="space-y-3 p-3 bg-gray-50 dark:bg-gray-700 rounded">
+                    <h4 className="font-medium text-gray-900 dark:text-white">Logo Özellikleri</h4>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-gray-600 dark:text-gray-400">Genişlik:</label>
+                        <Input
+                          type="number"
+                          value={logoArea.width}
+                          onChange={(e) => setLogoArea(prev => ({ ...prev, width: parseInt(e.target.value) || 50 }))}
+                          className="text-sm"
+                          min="50"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600 dark:text-gray-400">Yükseklik:</label>
+                        <Input
+                          type="number"
+                          value={logoArea.height}
+                          onChange={(e) => setLogoArea(prev => ({ ...prev, height: parseInt(e.target.value) || 50 }))}
+                          className="text-sm"
+                          min="50"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-gray-600 dark:text-gray-400">Opaklık:</label>
+                      <Input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.1"
+                        value={logoArea.opacity}
+                        onChange={(e) => setLogoArea(prev => ({ ...prev, opacity: parseFloat(e.target.value) }))}
+                        className="w-full"
+                      />
+                      <span className="text-xs text-gray-500">{Math.round(logoArea.opacity * 100)}%</span>
+                    </div>
+
+                    {/* Alignment Buttons */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Hizalama:</label>
+                      <div className="flex gap-2 text-2xl">
+                        <button 
+                          type="button"
+                          onClick={() => alignText('left')} 
+                          className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          title="Align left"
+                        >
+                          <span className="material-icons text-lg">format_align_left</span>
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => alignText('centerX')} 
+                          className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          title="Align center horizontally"
+                        >
+                          <span className="material-icons text-lg">format_align_center</span>
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => alignText('right')} 
+                          className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          title="Align right"
+                        >
+                          <span className="material-icons text-lg">format_align_right</span>
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => alignText('top')} 
+                          className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          title="Align top"
+                        >
+                          <span className="material-icons text-lg">vertical_align_top</span>
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => alignText('centerY')} 
+                          className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          title="Align center vertically"
+                        >
+                          <span className="material-icons text-lg">vertical_align_center</span>
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => alignText('bottom')} 
+                          className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          title="Align bottom"
+                        >
+                          <span className="material-icons text-lg">vertical_align_bottom</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Button
+                onClick={() => setShowLogoSelector(true)}
+                className="w-full"
+                variant="secondary"
+              >
+                📁 Store Images'dan Logo Seç
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+
         {/* CRITICAL: Accordion Text Controls */}
         {texts.map((text) => (
           <AccordionTextControls
@@ -907,6 +1308,14 @@ const DesignSettings = () => {
           Add Text
         </Button>
       </div>
+
+      {/* CRITICAL: Logo Selector Modal */}
+      {showLogoSelector && (
+        <LogoSelector
+          onSelect={handleLogoSelect}
+          onClose={() => setShowLogoSelector(false)}
+        />
+      )}
     </div>
   );
 };
