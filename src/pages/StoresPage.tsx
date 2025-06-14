@@ -491,11 +491,9 @@ const StoresPage: React.FC = () => {
       {filteredStores.length === 0 ? (
         <div className="text-center py-12">
           <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center mx-auto mb-4">
-            <img 
-              src="https://cdn.worldvectorlogo.com/logos/etsy-1.svg" 
-              alt="Etsy Logo" 
-              className="w-10 h-10"
-            />
+            <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
+              <span className="text-white text-xl font-bold">E</span>
+            </div>
           </div>
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
             {searchTerm ? 'No stores found' : 'No Etsy stores connected yet'}
@@ -544,12 +542,8 @@ const StoresPage: React.FC = () => {
                 <tr key={store.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center overflow-hidden border border-gray-200 dark:border-gray-600">
-                        <img 
-                          src="https://cdn.worldvectorlogo.com/logos/etsy-1.svg" 
-                          alt="Etsy Logo"
-                          className="w-6 h-6"
-                        />
+                      <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                        <span className="text-white text-sm font-bold">E</span>
                       </div>
                       <div>
                         <div className="text-sm font-medium text-gray-900 dark:text-white">
