@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { Zap, LayoutDashboard, Store, Package, BarChart3, BookTemplate as FileTemplate, PlusCircle, Image, Type, Library, Menu, X, LogOut, Settings, User, Bell, Search, Sun, Moon } from 'lucide-react';
+import { Zap, LayoutDashboard, Store, Package, BarChart3, BookTemplate as FileTemplate, PlusCircle, Image, Type, Library, Menu, X, LogOut, Settings, User, Bell, Search, Sun, Moon, ChevronDown, ChevronRight } from 'lucide-react';
 
 const AdminLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [templatesExpanded, setTemplatesExpanded] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
@@ -17,14 +18,32 @@ const AdminLayout: React.FC = () => {
     { name: 'Stores', href: '/admin/stores', icon: Store },
     { name: 'Products', href: '/admin/products', icon: Package },
     { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
-    { name: 'Templates', href: '/admin/templates', icon: FileTemplate },
-    { name: 'Auto Text to Image', href: '/admin/templates/auto-text-to-image', icon: Zap },
-    { name: 'Text Templates', href: '/admin/templates/text', icon: Type },
+    { 
+      name: 'Templates', 
+      href: '/admin/templates', 
+      icon: FileTemplate,
+      hasSubmenu: true,
+      submenu: [
+        { name: 'All Templates', href: '/admin/templates', icon: FileTemplate },
+        { name: 'Auto Text to Image', href: '/admin/templates/auto-text-to-image', icon: Zap },
+        { name: 'Text Templates', href: '/admin/templates/text', icon: Type },
+        { name: 'Listing Templates', href: '/admin/templates/listing', icon: FileTemplate },
+        { name: 'Mockup Templates', href: '/admin/templates/mockup', icon: Image },
+        { name: 'Update Templates', href: '/admin/templates/update', icon: FileTemplate },
+      ]
+    },
     { name: 'Listing', href: '/admin/listing', icon: PlusCircle },
     { name: 'Library', href: '/admin/library', icon: Library },
     { name: 'Store Images', href: '/admin/store-images', icon: Image },
     { name: 'My Fonts', href: '/admin/my-font', icon: Type },
   ];
+
+  // Check if templates submenu should be expanded
+  React.useEffect(() => {
+    if (location.pathname.startsWith('/admin/templates')) {
+      setTemplatesExpanded(true);
+    }
+  }, [location.pathname]);
 
   const handleSignOut = async () => {
     try {
@@ -40,21 +59,17 @@ const AdminLayout: React.FC = () => {
       return location.pathname === '/admin';
     }
     
-    // Special handling for Templates and sub-pages
+    // For templates main page
     if (href === '/admin/templates') {
       return location.pathname === '/admin/templates';
     }
     
-    if (href === '/admin/templates/auto-text-to-image') {
-      return location.pathname === '/admin/templates/auto-text-to-image';
-    }
-    
-    if (href === '/admin/templates/text') {
-      return location.pathname === '/admin/templates/text';
-    }
-    
     // For other routes, check if current path starts with the href
     return location.pathname.startsWith(href);
+  };
+
+  const toggleTemplatesSubmenu = () => {
+    setTemplatesExpanded(!templatesExpanded);
   };
 
   return (
@@ -90,27 +105,87 @@ const AdminLayout: React.FC = () => {
         <nav className="flex-1 px-3 py-6 overflow-y-auto">
           <div className="space-y-1">
             {navigation.map((item) => (
-              <Link
-                key={item.name}
-                to={item.href}
-                className={`
-                  group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors
-                  ${isActive(item.href)
-                    ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400'
-                    : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                  }
-                `}
-                onClick={() => setSidebarOpen(false)}
-              >
-                <item.icon className={`
-                  mr-3 h-5 w-5 flex-shrink-0
-                  ${isActive(item.href)
-                    ? 'text-orange-500'
-                    : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
-                  }
-                `} />
-                {item.name}
-              </Link>
+              <div key={item.name}>
+                {/* Main menu item */}
+                {item.hasSubmenu ? (
+                  <button
+                    onClick={toggleTemplatesSubmenu}
+                    className={`
+                      group flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-lg transition-colors
+                      ${isActive(item.href) || location.pathname.startsWith('/admin/templates')
+                        ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400'
+                        : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                      }
+                    `}
+                  >
+                    <div className="flex items-center">
+                      <item.icon className={`
+                        mr-3 h-5 w-5 flex-shrink-0
+                        ${isActive(item.href) || location.pathname.startsWith('/admin/templates')
+                          ? 'text-orange-500'
+                          : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
+                        }
+                      `} />
+                      {item.name}
+                    </div>
+                    {templatesExpanded ? (
+                      <ChevronDown className="h-4 w-4 text-gray-400" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-gray-400" />
+                    )}
+                  </button>
+                ) : (
+                  <Link
+                    to={item.href}
+                    className={`
+                      group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors
+                      ${isActive(item.href)
+                        ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400'
+                        : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                      }
+                    `}
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <item.icon className={`
+                      mr-3 h-5 w-5 flex-shrink-0
+                      ${isActive(item.href)
+                        ? 'text-orange-500'
+                        : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
+                      }
+                    `} />
+                    {item.name}
+                  </Link>
+                )}
+
+                {/* Submenu items */}
+                {item.hasSubmenu && templatesExpanded && (
+                  <div className="ml-6 mt-1 space-y-1">
+                    {item.submenu?.map((subItem) => (
+                      <Link
+                        key={subItem.name}
+                        to={subItem.href}
+                        className={`
+                          group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors
+                          ${isActive(subItem.href)
+                            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400'
+                            : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
+                          }
+                        `}
+                        onClick={() => setSidebarOpen(false)}
+                      >
+                        <subItem.icon className={`
+                          mr-3 h-4 w-4 flex-shrink-0
+                          ${isActive(subItem.href)
+                            ? 'text-orange-500'
+                            : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
+                          }
+                        `} />
+                        {subItem.name}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </nav>
