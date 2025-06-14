@@ -302,6 +302,7 @@ export interface Database {
           image_url: string
           image_type: string
           auto_apply: boolean
+          folder_path: string | null
           created_at: string
           updated_at: string
         }
@@ -313,6 +314,7 @@ export interface Database {
           image_url: string
           image_type?: string
           auto_apply?: boolean
+          folder_path?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -324,6 +326,7 @@ export interface Database {
           image_url?: string
           image_type?: string
           auto_apply?: boolean
+          folder_path?: string | null
           created_at?: string
           updated_at?: string
         }
