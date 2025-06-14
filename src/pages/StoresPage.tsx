@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Store, Plus, Edit, Trash2, ExternalLink, RefreshCw, Search, Grid, List, AlertCircle, CheckCircle, Clock, X, Link as LinkIcon } from 'lucide-react';
+import { Store, Plus, Edit, Trash2, ExternalLink, RefreshCw, Search, CheckCircle, Clock, X, Link as LinkIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 
 interface StoreData {
   id: string;
@@ -29,7 +28,6 @@ const StoresPage: React.FC = () => {
   const [stores, setStores] = useState<StoreData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingStore, setEditingStore] = useState<StoreData | null>(null);
   const [formData, setFormData] = useState<StoreFormData>({
@@ -240,16 +238,6 @@ const StoresPage: React.FC = () => {
     });
   };
 
-  const getStoreStatusIcon = (store: StoreData) => {
-    if (!store.is_active) {
-      return <AlertCircle className="h-4 w-4 text-red-500" title="Inactive" />;
-    }
-    if (store.last_sync_at) {
-      return <CheckCircle className="h-4 w-4 text-green-500" title="Connected" />;
-    }
-    return <Clock className="h-4 w-4 text-yellow-500" title="Not connected" />;
-  };
-
   const isStoreConnected = (store: StoreData) => {
     return store.last_sync_at && store.is_active;
   };
@@ -288,44 +276,7 @@ const StoresPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Card */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="p-6 text-center">
-            <div className="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center mx-auto mb-3">
-              <span className="text-2xl">🛍️</span>
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{stores.length}</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Total Stores</p>
-          </CardContent>
-        </Card>
-        
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="p-6 text-center">
-            <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center mx-auto mb-3">
-              <CheckCircle className="h-6 w-6 text-white" />
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {stores.filter(s => isStoreConnected(s)).length}
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Connected</p>
-          </CardContent>
-        </Card>
-        
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="p-6 text-center">
-            <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center mx-auto mb-3">
-              <Store className="h-6 w-6 text-white" />
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {stores.filter(s => s.is_active).length}
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Active</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search and View Mode */}
+      {/* Search */}
       <div className="flex flex-col sm:flex-row gap-4 items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
@@ -337,26 +288,9 @@ const StoresPage: React.FC = () => {
             className="pl-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
           />
         </div>
-
-        <div className="flex items-center space-x-2">
-          <div className="flex border border-gray-300 dark:border-gray-600 rounded-lg">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 ${viewMode === 'grid' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400'} rounded-l-lg`}
-            >
-              <Grid className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-2 ${viewMode === 'list' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400'} rounded-r-lg`}
-            >
-              <List className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
       </div>
 
-      {/* Stores Display */}
+      {/* Stores List */}
       {filteredStores.length === 0 ? (
         <div className="text-center py-12">
           <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center mx-auto mb-4">
@@ -382,246 +316,139 @@ const StoresPage: React.FC = () => {
           )}
         </div>
       ) : (
-        <>
-          {/* Grid View */}
-          {viewMode === 'grid' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Store
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Connection
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Last Connected
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {filteredStores.map((store) => (
-                <Card key={store.id} className="hover:shadow-lg transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
-                          <span className="text-lg">🛍️</span>
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">{store.store_name}</CardTitle>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Etsy Store
-                          </p>
-                        </div>
+                <tr key={store.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                        <span className="text-sm">🛍️</span>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        {getStoreStatusIcon(store)}
-                        <button
-                          onClick={() => toggleStoreStatus(store.id, store.is_active)}
-                          className={`w-8 h-4 rounded-full transition-colors ${
-                            store.is_active ? 'bg-green-500' : 'bg-gray-300'
-                          }`}
-                          title={store.is_active ? 'Active' : 'Inactive'}
-                        >
-                          <div className={`w-3 h-3 bg-white rounded-full transition-transform ${
-                            store.is_active ? 'translate-x-4' : 'translate-x-0.5'
-                          }`} />
-                        </button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {store.store_url && (
-                        <div className="flex items-center space-x-2">
-                          <ExternalLink className="h-4 w-4 text-gray-400" />
+                      <div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          {store.store_name}
+                        </div>
+                        {store.store_url && (
                           <a
                             href={store.store_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 truncate"
+                            className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center space-x-1"
                           >
-                            {store.store_url}
+                            <ExternalLink className="h-3 w-3" />
+                            <span>View Store</span>
                           </a>
-                        </div>
-                      )}
-                      
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
-                        <div className="flex justify-between">
-                          <span>Created:</span>
-                          <span>{formatDate(store.created_at)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Last Connected:</span>
-                          <span>{formatDate(store.last_sync_at)}</span>
-                        </div>
-                      </div>
-
-                      {/* Connection Status */}
-                      <div className={`p-3 rounded-lg ${
-                        isStoreConnected(store)
-                          ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
-                          : 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'
-                      }`}>
-                        <div className="flex items-center space-x-2">
-                          {isStoreConnected(store) ? (
-                            <>
-                              <CheckCircle className="h-4 w-4 text-green-500" />
-                              <span className="text-sm text-green-700 dark:text-green-400 font-medium">
-                                Connected to Etsy
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              <Clock className="h-4 w-4 text-yellow-500" />
-                              <span className="text-sm text-yellow-700 dark:text-yellow-400 font-medium">
-                                Not connected
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex space-x-2 pt-2">
-                        {isStoreConnected(store) ? (
-                          <Button
-                            onClick={() => connectToEtsy(store.id)}
-                            size="sm"
-                            variant="secondary"
-                            className="flex-1 flex items-center space-x-1"
-                          >
-                            <RefreshCw className="h-3 w-3" />
-                            <span>Sync</span>
-                          </Button>
-                        ) : (
-                          <Button
-                            onClick={() => connectToEtsy(store.id)}
-                            size="sm"
-                            className="flex-1 flex items-center space-x-1 bg-orange-600 hover:bg-orange-700"
-                          >
-                            <LinkIcon className="h-3 w-3" />
-                            <span>Connect</span>
-                          </Button>
                         )}
-                        <Button
-                          onClick={() => handleEditStore(store)}
-                          size="sm"
-                          variant="secondary"
-                          className="flex items-center space-x-1"
-                        >
-                          <Edit className="h-3 w-3" />
-                          <span>Edit</span>
-                        </Button>
-                        <Button
-                          onClick={() => deleteStore(store.id)}
-                          size="sm"
-                          variant="danger"
-                          className="p-2"
-                          title="Delete store"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          {/* List View */}
-          {viewMode === 'list' && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-700">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Store
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Connection
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Last Connected
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {filteredStores.map((store) => (
-                    <tr key={store.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
-                            <span className="text-sm">🛍️</span>
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-gray-900 dark:text-white">
-                              {store.store_name}
-                            </div>
-                            {store.store_url && (
-                              <a
-                                href={store.store_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                              >
-                                {store.store_url}
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center space-x-2">
-                          {getStoreStatusIcon(store)}
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            store.is_active
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                              : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-                          }`}>
-                            {store.is_active ? 'Active' : 'Inactive'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => toggleStoreStatus(store.id, store.is_active)}
+                        className={`w-8 h-4 rounded-full transition-colors ${
+                          store.is_active ? 'bg-green-500' : 'bg-gray-300'
+                        }`}
+                        title={store.is_active ? 'Active - Click to deactivate' : 'Inactive - Click to activate'}
+                      >
+                        <div className={`w-3 h-3 bg-white rounded-full transition-transform ${
+                          store.is_active ? 'translate-x-4' : 'translate-x-0.5'
+                        }`} />
+                      </button>
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        store.is_active
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                          : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                      }`}>
+                        {store.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center space-x-2">
+                      {isStoreConnected(store) ? (
+                        <>
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                          <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
+                            Connected
                           </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 rounded-full text-xs ${
-                          isStoreConnected(store)
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                            : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
-                        }`}>
-                          {isStoreConnected(store) ? 'Connected' : 'Not Connected'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {formatDate(store.last_sync_at)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="h-4 w-4 text-yellow-500" />
+                          <span className="px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400">
+                            Not Connected
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    {formatDate(store.last_sync_at)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex items-center space-x-3">
+                      {isStoreConnected(store) ? (
                         <button
                           onClick={() => connectToEtsy(store.id)}
-                          className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300"
-                          title={isStoreConnected(store) ? 'Sync store' : 'Connect to Etsy'}
+                          className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300 flex items-center space-x-1"
+                          title="Sync store data"
                         >
-                          {isStoreConnected(store) ? (
-                            <RefreshCw className="h-4 w-4" />
-                          ) : (
-                            <LinkIcon className="h-4 w-4" />
-                          )}
+                          <RefreshCw className="h-4 w-4" />
+                          <span>Sync</span>
                         </button>
+                      ) : (
                         <button
-                          onClick={() => handleEditStore(store)}
-                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                          title="Edit store"
+                          onClick={() => connectToEtsy(store.id)}
+                          className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300 flex items-center space-x-1"
+                          title="Connect to Etsy"
                         >
-                          <Edit className="h-4 w-4" />
+                          <LinkIcon className="h-4 w-4" />
+                          <span>Connect</span>
                         </button>
-                        <button
-                          onClick={() => deleteStore(store.id)}
-                          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                          title="Delete store"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
+                      )}
+                      <button
+                        onClick={() => handleEditStore(store)}
+                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                        title="Edit store"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => deleteStore(store.id)}
+                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                        title="Delete store"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {/* Add/Edit Store Modal */}
