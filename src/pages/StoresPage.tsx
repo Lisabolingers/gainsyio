@@ -24,7 +24,7 @@ interface StoreFormData {
 }
 
 const StoresPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading, error: authError } = useAuth();
   const [stores, setStores] = useState<StoreData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -92,6 +92,24 @@ const StoresPage: React.FC = () => {
   };
 
   const handleAddStore = () => {
+    // Eğer auth hatası varsa, kullanıcıyı bilgilendir
+    if (authError) {
+      alert('Bağlantı hatası: ' + authError + '\n\nLütfen sayfayı yenileyin ve tekrar deneyin.');
+      return;
+    }
+
+    // Eğer kullanıcı yükleniyor durumundaysa, beklemesini söyle
+    if (authLoading) {
+      alert('Lütfen bekleyin, kullanıcı bilgileri yükleniyor...');
+      return;
+    }
+
+    // Eğer kullanıcı yoksa, giriş yapmasını söyle
+    if (!user) {
+      alert('Mağaza eklemek için önce giriş yapmanız gerekiyor.');
+      return;
+    }
+
     setEditingStore(null);
     setFormData({
       store_name: '',
@@ -101,6 +119,22 @@ const StoresPage: React.FC = () => {
   };
 
   const handleEditStore = (store: StoreData) => {
+    // Aynı kontrolleri edit için de yap
+    if (authError) {
+      alert('Bağlantı hatası: ' + authError + '\n\nLütfen sayfayı yenileyin ve tekrar deneyin.');
+      return;
+    }
+
+    if (authLoading) {
+      alert('Lütfen bekleyin, kullanıcı bilgileri yükleniyor...');
+      return;
+    }
+
+    if (!user) {
+      alert('Mağaza düzenlemek için önce giriş yapmanız gerekiyor.');
+      return;
+    }
+
     setEditingStore(store);
     setFormData({
       store_name: store.store_name,
@@ -113,7 +147,7 @@ const StoresPage: React.FC = () => {
     e.preventDefault();
     
     if (!formData.store_name.trim()) {
-      alert('Store name is required!');
+      alert('Mağaza adı gereklidir!');
       return;
     }
 
@@ -153,7 +187,7 @@ const StoresPage: React.FC = () => {
 
       if (result.error) {
         console.error('❌ Store save error:', result.error);
-        alert('Store could not be saved: ' + result.error.message);
+        alert('Mağaza kaydedilemedi: ' + result.error.message);
         return;
       }
 
@@ -161,18 +195,18 @@ const StoresPage: React.FC = () => {
       await loadStores();
       setShowAddModal(false);
       
-      alert(`Etsy store ${editingStore ? 'updated' : 'added'} successfully! 🎉`);
+      alert(`Etsy mağazası başarıyla ${editingStore ? 'güncellendi' : 'eklendi'}! 🎉`);
 
     } catch (error) {
       console.error('❌ Store save general error:', error);
-      alert('Store could not be saved: ' + error.message);
+      alert('Mağaza kaydedilemedi: ' + error.message);
     } finally {
       setFormLoading(false);
     }
   };
 
   const deleteStore = async (storeId: string) => {
-    if (!window.confirm('Are you sure you want to delete this Etsy store? This action cannot be undone.')) return;
+    if (!window.confirm('Bu Etsy mağazasını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.')) return;
 
     try {
       const { error } = await supabase
@@ -184,10 +218,10 @@ const StoresPage: React.FC = () => {
       if (error) throw error;
 
       setStores(prev => prev.filter(s => s.id !== storeId));
-      alert('Etsy store deleted successfully!');
+      alert('Etsy mağazası başarıyla silindi!');
     } catch (error) {
       console.error('Store deletion error:', error);
-      alert('Error occurred while deleting store');
+      alert('Mağaza silinirken hata oluştu');
     }
   };
 
@@ -211,7 +245,7 @@ const StoresPage: React.FC = () => {
       ));
     } catch (error) {
       console.error('Store status toggle error:', error);
-      alert('Error occurred while updating store status');
+      alert('Mağaza durumu güncellenirken hata oluştu');
     }
   };
 
@@ -244,12 +278,12 @@ const StoresPage: React.FC = () => {
       const oauthUrl = generateEtsyOAuthURL(storeId);
       
       // Show info to user before redirect
-      if (window.confirm('You will be redirected to Etsy to authorize the connection. Continue?')) {
+      if (window.confirm('Etsy bağlantısı için yetkilendirme sayfasına yönlendirileceksiniz. Devam etmek istiyor musunuz?')) {
         window.location.href = oauthUrl;
       }
     } catch (error) {
       console.error('Etsy OAuth initiation error:', error);
-      alert('Error occurred while initiating Etsy connection');
+      alert('Etsy bağlantısı başlatılırken hata oluştu');
     }
   };
 
@@ -293,11 +327,11 @@ const StoresPage: React.FC = () => {
       // Reload stores to show updated status
       await loadStores();
       
-      alert('🎉 Etsy store connected successfully!');
+      alert('🎉 Etsy mağazası başarıyla bağlandı!');
       
     } catch (error) {
       console.error('❌ Etsy callback processing error:', error);
-      alert('Error occurred while processing Etsy connection: ' + error.message);
+      alert('Etsy bağlantısı işlenirken hata oluştu: ' + error.message);
       
       // Clean up localStorage on error
       localStorage.removeItem('etsy_connecting_store_id');
@@ -328,10 +362,10 @@ const StoresPage: React.FC = () => {
           : store
       ));
 
-      alert('Store data synced successfully!');
+      alert('Mağaza verileri başarıyla senkronize edildi!');
     } catch (error) {
       console.error('Store sync error:', error);
-      alert('Error occurred while syncing store data');
+      alert('Mağaza verileri senkronize edilirken hata oluştu');
     }
   };
 
@@ -340,8 +374,8 @@ const StoresPage: React.FC = () => {
   );
 
   const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Never';
-    return new Date(dateString).toLocaleDateString('en-US', {
+    if (!dateString) return 'Hiçbir zaman';
+    return new Date(dateString).toLocaleDateString('tr-TR', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -354,7 +388,26 @@ const StoresPage: React.FC = () => {
     return store.api_credentials?.connected && store.last_sync_at && store.is_active;
   };
 
-  if (loading) {
+  // Eğer auth hatası varsa, hata mesajını göster
+  if (authError) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h2 className="text-gray-900 dark:text-white text-xl font-semibold mb-4">Bağlantı Hatası</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">{authError}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg transition-colors"
+          >
+            Yeniden Dene
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading || authLoading) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center h-64">
@@ -371,19 +424,20 @@ const StoresPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
             <Store className="h-6 w-6 mr-2 text-orange-500" />
-            Etsy Stores
+            Etsy Mağazaları
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Connect and manage your Etsy stores ({stores.length} stores)
+            Etsy mağazalarınızı bağlayın ve yönetin ({stores.length} mağaza)
           </p>
         </div>
         <div className="flex items-center space-x-3 mt-4 sm:mt-0">
           <Button
             onClick={handleAddStore}
             className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
+            disabled={authLoading || !!authError}
           >
             <Plus className="h-4 w-4" />
-            <span>Add Store</span>
+            <span>Mağaza Ekle</span>
           </Button>
         </div>
       </div>
@@ -394,11 +448,11 @@ const StoresPage: React.FC = () => {
           <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
           <div>
             <h3 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
-              Etsy Integration Status
+              Etsy Entegrasyon Durumu
             </h3>
             <p className="text-sm text-blue-600 dark:text-blue-300">
-              <strong>Development Mode:</strong> OAuth integration is being implemented. 
-              Currently using mock connection for testing. Real Etsy API integration will be available soon.
+              <strong>Geliştirme Modu:</strong> OAuth entegrasyonu geliştirilmektedir. 
+              Şu anda test için sahte bağlantı kullanılıyor. Gerçek Etsy API entegrasyonu yakında kullanılabilir olacak.
             </p>
           </div>
         </div>
@@ -410,7 +464,7 @@ const StoresPage: React.FC = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
           <Input
             type="text"
-            placeholder="Search Etsy stores..."
+            placeholder="Etsy mağazalarında ara..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
@@ -425,21 +479,22 @@ const StoresPage: React.FC = () => {
             <span className="text-3xl">🛍️</span>
           </div>
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            {searchTerm ? 'No stores found' : 'No Etsy stores connected yet'}
+            {searchTerm ? 'Mağaza bulunamadı' : 'Henüz Etsy mağazası bağlanmamış'}
           </h3>
           <p className="text-gray-500 dark:text-gray-400 mb-6">
             {searchTerm
-              ? 'Try adjusting your search terms'
-              : 'Connect your first Etsy store to start managing your products'
+              ? 'Arama terimlerinizi ayarlamayı deneyin'
+              : 'Ürünlerinizi yönetmeye başlamak için ilk Etsy mağazanızı bağlayın'
             }
           </p>
           {!searchTerm && (
             <Button
               onClick={handleAddStore}
               className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
+              disabled={authLoading || !!authError}
             >
               <Plus className="h-4 w-4" />
-              <span>Add First Store</span>
+              <span>İlk Mağazayı Ekle</span>
             </Button>
           )}
         </div>
@@ -449,19 +504,19 @@ const StoresPage: React.FC = () => {
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Store
+                  Mağaza
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Status
+                  Durum
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Connection
+                  Bağlantı
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Last Connected
+                  Son Bağlantı
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Actions
+                  İşlemler
                 </th>
               </tr>
             </thead>
@@ -485,7 +540,7 @@ const StoresPage: React.FC = () => {
                             className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center space-x-1"
                           >
                             <ExternalLink className="h-3 w-3" />
-                            <span>View Store</span>
+                            <span>Mağazayı Görüntüle</span>
                           </a>
                         )}
                       </div>
@@ -498,7 +553,7 @@ const StoresPage: React.FC = () => {
                         className={`w-8 h-4 rounded-full transition-colors ${
                           store.is_active ? 'bg-green-500' : 'bg-gray-300'
                         }`}
-                        title={store.is_active ? 'Active - Click to deactivate' : 'Inactive - Click to activate'}
+                        title={store.is_active ? 'Aktif - Devre dışı bırakmak için tıklayın' : 'Pasif - Aktifleştirmek için tıklayın'}
                       >
                         <div className={`w-3 h-3 bg-white rounded-full transition-transform ${
                           store.is_active ? 'translate-x-4' : 'translate-x-0.5'
@@ -509,7 +564,7 @@ const StoresPage: React.FC = () => {
                           ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
                           : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
                       }`}>
-                        {store.is_active ? 'Active' : 'Inactive'}
+                        {store.is_active ? 'Aktif' : 'Pasif'}
                       </span>
                     </div>
                   </td>
@@ -519,14 +574,14 @@ const StoresPage: React.FC = () => {
                         <>
                           <CheckCircle className="h-4 w-4 text-green-500" />
                           <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
-                            Connected
+                            Bağlı
                           </span>
                         </>
                       ) : (
                         <>
                           <Clock className="h-4 w-4 text-yellow-500" />
                           <span className="px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400">
-                            Not Connected
+                            Bağlı Değil
                           </span>
                         </>
                       )}
@@ -541,32 +596,32 @@ const StoresPage: React.FC = () => {
                         <button
                           onClick={() => syncStoreData(store.id)}
                           className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300 flex items-center space-x-1"
-                          title="Sync store data"
+                          title="Mağaza verilerini senkronize et"
                         >
                           <RefreshCw className="h-4 w-4" />
-                          <span>Sync</span>
+                          <span>Senkronize Et</span>
                         </button>
                       ) : (
                         <button
                           onClick={() => connectToEtsy(store.id)}
                           className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300 flex items-center space-x-1"
-                          title="Connect to Etsy via OAuth"
+                          title="OAuth ile Etsy'ye bağlan"
                         >
                           <LinkIcon className="h-4 w-4" />
-                          <span>Connect</span>
+                          <span>Bağlan</span>
                         </button>
                       )}
                       <button
                         onClick={() => handleEditStore(store)}
                         className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                        title="Edit store"
+                        title="Mağazayı düzenle"
                       >
                         <Edit className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => deleteStore(store.id)}
                         className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                        title="Delete store"
+                        title="Mağazayı sil"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -587,7 +642,7 @@ const StoresPage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
                   <span className="text-2xl mr-2">🛍️</span>
-                  {editingStore ? 'Edit Etsy Store' : 'Add Etsy Store'}
+                  {editingStore ? 'Etsy Mağazasını Düzenle' : 'Etsy Mağazası Ekle'}
                 </h2>
                 <button
                   onClick={() => setShowAddModal(false)}
@@ -602,12 +657,12 @@ const StoresPage: React.FC = () => {
               {/* Store Name */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Store Name *
+                  Mağaza Adı *
                 </label>
                 <Input
                   value={formData.store_name}
                   onChange={(e) => setFormData({ ...formData, store_name: e.target.value })}
-                  placeholder="Enter your Etsy store name"
+                  placeholder="Etsy mağaza adınızı girin"
                   required
                 />
               </div>
@@ -615,7 +670,7 @@ const StoresPage: React.FC = () => {
               {/* Store URL */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Store URL (Optional)
+                  Mağaza URL'si (Opsiyonel)
                 </label>
                 <Input
                   value={formData.store_url}
@@ -635,11 +690,11 @@ const StoresPage: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
-                      🔐 Secure OAuth Integration
+                      🔐 Güvenli OAuth Entegrasyonu
                     </h4>
                     <p className="text-sm text-blue-600 dark:text-blue-300">
-                      After adding your store, click "Connect" to authorize via Etsy's secure OAuth system. 
-                      You'll be redirected to Etsy to grant permissions, then brought back here automatically.
+                      Mağazanızı ekledikten sonra, Etsy'nin güvenli OAuth sistemi üzerinden yetkilendirme yapmak için "Bağlan" butonuna tıklayın. 
+                      Etsy'ye yönlendirilecek, izinleri verecek ve otomatik olarak buraya geri döndürüleceksiniz.
                     </p>
                   </div>
                 </div>
@@ -654,7 +709,7 @@ const StoresPage: React.FC = () => {
                   className="flex-1"
                   disabled={formLoading || !formData.store_name.trim()}
                 >
-                  {formLoading ? 'Saving...' : (editingStore ? 'Update Store' : 'Add Store')}
+                  {formLoading ? 'Kaydediliyor...' : (editingStore ? 'Mağazayı Güncelle' : 'Mağaza Ekle')}
                 </Button>
                 <Button
                   onClick={() => setShowAddModal(false)}
@@ -662,7 +717,7 @@ const StoresPage: React.FC = () => {
                   className="flex-1"
                   disabled={formLoading}
                 >
-                  Cancel
+                  İptal
                 </Button>
               </div>
             </div>
