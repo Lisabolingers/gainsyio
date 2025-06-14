@@ -10,11 +10,19 @@ interface TextTemplate {
   id: string;
   user_id: string;
   name: string;
-  canvas_size: {
-    width: number;
-    height: number;
+  font_family: string;
+  font_size: number;
+  font_weight: string;
+  text_color: string;
+  background_color: string;
+  style_settings: {
+    canvas_size: {
+      width: number;
+      height: number;
+    };
+    texts: any[];
   };
-  texts: any[];
+  is_default: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -36,28 +44,57 @@ const TextTemplatesPage: React.FC = () => {
   const loadTemplates = async () => {
     try {
       setLoading(true);
+      console.log('🔄 Template\'ler yükleniyor...');
+      
       const { data, error } = await supabase
         .from('auto_text_templates')
         .select('*')
         .eq('user_id', user?.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Template yükleme hatası:', error);
+        throw error;
+      }
 
-      // Parse the stored JSON data
-      const parsedTemplates = data?.map(template => ({
-        ...template,
-        canvas_size: typeof template.style_settings?.canvas_size === 'object' 
-          ? template.style_settings.canvas_size 
-          : { width: 1000, height: 1000 },
-        texts: Array.isArray(template.style_settings?.texts) 
-          ? template.style_settings.texts 
-          : []
-      })) || [];
+      console.log('✅ Ham template verisi:', data);
 
+      // Parse the stored JSON data with better error handling
+      const parsedTemplates = data?.map(template => {
+        console.log(`📝 Template işleniyor: ${template.name}`, template);
+        
+        let canvasSize = { width: 1000, height: 1000 };
+        let texts: any[] = [];
+        
+        try {
+          if (template.style_settings) {
+            if (template.style_settings.canvas_size) {
+              canvasSize = template.style_settings.canvas_size;
+            }
+            if (Array.isArray(template.style_settings.texts)) {
+              texts = template.style_settings.texts;
+            }
+          }
+        } catch (parseError) {
+          console.warn(`⚠️ Template parsing hatası: ${template.name}`, parseError);
+        }
+        
+        const parsedTemplate = {
+          ...template,
+          style_settings: {
+            canvas_size: canvasSize,
+            texts: texts
+          }
+        };
+        
+        console.log(`✅ İşlenmiş template: ${template.name}`, parsedTemplate);
+        return parsedTemplate;
+      }) || [];
+
+      console.log(`🎉 Toplam ${parsedTemplates.length} template yüklendi`);
       setTemplates(parsedTemplates);
     } catch (error) {
-      console.error('Error loading templates:', error);
+      console.error('❌ Template yükleme genel hatası:', error);
     } finally {
       setLoading(false);
     }
@@ -90,15 +127,12 @@ const TextTemplatesPage: React.FC = () => {
         .insert({
           user_id: user?.id,
           name: `${template.name} (Copy)`,
-          font_family: 'Arial',
-          font_size: 24,
-          font_weight: 'normal',
-          text_color: '#000000',
-          background_color: '#ffffff',
-          style_settings: {
-            canvas_size: template.canvas_size,
-            texts: template.texts
-          },
+          font_family: template.font_family || 'Arial',
+          font_size: template.font_size || 24,
+          font_weight: template.font_weight || 'normal',
+          text_color: template.text_color || '#000000',
+          background_color: template.background_color || '#ffffff',
+          style_settings: template.style_settings,
           is_default: false
         });
 
@@ -163,22 +197,32 @@ const TextTemplatesPage: React.FC = () => {
     }
   };
 
-  // CRITICAL: Template Preview Component
+  // CRITICAL: Geliştirilmiş Template Preview Component
   const TemplatePreview: React.FC<{ template: TextTemplate }> = ({ template }) => {
-    const canvasAspectRatio = template.canvas_size.width / template.canvas_size.height;
+    console.log(`🎨 Preview render ediliyor: ${template.name}`, template);
+    
+    const canvasSize = template.style_settings?.canvas_size || { width: 1000, height: 1000 };
+    const texts = template.style_settings?.texts || [];
+    
+    console.log(`📐 Canvas boyutu: ${canvasSize.width}x${canvasSize.height}`);
+    console.log(`📝 Text sayısı: ${texts.length}`, texts);
+    
+    // Preview container boyutları
     const previewWidth = 280;
-    const previewHeight = previewWidth / canvasAspectRatio;
+    const canvasAspectRatio = canvasSize.width / canvasSize.height;
+    const previewHeight = Math.min(previewWidth / canvasAspectRatio, 160);
     
     // Scale factor for preview
-    const scale = previewWidth / template.canvas_size.width;
+    const scale = previewWidth / canvasSize.width;
+    
+    console.log(`🔍 Scale: ${scale}, Preview: ${previewWidth}x${previewHeight}`);
 
     return (
       <div 
-        className="relative bg-white border-2 border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden shadow-sm"
+        className="relative bg-white border-2 border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden shadow-sm mx-auto"
         style={{ 
           width: `${previewWidth}px`, 
-          height: `${Math.min(previewHeight, 160)}px`,
-          margin: '0 auto'
+          height: `${previewHeight}px`
         }}
       >
         {/* Canvas Background */}
@@ -186,62 +230,74 @@ const TextTemplatesPage: React.FC = () => {
           className="absolute inset-0 bg-white"
           style={{
             width: `${previewWidth}px`,
-            height: `${previewHeight}px`,
-            transform: previewHeight > 160 ? `scale(${160 / previewHeight})` : 'none',
-            transformOrigin: 'top left'
+            height: `${previewHeight}px`
           }}
         >
-          {/* Render Text Elements */}
-          {template.texts.map((text, index) => {
-            // Calculate scaled position and size
-            const scaledX = (text.x || 0) * scale;
-            const scaledY = (text.y || 0) * scale;
-            const scaledFontSize = (text.maxFontSize || 24) * scale;
-            const scaledWidth = (text.width || 200) * scale;
-            
-            // Determine text color based on colorOption
-            let textColor = '#000000';
-            if (text.colorOption === 'bw') {
-              textColor = '#000000';
-            } else if (text.colorOption === 'all' && text.selectedColor) {
-              textColor = text.selectedColor;
-            } else if (text.fill) {
-              textColor = text.fill;
-            }
+          {/* CRITICAL: Text elementlerini render et */}
+          {texts.length > 0 ? (
+            texts.map((text, index) => {
+              console.log(`🔤 Text ${index} render ediliyor:`, text);
+              
+              // CRITICAL: Pozisyon hesaplamaları - merkez noktasından
+              const textX = (text.x || canvasSize.width / 2) * scale;
+              const textY = (text.y || canvasSize.height / 2) * scale;
+              const fontSize = Math.max((text.maxFontSize || 24) * scale, 8);
+              const textWidth = (text.width || 200) * scale;
+              
+              // CRITICAL: Renk belirleme
+              let textColor = '#000000';
+              if (text.colorOption === 'bw') {
+                textColor = '#000000';
+              } else if (text.colorOption === 'all' && text.selectedColor) {
+                textColor = text.selectedColor;
+              } else if (text.fill) {
+                textColor = text.fill;
+              }
+              
+              console.log(`🎨 Text ${index} - Pos: ${textX},${textY}, Size: ${fontSize}, Color: ${textColor}`);
 
-            return (
-              <div
-                key={index}
-                className="absolute pointer-events-none"
-                style={{
-                  left: `${scaledX - scaledWidth/2}px`,
-                  top: `${scaledY - scaledFontSize/2}px`,
-                  width: `${scaledWidth}px`,
-                  fontSize: `${Math.max(scaledFontSize, 8)}px`,
-                  fontFamily: text.fontFamily || 'Arial',
-                  color: textColor,
-                  textAlign: text.align || 'center',
-                  lineHeight: text.lineHeight || 1,
-                  letterSpacing: `${(text.letterSpacing || 0) * scale}px`,
-                  fontWeight: text.fontWeight || 'normal',
-                  transform: text.rotation ? `rotate(${text.rotation}deg)` : 'none',
-                  transformOrigin: 'center',
-                  whiteSpace: 'pre-wrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis'
-                }}
-              >
-                {text.text || 'Sample Text'}
-              </div>
-            );
-          })}
+              return (
+                <div
+                  key={index}
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: `${textX - textWidth/2}px`,
+                    top: `${textY - fontSize/2}px`,
+                    width: `${textWidth}px`,
+                    fontSize: `${fontSize}px`,
+                    fontFamily: text.fontFamily || 'Arial',
+                    color: textColor,
+                    textAlign: (text.align || 'center') as any,
+                    lineHeight: text.lineHeight || 1,
+                    letterSpacing: `${(text.letterSpacing || 0) * scale}px`,
+                    fontWeight: text.fontWeight || 'normal',
+                    transform: text.rotation ? `rotate(${text.rotation}deg)` : 'none',
+                    transformOrigin: 'center',
+                    whiteSpace: 'pre-wrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    // CRITICAL: Stroke desteği
+                    WebkitTextStroke: text.strokeEnabled ? `${(text.strokeWidth || 2) * scale}px ${text.strokeColor || '#000000'}` : 'none',
+                    WebkitTextFillColor: text.strokeOnly ? 'transparent' : textColor
+                  }}
+                >
+                  {text.text || 'Sample Text'}
+                </div>
+              );
+            })
+          ) : (
+            // Fallback: Eğer text yok ise
+            <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
+              No text elements
+            </div>
+          )}
         </div>
         
-        {/* Overlay with canvas info */}
+        {/* CRITICAL: Overlay bilgileri */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
           <div className="text-white text-xs text-center">
-            <div className="font-medium">{template.texts.length} element(s)</div>
-            <div className="opacity-75">{template.canvas_size.width} × {template.canvas_size.height}</div>
+            <div className="font-medium">{texts.length} element(s)</div>
+            <div className="opacity-75">{canvasSize.width} × {canvasSize.height}</div>
           </div>
         </div>
       </div>
@@ -406,7 +462,7 @@ const TextTemplatesPage: React.FC = () => {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    {/* CRITICAL: Real Template Preview */}
+                    {/* CRITICAL: Gerçek Template Preview */}
                     <div className="mb-4">
                       <TemplatePreview template={template} />
                     </div>
@@ -415,11 +471,13 @@ const TextTemplatesPage: React.FC = () => {
                     <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
                       <div className="flex justify-between">
                         <span>Elements:</span>
-                        <span className="font-medium">{template.texts.length}</span>
+                        <span className="font-medium">{template.style_settings?.texts?.length || 0}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Canvas:</span>
-                        <span>{template.canvas_size.width} × {template.canvas_size.height}</span>
+                        <span>
+                          {template.style_settings?.canvas_size?.width || 1000} × {template.style_settings?.canvas_size?.height || 1000}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span>Created:</span>
@@ -509,14 +567,16 @@ const TextTemplatesPage: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="w-20 h-16 bg-gray-100 dark:bg-gray-700 rounded border overflow-hidden">
-                          <TemplatePreview template={template} />
+                          <div style={{ transform: 'scale(0.3)', transformOrigin: 'top left' }}>
+                            <TemplatePreview template={template} />
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {template.texts.length}
+                        {template.style_settings?.texts?.length || 0}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {template.canvas_size.width} × {template.canvas_size.height}
+                        {template.style_settings?.canvas_size?.width || 1000} × {template.style_settings?.canvas_size?.height || 1000}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {formatDate(template.created_at)}
