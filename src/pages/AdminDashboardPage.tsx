@@ -41,7 +41,7 @@ const AdminDashboardPage: React.FC = () => {
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [stores, setStores] = useState<EtsyStore[]>([]);
   const [selectedStore, setSelectedStore] = useState<string>('all');
-  const [selectedPeriod, setSelectedPeriod] = useState('today');
+  const [selectedPeriod, setSelectedPeriod] = useState('last7days'); // Changed from 'today' to 'last7days'
   const [loading, setLoading] = useState(true);
 
   // Time period options
@@ -351,7 +351,7 @@ const AdminDashboardPage: React.FC = () => {
 
   const getSelectedPeriodLabel = () => {
     const period = timePeriods.find(p => p.value === selectedPeriod);
-    return period ? period.label : 'Today';
+    return period ? period.label : 'Last 7 days';
   };
 
   if (loading) {
