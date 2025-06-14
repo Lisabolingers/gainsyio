@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileTemplate, Plus, Edit, Trash2, Copy, Search, Filter, Grid, List, Save, Download, Store, ExternalLink, RefreshCw } from 'lucide-react';
+import { BookTemplate as FileTemplate, Plus, Edit, Trash2, Copy, Search, Filter, Grid, List, Save, Download, Store, ExternalLink, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
