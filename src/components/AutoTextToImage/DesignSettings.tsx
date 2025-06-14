@@ -12,9 +12,9 @@ import { useAuth } from '../../context/AuthContext';
 
 const DesignSettings = () => {
   const { user } = useAuth();
-  const { userFonts, loadUserFonts, loading: fontsLoading } = useFonts();
+  const { userFonts, loadUserFonts, loading: fontsLoading, googleFontsLoaded } = useFonts();
   
-  // Sistem fontları + kullanıcı fontları
+  // CRITICAL: Enhanced system fonts list with proper font names for Konva
   const systemFonts = [
     'Arial', 'Times New Roman', 'Helvetica', 'Georgia', 'Verdana',
     'Comic Sans MS', 'Courier New', 'Roboto', 'Open Sans', 'Lobster'
@@ -57,7 +57,7 @@ const DesignSettings = () => {
   const groupRefs = useRef({});
   const fileInputRef = useRef();
 
-  // CRITICAL: Enhanced font initialization with better status tracking
+  // CRITICAL: Enhanced font initialization with Google Fonts support
   useEffect(() => {
     const initializeFonts = async () => {
       if (!user || fontsLoading || fontsInitialized) return;
@@ -66,6 +66,29 @@ const DesignSettings = () => {
       setFontLoadingStatus('Fontlar yükleniyor...');
       
       try {
+        // Wait for Google Fonts to be loaded first
+        if (!googleFontsLoaded) {
+          console.log('⏳ Google Fonts bekleniyor...');
+          setFontLoadingStatus('Google Fonts yükleniyor...');
+          
+          // Wait for Google Fonts with timeout
+          let attempts = 0;
+          while (!googleFontsLoaded && attempts < 50) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+          }
+          
+          if (googleFontsLoaded) {
+            console.log('✅ Google Fonts hazır');
+          } else {
+            console.warn('⚠️ Google Fonts timeout, devam ediliyor');
+          }
+        }
+        
+        // Wait for document fonts to be ready
+        await document.fonts.ready;
+        console.log('✅ Document fonts ready');
+        
         // Kullanıcı fontlarını Supabase'den yükle
         await loadUserFonts();
         
@@ -139,7 +162,7 @@ const DesignSettings = () => {
     };
 
     initializeFonts();
-  }, [user, userFonts.length, fontsLoading]);
+  }, [user, userFonts.length, fontsLoading, googleFontsLoaded]);
 
   // CRITICAL: Additional effect to handle font changes and re-renders
   useEffect(() => {
@@ -175,6 +198,16 @@ const DesignSettings = () => {
       document.fonts.removeEventListener('loadingdone', handleFontsReady);
     };
   }, [fontsInitialized]);
+
+  // CRITICAL: Google Fonts ready effect
+  useEffect(() => {
+    if (googleFontsLoaded && fontsInitialized) {
+      console.log('🎯 Google Fonts loaded, refreshing canvas');
+      setTimeout(() => {
+        setForceRender(prev => prev + 1);
+      }, 500);
+    }
+  }, [googleFontsLoaded, fontsInitialized]);
 
   // Fixed canvas container size - always 700x700px
   const maxContainerSize = 700;
@@ -494,14 +527,14 @@ const DesignSettings = () => {
     }
   };
 
-  // CRITICAL: Enhanced text rendering with better font handling and fallbacks
+  // CRITICAL: Enhanced text rendering with better font handling and Google Fonts support
   const renderKonvaText = (text) => {
     console.log(`🎨 Text render ediliyor: "${text.text.substring(0, 20)}..." font: ${text.fontFamily}`);
     
-    // CRITICAL: Enhanced font availability check
-    const isFontLoaded = systemFonts.includes(text.fontFamily) || 
-                        userFonts.some(f => f.font_name === text.fontFamily) ||
-                        document.fonts.check(`16px "${text.fontFamily}"`);
+    // CRITICAL: Enhanced font availability check with Google Fonts support
+    const isSystemFont = systemFonts.includes(text.fontFamily);
+    const isUserFont = userFonts.some(f => f.font_name === text.fontFamily);
+    const isFontLoaded = isSystemFont || isUserFont || document.fonts.check(`16px "${text.fontFamily}"`);
     
     // CRITICAL: Better fallback strategy
     let actualFontFamily = text.fontFamily;
@@ -518,9 +551,15 @@ const DesignSettings = () => {
       console.log(`🎯 User font found, using full family: ${actualFontFamily}`);
     }
     
+    // CRITICAL: For Google Fonts, ensure proper font family name
+    if (isSystemFont && ['Roboto', 'Open Sans', 'Lobster'].includes(text.fontFamily)) {
+      actualFontFamily = text.fontFamily; // Use exact Google Font name
+      console.log(`🎯 Google Font detected: ${actualFontFamily}`);
+    }
+    
     return (
       <Group
-        key={`${text.id}-${forceRender}-${fontsInitialized}-${userFonts.length}`}
+        key={`${text.id}-${forceRender}-${fontsInitialized}-${userFonts.length}-${googleFontsLoaded}`}
         ref={(node) => (groupRefs.current[text.id] = node)}
         x={text.x}
         y={text.y}
@@ -585,7 +624,7 @@ const DesignSettings = () => {
               })()
             ) : (
               <KonvaText
-                key={`text-${text.id}-${forceRender}-${fontsInitialized}-${userFonts.length}`}
+                key={`text-${text.id}-${forceRender}-${fontsInitialized}-${userFonts.length}-${googleFontsLoaded}`}
                 text={text.text}
                 fontSize={text.maxFontSize}
                 fontFamily={actualFontFamily}
@@ -636,13 +675,13 @@ const DesignSettings = () => {
               backgroundColor: 'white'
             }}>
               <Stage 
-                key={`stage-${forceRender}-${fontsInitialized}-${userFonts.length}`}
+                key={`stage-${forceRender}-${fontsInitialized}-${userFonts.length}-${googleFontsLoaded}`}
                 width={canvasSize.width} 
                 height={canvasSize.height} 
                 ref={stageRef} 
                 onClick={handleStageClick}
               >
-                <Layer key={`layer-${forceRender}-${fontsInitialized}-${userFonts.length}`}>
+                <Layer key={`layer-${forceRender}-${fontsInitialized}-${userFonts.length}-${googleFontsLoaded}`}>
                   {texts.map((text) => renderKonvaText(text))}
 
                   {selectedId && (
@@ -725,6 +764,18 @@ const DesignSettings = () => {
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
               <span className="text-blue-700 dark:text-blue-400 text-sm">
                 {fontLoadingStatus || `Fontlar yükleniyor... (${userFonts.length} font)`}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Google Fonts Status */}
+        {!googleFontsLoaded && (
+          <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-500"></div>
+              <span className="text-orange-700 dark:text-orange-400 text-sm">
+                Google Fonts yükleniyor... (Roboto, Open Sans, Lobster)
               </span>
             </div>
           </div>

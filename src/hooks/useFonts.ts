@@ -8,6 +8,7 @@ interface FontOption {
   value: string;
   category?: string;
   description?: string;
+  isGoogleFont?: boolean;
 }
 
 export const useFonts = () => {
@@ -15,70 +16,87 @@ export const useFonts = () => {
   const [userFonts, setUserFonts] = useState<UserFont[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [googleFontsLoaded, setGoogleFontsLoaded] = useState(false);
 
-  // Default system fonts with web-safe options and categories
+  // Enhanced system fonts with Google Fonts support
   const systemFonts: FontOption[] = [
     { 
       display: 'Arial', 
       value: 'Arial, sans-serif',
       category: 'sans-serif',
-      description: 'Clean, modern sans-serif font'
+      description: 'Clean, modern sans-serif font',
+      isGoogleFont: false
     },
     { 
       display: 'Times New Roman', 
       value: 'Times New Roman, serif',
       category: 'serif',
-      description: 'Classic serif font for formal documents'
+      description: 'Classic serif font for formal documents',
+      isGoogleFont: false
     },
     { 
       display: 'Helvetica', 
       value: 'Helvetica, Arial, sans-serif',
       category: 'sans-serif',
-      description: 'Popular Swiss sans-serif font'
+      description: 'Popular Swiss sans-serif font',
+      isGoogleFont: false
     },
     { 
       display: 'Georgia', 
       value: 'Georgia, serif',
       category: 'serif',
-      description: 'Elegant serif font designed for screens'
+      description: 'Elegant serif font designed for screens',
+      isGoogleFont: false
     },
     { 
       display: 'Verdana', 
       value: 'Verdana, sans-serif',
       category: 'sans-serif',
-      description: 'Highly legible sans-serif font'
+      description: 'Highly legible sans-serif font',
+      isGoogleFont: false
     },
     { 
       display: 'Comic Sans MS', 
       value: 'Comic Sans MS, cursive',
       category: 'cursive',
-      description: 'Casual, handwriting-style font'
+      description: 'Casual, handwriting-style font',
+      isGoogleFont: false
     },
     { 
       display: 'Courier New', 
       value: 'Courier New, monospace',
       category: 'monospace',
-      description: 'Fixed-width font for code and data'
+      description: 'Fixed-width font for code and data',
+      isGoogleFont: false
     },
+    // Google Fonts
     { 
       display: 'Roboto', 
-      value: 'Roboto, sans-serif',
+      value: 'Roboto, Arial, sans-serif',
       category: 'sans-serif',
-      description: 'Modern Google font'
+      description: 'Modern Google font',
+      isGoogleFont: true
     },
     { 
       display: 'Open Sans', 
-      value: 'Open Sans, sans-serif',
+      value: 'Open Sans, Arial, sans-serif',
       category: 'sans-serif',
-      description: 'Friendly and readable sans-serif'
+      description: 'Friendly and readable sans-serif',
+      isGoogleFont: true
     },
     { 
       display: 'Lobster', 
       value: 'Lobster, cursive',
       category: 'cursive',
-      description: 'Bold script font for headlines'
+      description: 'Bold script font for headlines',
+      isGoogleFont: true
     }
   ];
+
+  // Load Google Fonts on component mount
+  useEffect(() => {
+    loadGoogleFonts();
+  }, []);
 
   // Load user fonts on component mount and when user changes
   useEffect(() => {
@@ -86,6 +104,54 @@ export const useFonts = () => {
       loadUserFonts();
     }
   }, [user]);
+
+  const loadGoogleFonts = async () => {
+    try {
+      console.log('🔄 Loading Google Fonts...');
+      
+      // Check if Google Fonts are already loaded
+      const existingLink = document.querySelector('link[href*="fonts.googleapis.com"]');
+      if (existingLink) {
+        console.log('✅ Google Fonts already loaded');
+        setGoogleFontsLoaded(true);
+        return;
+      }
+
+      // Create Google Fonts link
+      const link = document.createElement('link');
+      link.rel = 'preconnect';
+      link.href = 'https://fonts.gstatic.com';
+      link.crossOrigin = 'anonymous';
+      document.head.appendChild(link);
+
+      // Load the actual fonts
+      const fontLink = document.createElement('link');
+      fontLink.rel = 'stylesheet';
+      fontLink.href = 'https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Open+Sans:wght@300;400;600;700&family=Lobster&display=swap';
+      
+      // Wait for fonts to load
+      fontLink.onload = () => {
+        console.log('✅ Google Fonts loaded successfully');
+        setGoogleFontsLoaded(true);
+        
+        // Wait for fonts to be ready
+        document.fonts.ready.then(() => {
+          console.log('🎉 All Google Fonts are ready');
+        });
+      };
+      
+      fontLink.onerror = () => {
+        console.warn('⚠️ Failed to load Google Fonts');
+        setGoogleFontsLoaded(true); // Continue anyway
+      };
+      
+      document.head.appendChild(fontLink);
+      
+    } catch (error) {
+      console.error('❌ Error loading Google Fonts:', error);
+      setGoogleFontsLoaded(true); // Continue anyway
+    }
+  };
 
   const loadUserFonts = async () => {
     if (!user) return;
@@ -187,7 +253,8 @@ export const useFonts = () => {
         display: font.font_name, // Human-readable name (e.g., "Angkanya Sebelas")
         value: font.font_family, // CSS font family with fallbacks
         category: categoryInfo.category,
-        description: `Custom ${categoryInfo.category} font`
+        description: `Custom ${categoryInfo.category} font`,
+        isGoogleFont: false
       };
     });
     return [...systemFonts, ...userFontOptions];
@@ -224,8 +291,10 @@ export const useFonts = () => {
     fontsByCategory: getFontsByCategory(),
     loading,
     error,
+    googleFontsLoaded,
     uploadFont,
     deleteFont,
-    loadUserFonts
+    loadUserFonts,
+    loadGoogleFonts
   };
 };
