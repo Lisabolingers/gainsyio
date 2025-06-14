@@ -38,7 +38,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     fetch: (url, options = {}) => {
       // Add timeout to fetch requests
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // Increased to 15 seconds
       
       return fetch(url, {
         ...options,
@@ -53,47 +53,68 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 // Export supabaseUrl for use in other modules
 export { supabaseUrl };
 
-// Enhanced connection test function
-export const testSupabaseConnection = async () => {
-  try {
-    console.log('🔄 Testing Supabase connection...');
-    
-    // Test with a simple health check that doesn't require authentication
-    const { error } = await supabase
-      .from('user_profiles')
-      .select('count')
-      .limit(0);
-    
-    if (error) {
-      console.error('❌ Supabase connection test failed:', error);
+// Enhanced connection test function with retry logic
+export const testSupabaseConnection = async (retries = 3): Promise<boolean> => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      console.log(`🔄 Testing Supabase connection (attempt ${attempt}/${retries})...`);
       
-      // Provide more specific error information
-      if (error.message?.includes('Failed to fetch') || 
-          error.message?.includes('NetworkError')) {
-        console.error('Network error: Unable to reach Supabase. Check your internet connection and URL.');
-      } else if (error.message?.includes('Invalid API key') || 
-                 error.message?.includes('JWT')) {
-        console.error('Authentication error: Invalid API key. Check your VITE_SUPABASE_ANON_KEY.');
-      } else if (error.code === '404') {
-        console.error('Project not found: Check your VITE_SUPABASE_URL.');
+      // Test with a simple health check that doesn't require authentication
+      const { error } = await supabase
+        .from('user_profiles')
+        .select('count')
+        .limit(0);
+      
+      if (error) {
+        console.error(`❌ Supabase connection test failed (attempt ${attempt}):`, error);
+        
+        // Provide more specific error information
+        if (error.message?.includes('Failed to fetch') || 
+            error.message?.includes('NetworkError')) {
+          console.error('Network error: Unable to reach Supabase. Check your internet connection and URL.');
+        } else if (error.message?.includes('Invalid API key') || 
+                   error.message?.includes('JWT')) {
+          console.error('Authentication error: Invalid API key. Check your VITE_SUPABASE_ANON_KEY.');
+        } else if (error.code === '404') {
+          console.error('Project not found: Check your VITE_SUPABASE_URL.');
+        }
+        
+        // If this is the last attempt, return false
+        if (attempt === retries) {
+          return false;
+        }
+        
+        // Wait before retrying (exponential backoff)
+        const delay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s...
+        console.log(`⏳ Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
       }
       
-      return false;
+      console.log('✅ Supabase connection test successful');
+      return true;
+    } catch (err: any) {
+      console.error(`❌ Supabase connection test error (attempt ${attempt}):`, err);
+      
+      if (err.name === 'AbortError') {
+        console.error('Connection timeout: Request took too long to complete.');
+      } else if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+        console.error('Network error: Unable to reach Supabase servers.');
+      }
+      
+      // If this is the last attempt, return false
+      if (attempt === retries) {
+        return false;
+      }
+      
+      // Wait before retrying
+      const delay = Math.pow(2, attempt - 1) * 1000;
+      console.log(`⏳ Waiting ${delay}ms before retry...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
-    
-    console.log('✅ Supabase connection test successful');
-    return true;
-  } catch (err: any) {
-    console.error('❌ Supabase connection test error:', err);
-    
-    if (err.name === 'AbortError') {
-      console.error('Connection timeout: Request took too long to complete.');
-    } else if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
-      console.error('Network error: Unable to reach Supabase servers.');
-    }
-    
-    return false;
   }
+  
+  return false;
 };
 
 // Database types

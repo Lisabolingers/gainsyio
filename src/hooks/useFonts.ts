@@ -62,6 +62,23 @@ export const useFonts = () => {
     }
   ];
 
+  // Helper function to check if error is network-related
+  const isNetworkError = (error: any): boolean => {
+    return error?.message?.includes('Failed to fetch') ||
+           error?.message?.includes('NetworkError') ||
+           error?.message?.includes('fetch') ||
+           error?.code === 'NETWORK_ERROR' ||
+           error instanceof TypeError && error.message.includes('fetch');
+  };
+
+  // Helper function to get user-friendly error message
+  const getErrorMessage = (error: any): string => {
+    if (isNetworkError(error)) {
+      return 'Supabase veritabanına bağlanılamıyor. İnternet bağlantınızı kontrol edin ve tekrar deneyin.';
+    }
+    return error?.message || 'Bilinmeyen bir hata oluştu';
+  };
+
   // Load user fonts on component mount and when user changes
   useEffect(() => {
     if (user) {
@@ -89,18 +106,12 @@ export const useFonts = () => {
       console.log(`🎉 Font loading complete. ${loadedFonts.length}/${fonts.length} fonts loaded successfully.`);
       
     } catch (err: any) {
-      const errorMessage = err?.message || 'An unexpected error occurred while loading fonts';
+      const errorMessage = getErrorMessage(err);
       setError(errorMessage);
       console.error('❌ Failed to load user fonts:', errorMessage);
       
-      // Show user-friendly error message
-      if (errorMessage.includes('Failed to fetch')) {
-        setError('Unable to connect to the server. Please check your internet connection and try again.');
-      } else if (errorMessage.includes('Supabase connection failed')) {
-        setError('Database connection failed. Please refresh the page and try again.');
-      } else {
-        setError(errorMessage);
-      }
+      // Set empty array as fallback to prevent UI crashes
+      setUserFonts([]);
     } finally {
       setLoading(false);
     }
@@ -132,7 +143,7 @@ export const useFonts = () => {
       
       return savedFont;
     } catch (err: any) {
-      const errorMessage = err?.message || 'An unexpected error occurred during font upload';
+      const errorMessage = getErrorMessage(err);
       console.error(`❌ Font upload failed: ${errorMessage}`);
       setError(errorMessage);
       throw new Error(errorMessage);
@@ -153,7 +164,7 @@ export const useFonts = () => {
       // Update local state immediately
       setUserFonts(prev => prev.filter(font => font.id !== fontId));
     } catch (err: any) {
-      const errorMessage = err?.message || 'An unexpected error occurred while deleting the font';
+      const errorMessage = getErrorMessage(err);
       setError(errorMessage);
       throw new Error(errorMessage);
     } finally {

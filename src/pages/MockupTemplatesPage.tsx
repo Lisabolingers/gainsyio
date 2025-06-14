@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Image, Plus, Edit, Trash2, Copy, Search, Grid, List, Save, Download, Store, Upload, Move, RotateCw, Type, Palette, Eye, EyeOff } from 'lucide-react';
+import { Image, Plus, Edit, Trash2, Copy, Search, Grid, List, Save, Download, Store, Upload, Move, RotateCw, Type, Palette, Eye, EyeOff, AlertCircle, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
@@ -73,6 +73,8 @@ const MockupTemplatesPage: React.FC = () => {
   const [stores, setStores] = useState<EtsyStore[]>([]);
   const [selectedStore, setSelectedStore] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
@@ -108,9 +110,25 @@ const MockupTemplatesPage: React.FC = () => {
     }
   }, [user]);
 
+  const isNetworkError = (error: any): boolean => {
+    return error?.message?.includes('Failed to fetch') ||
+           error?.message?.includes('NetworkError') ||
+           error?.message?.includes('fetch') ||
+           error?.code === 'NETWORK_ERROR' ||
+           error instanceof TypeError && error.message.includes('fetch');
+  };
+
+  const getErrorMessage = (error: any): string => {
+    if (isNetworkError(error)) {
+      return 'Supabase veritabanına bağlanılamıyor. İnternet bağlantınızı kontrol edin ve tekrar deneyin.';
+    }
+    return error?.message || 'Bilinmeyen bir hata oluştu';
+  };
+
   const loadTemplates = async () => {
     try {
       setLoading(true);
+      setError(null);
       console.log('🔄 Mockup template\'ler yükleniyor...');
       
       const { data, error } = await supabase
@@ -126,8 +144,14 @@ const MockupTemplatesPage: React.FC = () => {
 
       console.log(`✅ ${data?.length || 0} mockup template yüklendi`);
       setTemplates(data || []);
-    } catch (error) {
+      setRetryCount(0); // Reset retry count on success
+    } catch (error: any) {
       console.error('❌ Template yükleme genel hatası:', error);
+      const errorMessage = getErrorMessage(error);
+      setError(errorMessage);
+      
+      // Set empty array as fallback to prevent UI crashes
+      setTemplates([]);
     } finally {
       setLoading(false);
     }
@@ -135,6 +159,7 @@ const MockupTemplatesPage: React.FC = () => {
 
   const loadStores = async () => {
     try {
+      setError(null);
       console.log('🔄 Etsy mağazaları yükleniyor...');
       
       const { data, error } = await supabase
@@ -156,8 +181,24 @@ const MockupTemplatesPage: React.FC = () => {
       if (data && data.length > 0) {
         setSelectedStore(data[0].id);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Mağaza yükleme genel hatası:', error);
+      const errorMessage = getErrorMessage(error);
+      
+      // Don't override template loading error with store loading error
+      if (!error) {
+        setError(errorMessage);
+      }
+      
+      // Set empty array as fallback
+      setStores([]);
+    }
+  };
+
+  const handleRetry = async () => {
+    setRetryCount(prev => prev + 1);
+    if (user) {
+      await Promise.all([loadTemplates(), loadStores()]);
     }
   };
 
@@ -484,6 +525,7 @@ const MockupTemplatesPage: React.FC = () => {
     }
 
     try {
+      setError(null);
       // CRITICAL: Design type'ı da template data'ya ekle
       const templateData = {
         user_id: user?.id,
@@ -510,9 +552,11 @@ const MockupTemplatesPage: React.FC = () => {
       setShowCreateModal(false);
       
       alert('Template başarıyla kaydedildi! 🎉');
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Template kaydetme hatası:', error);
-      alert('Template kaydedilirken hata oluştu.');
+      const errorMessage = getErrorMessage(error);
+      setError(errorMessage);
+      alert(`Template kaydedilirken hata oluştu: ${errorMessage}`);
     }
   };
 
@@ -531,6 +575,7 @@ const MockupTemplatesPage: React.FC = () => {
     if (!window.confirm('Bu template\'i silmek istediğinizden emin misiniz?')) return;
 
     try {
+      setError(null);
       const { error } = await supabase
         .from('mockup_templates')
         .delete()
@@ -541,14 +586,17 @@ const MockupTemplatesPage: React.FC = () => {
 
       setTemplates(prev => prev.filter(t => t.id !== templateId));
       setSelectedTemplates(prev => prev.filter(id => id !== templateId));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Template silme hatası:', error);
-      alert('Template silinirken hata oluştu');
+      const errorMessage = getErrorMessage(error);
+      setError(errorMessage);
+      alert(`Template silinirken hata oluştu: ${errorMessage}`);
     }
   };
 
   const duplicateTemplate = async (template: MockupTemplate) => {
     try {
+      setError(null);
       const { error } = await supabase
         .from('mockup_templates')
         .insert({
@@ -565,9 +613,11 @@ const MockupTemplatesPage: React.FC = () => {
       if (error) throw error;
 
       await loadTemplates();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Template kopyalama hatası:', error);
-      alert('Template kopyalanırken hata oluştu');
+      const errorMessage = getErrorMessage(error);
+      setError(errorMessage);
+      alert(`Template kopyalanırken hata oluştu: ${errorMessage}`);
     }
   };
 
@@ -614,8 +664,62 @@ const MockupTemplatesPage: React.FC = () => {
     );
   }
 
+  // Show error state with retry option
+  if (error && templates.length === 0) {
+    return (
+      <div className="p-6">
+        <div className="flex flex-col items-center justify-center h-64 space-y-4">
+          <AlertCircle className="h-16 w-16 text-red-500" />
+          <div className="text-center">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              Bağlantı Hatası
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4 max-w-md">
+              {error}
+            </p>
+            <div className="space-y-2">
+              <Button
+                onClick={handleRetry}
+                className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span>Tekrar Dene {retryCount > 0 && `(${retryCount})`}</span>
+              </Button>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Sorun devam ederse, internet bağlantınızı kontrol edin
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
+      {/* Error Banner */}
+      {error && templates.length > 0 && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <div className="flex items-center space-x-3">
+            <AlertCircle className="h-5 w-5 text-red-500" />
+            <div className="flex-1">
+              <p className="text-red-700 dark:text-red-300 text-sm">
+                {error}
+              </p>
+            </div>
+            <Button
+              onClick={handleRetry}
+              size="sm"
+              variant="secondary"
+              className="flex items-center space-x-1"
+            >
+              <RefreshCw className="h-3 w-3" />
+              <span>Tekrar Dene</span>
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
