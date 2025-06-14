@@ -347,10 +347,24 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
+  // CRITICAL: Fixed font size update function
   const updateTextAreaProperty = (areaId: string, property: string, value: any) => {
-    setTextAreas(prev => prev.map(area => 
-      area.id === areaId ? { ...area, [property]: value } : area
-    ));
+    console.log(`🔄 Updating text area property: ${areaId}, ${property} = ${value}`);
+    
+    // CRITICAL: Ensure font_size is properly converted to number
+    let processedValue = value;
+    if (property === 'font_size') {
+      processedValue = parseInt(value) || 12; // Default to 12 if invalid
+      console.log(`📝 Font size processed: ${value} -> ${processedValue}`);
+    }
+    
+    setTextAreas(prev => {
+      const updated = prev.map(area => 
+        area.id === areaId ? { ...area, [property]: processedValue } : area
+      );
+      console.log(`✅ Text areas updated:`, updated);
+      return updated;
+    });
   };
 
   const deleteArea = (areaId: string) => {
@@ -818,10 +832,14 @@ const MockupTemplatesPage: React.FC = () => {
                                   <Input
                                     type="number"
                                     value={(area as TextArea).font_size}
-                                    onChange={(e) => updateTextAreaProperty(area.id, 'font_size', parseInt(e.target.value) || 12)}
+                                    onChange={(e) => {
+                                      console.log(`🔄 Font size input changed: ${e.target.value}`);
+                                      updateTextAreaProperty(area.id, 'font_size', e.target.value);
+                                    }}
                                     className="w-full text-sm"
                                     min="8"
                                     max="72"
+                                    step="1"
                                   />
                                 </div>
                                 
