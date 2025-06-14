@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Image, Plus, Edit, Trash2, Copy, Search, Grid, List, Upload, Move, RotateCcw, Save, Eye, Store, Settings, Star } from 'lucide-react';
+import { Image, Plus, Edit, Trash2, Copy, Search, Grid, List, Save, Download, Store, Upload, Move, RotateCw, Type, Palette, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
+import { useFonts } from '../hooks/useFonts';
 
 interface MockupTemplate {
   id: string;
@@ -13,6 +14,7 @@ interface MockupTemplate {
   image_url: string;
   design_areas: DesignArea[];
   text_areas: TextArea[];
+  logo_area?: LogoArea;
   is_default: boolean;
   created_at: string;
   updated_at: string;
@@ -20,23 +22,40 @@ interface MockupTemplate {
 
 interface DesignArea {
   id: string;
+  name: string;
   x: number;
   y: number;
   width: number;
   height: number;
   rotation: number;
-  name: string;
+  opacity: number;
 }
 
 interface TextArea {
   id: string;
+  name: string;
   x: number;
   y: number;
   width: number;
   height: number;
-  name: string;
+  rotation: number;
+  font_family: string;
   font_size: number;
-  max_chars: number;
+  color: string;
+  text_align: 'left' | 'center' | 'right';
+  max_characters: number;
+  placeholder_text: string;
+}
+
+interface LogoArea {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  opacity: number;
 }
 
 interface EtsyStore {
@@ -48,8 +67,8 @@ interface EtsyStore {
 
 const MockupTemplatesPage: React.FC = () => {
   const { user } = useAuth();
+  const { allFonts } = useFonts();
   const [templates, setTemplates] = useState<MockupTemplate[]>([]);
-  const [defaultTemplates, setDefaultTemplates] = useState<MockupTemplate[]>([]);
   const [stores, setStores] = useState<EtsyStore[]>([]);
   const [selectedStore, setSelectedStore] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -57,29 +76,25 @@ const MockupTemplatesPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<MockupTemplate | null>(null);
-  const [showDefaultTemplates, setShowDefaultTemplates] = useState(false);
-
-  // Create/Edit Modal States
+  
+  // Editor state
+  const [backgroundImage, setBackgroundImage] = useState<string>('');
   const [templateName, setTemplateName] = useState('');
-  const [backgroundImage, setBackgroundImage] = useState<File | null>(null);
-  const [backgroundPreview, setBackgroundPreview] = useState<string>('');
   const [designAreas, setDesignAreas] = useState<DesignArea[]>([]);
   const [textAreas, setTextAreas] = useState<TextArea[]>([]);
-  const [isCreating, setIsCreating] = useState(false);
-
-  // Canvas States
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
+  const [logoArea, setLogoArea] = useState<LogoArea | null>(null);
   const [selectedArea, setSelectedArea] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [showAreas, setShowAreas] = useState(true);
+  
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
       loadTemplates();
-      loadDefaultTemplates();
       loadStores();
     }
   }, [user]);
@@ -93,7 +108,6 @@ const MockupTemplatesPage: React.FC = () => {
         .from('mockup_templates')
         .select('*')
         .eq('user_id', user?.id)
-        .eq('is_default', false)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -101,34 +115,12 @@ const MockupTemplatesPage: React.FC = () => {
         throw error;
       }
 
-      console.log(`✅ ${data?.length || 0} kullanıcı template\'i yüklendi`);
+      console.log(`✅ ${data?.length || 0} mockup template yüklendi`);
       setTemplates(data || []);
     } catch (error) {
       console.error('❌ Template yükleme genel hatası:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadDefaultTemplates = async () => {
-    try {
-      console.log('🔄 Default template\'ler yükleniyor...');
-      
-      const { data, error } = await supabase
-        .from('mockup_templates')
-        .select('*')
-        .eq('is_default', true)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('❌ Default template yükleme hatası:', error);
-        throw error;
-      }
-
-      console.log(`✅ ${data?.length || 0} default template yüklendi`);
-      setDefaultTemplates(data || []);
-    } catch (error) {
-      console.error('❌ Default template yükleme genel hatası:', error);
     }
   };
 
@@ -163,10 +155,9 @@ const MockupTemplatesPage: React.FC = () => {
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setBackgroundImage(file);
       const reader = new FileReader();
       reader.onload = (e) => {
-        setBackgroundPreview(e.target?.result as string);
+        setBackgroundImage(e.target?.result as string);
       };
       reader.readAsDataURL(file);
     }
@@ -175,141 +166,171 @@ const MockupTemplatesPage: React.FC = () => {
   const addDesignArea = () => {
     const newArea: DesignArea = {
       id: `design-${Date.now()}`,
-      x: 100,
-      y: 100,
+      name: `Tasarım Alanı`,
+      x: 200,
+      y: 200,
       width: 200,
       height: 200,
       rotation: 0,
-      name: `Tasarım Alanı ${designAreas.length + 1}`
+      opacity: 0.8
     };
-    setDesignAreas([...designAreas, newArea]);
+    setDesignAreas([newArea]);
+    setSelectedArea(newArea.id);
   };
 
   const addTextArea = () => {
     const newArea: TextArea = {
       id: `text-${Date.now()}`,
-      x: 100,
-      y: 300,
-      width: 300,
-      height: 50,
       name: `Yazı Alanı ${textAreas.length + 1}`,
+      x: 150,
+      y: 150,
+      width: 300,
+      height: 60,
+      rotation: 0,
+      font_family: 'Arial',
       font_size: 24,
-      max_chars: 100
+      color: '#000000',
+      text_align: 'center',
+      max_characters: 100,
+      placeholder_text: 'Örnek metin'
     };
     setTextAreas([...textAreas, newArea]);
+    setSelectedArea(newArea.id);
   };
 
-  const updateDesignArea = (id: string, updates: Partial<DesignArea>) => {
-    setDesignAreas(prev => prev.map(area => 
-      area.id === id ? { ...area, ...updates } : area
-    ));
+  const addLogoArea = () => {
+    if (logoArea) return; // Sadece bir logo alanı
+    
+    const newArea: LogoArea = {
+      id: `logo-${Date.now()}`,
+      name: 'Logo Alanı',
+      x: 100,
+      y: 100,
+      width: 100,
+      height: 100,
+      rotation: 0,
+      opacity: 0.9
+    };
+    setLogoArea(newArea);
+    setSelectedArea(newArea.id);
   };
 
-  const updateTextArea = (id: string, updates: Partial<TextArea>) => {
-    setTextAreas(prev => prev.map(area => 
-      area.id === id ? { ...area, ...updates } : area
-    ));
-  };
-
-  const deleteArea = (id: string) => {
-    setDesignAreas(prev => prev.filter(area => area.id !== id));
-    setTextAreas(prev => prev.filter(area => area.id !== id));
-    if (selectedArea === id) {
-      setSelectedArea(null);
+  const handleMouseDown = (e: React.MouseEvent, areaId: string) => {
+    e.preventDefault();
+    setSelectedArea(areaId);
+    setIsDragging(true);
+    
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (rect) {
+      const area = [...designAreas, ...textAreas, ...(logoArea ? [logoArea] : [])].find(a => a.id === areaId);
+      if (area) {
+        setDragOffset({
+          x: e.clientX - rect.left - area.x,
+          y: e.clientY - rect.top - area.y
+        });
+      }
     }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !selectedArea) return;
+    
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (rect) {
+      const newX = e.clientX - rect.left - dragOffset.x;
+      const newY = e.clientY - rect.top - dragOffset.y;
+      
+      updateAreaPosition(selectedArea, newX, newY);
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const updateAreaPosition = (areaId: string, x: number, y: number) => {
+    if (areaId.startsWith('design-')) {
+      setDesignAreas(prev => prev.map(area => 
+        area.id === areaId ? { ...area, x, y } : area
+      ));
+    } else if (areaId.startsWith('text-')) {
+      setTextAreas(prev => prev.map(area => 
+        area.id === areaId ? { ...area, x, y } : area
+      ));
+    } else if (areaId.startsWith('logo-')) {
+      setLogoArea(prev => prev ? { ...prev, x, y } : null);
+    }
+  };
+
+  const updateAreaSize = (areaId: string, width: number, height: number) => {
+    if (areaId.startsWith('design-')) {
+      setDesignAreas(prev => prev.map(area => 
+        area.id === areaId ? { ...area, width, height } : area
+      ));
+    } else if (areaId.startsWith('text-')) {
+      setTextAreas(prev => prev.map(area => 
+        area.id === areaId ? { ...area, width, height } : area
+      ));
+    } else if (areaId.startsWith('logo-')) {
+      setLogoArea(prev => prev ? { ...prev, width, height } : null);
+    }
+  };
+
+  const deleteArea = (areaId: string) => {
+    if (areaId.startsWith('design-')) {
+      setDesignAreas(prev => prev.filter(area => area.id !== areaId));
+    } else if (areaId.startsWith('text-')) {
+      setTextAreas(prev => prev.filter(area => area.id !== areaId));
+    } else if (areaId.startsWith('logo-')) {
+      setLogoArea(null);
+    }
+    setSelectedArea(null);
   };
 
   const saveTemplate = async () => {
-    if (!templateName.trim()) {
-      alert('Template adı gerekli!');
-      return;
-    }
-
-    if (!backgroundImage && !editingTemplate) {
-      alert('Background görsel gerekli!');
+    if (!templateName.trim() || !backgroundImage) {
+      alert('Template adı ve background görsel gerekli!');
       return;
     }
 
     try {
-      setIsCreating(true);
-      console.log('💾 Template kaydediliyor...');
+      const templateData = {
+        user_id: user?.id,
+        name: templateName,
+        image_url: backgroundImage,
+        design_areas: designAreas,
+        text_areas: textAreas,
+        ...(logoArea && { logo_area: logoArea }),
+        is_default: false
+      };
 
-      let imageUrl = editingTemplate?.image_url || '';
+      const { data, error } = await supabase
+        .from('mockup_templates')
+        .insert(templateData)
+        .select()
+        .single();
 
-      // Yeni görsel yüklendiyse
-      if (backgroundImage) {
-        // TODO: Supabase Storage'a yükle
-        // Şimdilik base64 olarak saklayacağız
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-          imageUrl = e.target?.result as string;
-          await saveTemplateToDatabase(imageUrl);
-        };
-        reader.readAsDataURL(backgroundImage);
-      } else {
-        await saveTemplateToDatabase(imageUrl);
-      }
+      if (error) throw error;
+
+      console.log('✅ Template başarıyla kaydedildi:', data);
+      await loadTemplates();
+      resetEditor();
+      setShowCreateModal(false);
+      
+      alert('Template başarıyla kaydedildi! 🎉');
     } catch (error) {
       console.error('❌ Template kaydetme hatası:', error);
-      alert('Template kaydedilemedi!');
-      setIsCreating(false);
+      alert('Template kaydedilirken hata oluştu.');
     }
   };
 
-  const saveTemplateToDatabase = async (imageUrl: string) => {
-    const templateData = {
-      user_id: user?.id,
-      name: templateName,
-      image_url: imageUrl,
-      design_areas: designAreas,
-      text_areas: textAreas,
-      is_default: false
-    };
-
-    if (editingTemplate) {
-      // Güncelleme
-      const { error } = await supabase
-        .from('mockup_templates')
-        .update(templateData)
-        .eq('id', editingTemplate.id)
-        .eq('user_id', user?.id);
-
-      if (error) throw error;
-    } else {
-      // Yeni oluşturma
-      const { error } = await supabase
-        .from('mockup_templates')
-        .insert(templateData);
-
-      if (error) throw error;
-    }
-
-    console.log('✅ Template başarıyla kaydedildi');
-    await loadTemplates();
-    resetModal();
-    alert('Template başarıyla kaydedildi! 🎉');
-  };
-
-  const resetModal = () => {
-    setShowCreateModal(false);
-    setShowEditModal(false);
-    setEditingTemplate(null);
+  const resetEditor = () => {
+    setBackgroundImage('');
     setTemplateName('');
-    setBackgroundImage(null);
-    setBackgroundPreview('');
     setDesignAreas([]);
     setTextAreas([]);
+    setLogoArea(null);
     setSelectedArea(null);
-    setIsCreating(false);
-  };
-
-  const editTemplate = (template: MockupTemplate) => {
-    setEditingTemplate(template);
-    setTemplateName(template.name);
-    setBackgroundPreview(template.image_url);
-    setDesignAreas(template.design_areas || []);
-    setTextAreas(template.text_areas || []);
-    setShowEditModal(true);
   };
 
   const deleteTemplate = async (templateId: string) => {
@@ -342,6 +363,7 @@ const MockupTemplatesPage: React.FC = () => {
           image_url: template.image_url,
           design_areas: template.design_areas,
           text_areas: template.text_areas,
+          ...(template.logo_area && { logo_area: template.logo_area }),
           is_default: false
         });
 
@@ -350,29 +372,6 @@ const MockupTemplatesPage: React.FC = () => {
       await loadTemplates();
     } catch (error) {
       console.error('Template kopyalama hatası:', error);
-      alert('Template kopyalanırken hata oluştu');
-    }
-  };
-
-  const useDefaultTemplate = async (defaultTemplate: MockupTemplate) => {
-    try {
-      const { error } = await supabase
-        .from('mockup_templates')
-        .insert({
-          user_id: user?.id,
-          name: `${defaultTemplate.name} (Kopyam)`,
-          image_url: defaultTemplate.image_url,
-          design_areas: defaultTemplate.design_areas,
-          text_areas: defaultTemplate.text_areas,
-          is_default: false
-        });
-
-      if (error) throw error;
-
-      await loadTemplates();
-      alert('Default template kopyalandı! 🎉');
-    } catch (error) {
-      console.error('Default template kopyalama hatası:', error);
       alert('Template kopyalanırken hata oluştu');
     }
   };
@@ -391,42 +390,11 @@ const MockupTemplatesPage: React.FC = () => {
     });
   };
 
-  const toggleTemplateSelection = (templateId: string) => {
-    setSelectedTemplates(prev =>
-      prev.includes(templateId)
-        ? prev.filter(id => id !== templateId)
-        : [...prev, templateId]
-    );
-  };
-
-  const selectAllTemplates = () => {
-    if (selectedTemplates.length === filteredTemplates.length) {
-      setSelectedTemplates([]);
-    } else {
-      setSelectedTemplates(filteredTemplates.map(t => t.id));
-    }
-  };
-
-  const handleBulkDelete = async () => {
-    if (selectedTemplates.length === 0) return;
-
-    if (!window.confirm(`${selectedTemplates.length} template\'i silmek istediğinizden emin misiniz?`)) return;
-
-    try {
-      const { error } = await supabase
-        .from('mockup_templates')
-        .delete()
-        .in('id', selectedTemplates)
-        .eq('user_id', user?.id);
-
-      if (error) throw error;
-
-      setTemplates(prev => prev.filter(t => !selectedTemplates.includes(t.id)));
-      setSelectedTemplates([]);
-    } catch (error) {
-      console.error('Toplu silme hatası:', error);
-      alert('Template\'ler silinirken hata oluştu');
-    }
+  const getSelectedAreaDetails = () => {
+    if (!selectedArea) return null;
+    
+    const area = [...designAreas, ...textAreas, ...(logoArea ? [logoArea] : [])].find(a => a.id === selectedArea);
+    return area;
   };
 
   if (loading) {
@@ -453,14 +421,6 @@ const MockupTemplatesPage: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center space-x-3 mt-4 sm:mt-0">
-          <Button
-            onClick={() => setShowDefaultTemplates(!showDefaultTemplates)}
-            variant="secondary"
-            className="flex items-center space-x-2"
-          >
-            <Star className="h-4 w-4" />
-            <span>Default Templates ({defaultTemplates.length})</span>
-          </Button>
           <Button
             onClick={() => setShowCreateModal(true)}
             className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
@@ -504,63 +464,6 @@ const MockupTemplatesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Default Templates Section */}
-      {showDefaultTemplates && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6 border border-blue-200 dark:border-blue-800">
-          <h2 className="text-lg font-semibold text-blue-900 dark:text-blue-400 mb-4 flex items-center">
-            <Star className="h-5 w-5 mr-2" />
-            Default Templates
-          </h2>
-          <p className="text-blue-700 dark:text-blue-300 mb-4">
-            Hazır template'lerden birini seçip kendi koleksiyonunuza ekleyebilirsiniz.
-          </p>
-          
-          {defaultTemplates.length === 0 ? (
-            <div className="text-center py-8">
-              <Image className="h-12 w-12 text-blue-400 mx-auto mb-4" />
-              <p className="text-blue-600 dark:text-blue-400">
-                Henüz default template eklenmemiş
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {defaultTemplates.map((template) => (
-                <Card key={template.id} className="hover:shadow-lg transition-shadow border-blue-200 dark:border-blue-700">
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      <div className="aspect-video bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
-                        <img
-                          src={template.image_url}
-                          alt={template.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      
-                      <h3 className="font-medium text-gray-900 dark:text-white">
-                        {template.name}
-                      </h3>
-                      
-                      <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
-                        <span>Tasarım: {template.design_areas?.length || 0}</span>
-                        <span>Yazı: {template.text_areas?.length || 0}</span>
-                      </div>
-                      
-                      <Button
-                        onClick={() => useDefaultTemplate(template)}
-                        className="w-full"
-                        size="sm"
-                      >
-                        Koleksiyonuma Ekle
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-4 items-center">
         <div className="relative flex-1">
@@ -592,26 +495,6 @@ const MockupTemplatesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Bulk Actions */}
-      {selectedTemplates.length > 0 && (
-        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-orange-700 dark:text-orange-400">
-              {selectedTemplates.length} template seçildi
-            </span>
-            <div className="flex space-x-2">
-              <Button onClick={handleBulkDelete} variant="danger" size="sm">
-                <Trash2 className="h-4 w-4 mr-1" />
-                Seçilenleri Sil
-              </Button>
-              <Button onClick={() => setSelectedTemplates([])} variant="secondary" size="sm">
-                Seçimi Temizle
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Templates Display */}
       {filteredTemplates.length === 0 ? (
         <div className="text-center py-12">
@@ -636,205 +519,84 @@ const MockupTemplatesPage: React.FC = () => {
           )}
         </div>
       ) : (
-        <>
-          {/* Select All Checkbox */}
-          <div className="flex items-center space-x-2 pb-4 border-b border-gray-200 dark:border-gray-700">
-            <input
-              type="checkbox"
-              checked={selectedTemplates.length === filteredTemplates.length}
-              onChange={selectAllTemplates}
-              className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-            />
-            <label className="text-sm text-gray-700 dark:text-gray-300">
-              Tümünü seç ({filteredTemplates.length} template)
-            </label>
-          </div>
-
-          {/* Grid View */}
-          {viewMode === 'grid' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredTemplates.map((template) => (
-                <Card key={template.id} className="hover:shadow-lg transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          checked={selectedTemplates.includes(template.id)}
-                          onChange={() => toggleTemplateSelection(template.id)}
-                          className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                        />
-                        <CardTitle className="text-lg truncate">{template.name}</CardTitle>
-                      </div>
-                      <div className="flex space-x-1">
-                        <button
-                          onClick={() => duplicateTemplate(template)}
-                          className="text-blue-500 hover:text-blue-700 p-1"
-                          title="Template\'i kopyala"
-                        >
-                          <Copy className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => deleteTemplate(template.id)}
-                          className="text-red-500 hover:text-red-700 p-1"
-                          title="Template\'i sil"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="aspect-video bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
-                        <img
-                          src={template.image_url}
-                          alt={template.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      
-                      <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
-                        <span>Tasarım Alanı: {template.design_areas?.length || 0}</span>
-                        <span>Yazı Alanı: {template.text_areas?.length || 0}</span>
-                      </div>
-
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        Oluşturulma: {formatDate(template.created_at)}
-                      </div>
-                    </div>
-
-                    <div className="flex space-x-2 mt-4">
-                      <Button 
-                        onClick={() => editTemplate(template)}
-                        size="sm" 
-                        className="flex-1"
-                      >
-                        <Edit className="h-4 w-4 mr-1" />
-                        Düzenle
-                      </Button>
-                      <Button variant="secondary" size="sm" className="flex-1">
-                        <Eye className="h-4 w-4 mr-1" />
-                        Önizle
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          {/* List View */}
-          {viewMode === 'list' && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-700">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      <input
-                        type="checkbox"
-                        checked={selectedTemplates.length === filteredTemplates.length}
-                        onChange={selectAllTemplates}
-                        className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredTemplates.map((template) => (
+            <Card key={template.id} className="hover:shadow-lg transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <CardTitle className="text-lg truncate">{template.name}</CardTitle>
+                  <div className="flex space-x-1">
+                    <button
+                      onClick={() => duplicateTemplate(template)}
+                      className="text-blue-500 hover:text-blue-700 p-1"
+                      title="Template\'i kopyala"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => deleteTemplate(template.id)}
+                      className="text-red-500 hover:text-red-700 p-1"
+                      title="Template\'i sil"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {/* Template Preview */}
+                  <div className="relative bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden h-40">
+                    {template.image_url && (
+                      <img
+                        src={template.image_url}
+                        alt={template.name}
+                        className="w-full h-full object-cover"
                       />
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      İsim
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Önizleme
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Tasarım Alanları
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Yazı Alanları
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Oluşturulma
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      İşlemler
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {filteredTemplates.map((template) => (
-                    <tr key={template.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <input
-                          type="checkbox"
-                          checked={selectedTemplates.includes(template.id)}
-                          onChange={() => toggleTemplateSelection(template.id)}
-                          className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                        />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {template.name}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="w-16 h-12 bg-gray-100 dark:bg-gray-700 rounded overflow-hidden">
-                          <img
-                            src={template.image_url}
-                            alt={template.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {template.design_areas?.length || 0}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {template.text_areas?.length || 0}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {formatDate(template.created_at)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                        <button
-                          onClick={() => editTemplate(template)}
-                          className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300"
-                          title="Düzenle"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => duplicateTemplate(template)}
-                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                          title="Kopyala"
-                        >
-                          <Copy className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => deleteTemplate(template.id)}
-                          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                          title="Sil"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
+                    )}
+                    <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center">
+                      <div className="text-white text-xs text-center">
+                        <div>Tasarım: {template.design_areas.length}</div>
+                        <div>Yazı: {template.text_areas.length}</div>
+                        <div>Logo: {template.logo_area ? 1 : 0}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Oluşturulma: {formatDate(template.created_at)}
+                  </div>
+                </div>
+
+                <div className="flex space-x-2 mt-4">
+                  <Button size="sm" className="flex-1">
+                    <Edit className="h-4 w-4 mr-1" />
+                    Düzenle
+                  </Button>
+                  <Button variant="secondary" size="sm" className="flex-1">
+                    Kullan
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
 
-      {/* Create/Edit Modal */}
-      {(showCreateModal || showEditModal) && (
+      {/* Create Template Modal */}
+      {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-6xl w-full max-h-[95vh] overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-7xl w-full max-h-[95vh] overflow-hidden">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  {editingTemplate ? 'Template Düzenle' : 'Yeni Mockup Template'}
+                  Yeni Mockup Template Oluştur
                 </h2>
                 <button
-                  onClick={resetModal}
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    resetEditor();
+                  }}
                   className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                 >
                   ✕
@@ -842,9 +604,9 @@ const MockupTemplatesPage: React.FC = () => {
               </div>
             </div>
             
-            <div className="p-6 overflow-y-auto max-h-[calc(95vh-200px)]">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Left Panel - Settings */}
+            <div className="flex h-[calc(95vh-120px)]">
+              {/* Left Panel - Controls */}
+              <div className="w-80 p-6 border-r border-gray-200 dark:border-gray-700 overflow-y-auto">
                 <div className="space-y-6">
                   {/* Template Name */}
                   <div>
@@ -852,352 +614,305 @@ const MockupTemplatesPage: React.FC = () => {
                       Template Adı:
                     </label>
                     <Input
-                      type="text"
                       value={templateName}
                       onChange={(e) => setTemplateName(e.target.value)}
-                      placeholder="Template adını girin..."
+                      placeholder="Template adı girin..."
                       className="w-full"
                     />
                   </div>
 
-                  {/* Background Image Upload */}
+                  {/* Background Upload */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Background Görsel:
                     </label>
-                    <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        className="hidden"
-                        id="background-upload"
-                      />
-                      <label htmlFor="background-upload" className="cursor-pointer">
-                        <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                        <p className="text-gray-600 dark:text-gray-400">
-                          Görsel yüklemek için tıklayın
-                        </p>
-                      </label>
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 text-center cursor-pointer hover:border-orange-500 transition-colors"
+                    >
+                      {backgroundImage ? (
+                        <img src={backgroundImage} alt="Background" className="w-full h-32 object-cover rounded" />
+                      ) : (
+                        <div className="space-y-2">
+                          <Upload className="h-8 w-8 text-gray-400 mx-auto" />
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Görsel yüklemek için tıklayın
+                          </p>
+                        </div>
+                      )}
                     </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
                   </div>
 
-                  {/* Design Areas */}
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Tasarım Alanları:
-                      </label>
-                      <Button onClick={addDesignArea} size="sm">
-                        <Plus className="h-4 w-4 mr-1" />
-                        Ekle
+                  {/* Add Areas */}
+                  <div className="space-y-3">
+                    <h3 className="font-medium text-gray-900 dark:text-white">Alan Ekle:</h3>
+                    <div className="space-y-2">
+                      <Button
+                        onClick={addDesignArea}
+                        variant="secondary"
+                        className="w-full justify-start"
+                        disabled={designAreas.length > 0}
+                      >
+                        <Palette className="h-4 w-4 mr-2" />
+                        Tasarım Alanı {designAreas.length > 0 && '(Eklendi)'}
+                      </Button>
+                      <Button
+                        onClick={addTextArea}
+                        variant="secondary"
+                        className="w-full justify-start"
+                      >
+                        <Type className="h-4 w-4 mr-2" />
+                        Yazı Alanı Ekle
+                      </Button>
+                      <Button
+                        onClick={addLogoArea}
+                        variant="secondary"
+                        className="w-full justify-start"
+                        disabled={logoArea !== null}
+                      >
+                        <Image className="h-4 w-4 mr-2" />
+                        Logo Alanı {logoArea && '(Eklendi)'}
                       </Button>
                     </div>
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {designAreas.map((area) => (
-                        <div key={area.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded">
-                          <span className="text-sm text-gray-700 dark:text-gray-300">{area.name}</span>
-                          <div className="flex space-x-1">
-                            <button
-                              onClick={() => setSelectedArea(area.id)}
-                              className="text-blue-500 hover:text-blue-700 p-1"
-                              title="Düzenle"
-                            >
-                              <Edit className="h-3 w-3" />
-                            </button>
-                            <button
-                              onClick={() => deleteArea(area.id)}
-                              className="text-red-500 hover:text-red-700 p-1"
-                              title="Sil"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
                   </div>
 
-                  {/* Text Areas */}
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Yazı Alanları:
-                      </label>
-                      <Button onClick={addTextArea} size="sm">
-                        <Plus className="h-4 w-4 mr-1" />
-                        Ekle
-                      </Button>
-                    </div>
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {textAreas.map((area) => (
-                        <div key={area.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded">
-                          <span className="text-sm text-gray-700 dark:text-gray-300">{area.name}</span>
-                          <div className="flex space-x-1">
-                            <button
-                              onClick={() => setSelectedArea(area.id)}
-                              className="text-blue-500 hover:text-blue-700 p-1"
-                              title="Düzenle"
-                            >
-                              <Edit className="h-3 w-3" />
-                            </button>
-                            <button
-                              onClick={() => deleteArea(area.id)}
-                              className="text-red-500 hover:text-red-700 p-1"
-                              title="Sil"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Selected Area Properties */}
+                  {/* Area Properties */}
                   {selectedArea && (
-                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                      <h4 className="font-medium text-gray-900 dark:text-white mb-3">
-                        Alan Özellikleri
-                      </h4>
+                    <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <h3 className="font-medium text-gray-900 dark:text-white">
+                        Seçili Alan Özellikleri
+                      </h3>
                       {(() => {
-                        const area = [...designAreas, ...textAreas].find(a => a.id === selectedArea);
+                        const area = getSelectedAreaDetails();
                         if (!area) return null;
 
-                        const isDesignArea = designAreas.some(a => a.id === selectedArea);
-                        
                         return (
                           <div className="space-y-3">
-                            <div>
-                              <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">İsim:</label>
-                              <Input
-                                type="text"
-                                value={area.name}
-                                onChange={(e) => {
-                                  if (isDesignArea) {
-                                    updateDesignArea(area.id, { name: e.target.value });
-                                  } else {
-                                    updateTextArea(area.id, { name: e.target.value });
-                                  }
-                                }}
-                                className="text-sm"
-                              />
-                            </div>
                             <div className="grid grid-cols-2 gap-2">
                               <div>
-                                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">X:</label>
-                                <Input
-                                  type="number"
-                                  value={area.x}
-                                  onChange={(e) => {
-                                    const value = parseInt(e.target.value);
-                                    if (isDesignArea) {
-                                      updateDesignArea(area.id, { x: value });
-                                    } else {
-                                      updateTextArea(area.id, { x: value });
-                                    }
-                                  }}
-                                  className="text-sm"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Y:</label>
-                                <Input
-                                  type="number"
-                                  value={area.y}
-                                  onChange={(e) => {
-                                    const value = parseInt(e.target.value);
-                                    if (isDesignArea) {
-                                      updateDesignArea(area.id, { y: value });
-                                    } else {
-                                      updateTextArea(area.id, { y: value });
-                                    }
-                                  }}
-                                  className="text-sm"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Genişlik:</label>
+                                <label className="text-xs text-gray-600 dark:text-gray-400">Genişlik:</label>
                                 <Input
                                   type="number"
                                   value={area.width}
-                                  onChange={(e) => {
-                                    const value = parseInt(e.target.value);
-                                    if (isDesignArea) {
-                                      updateDesignArea(area.id, { width: value });
-                                    } else {
-                                      updateTextArea(area.id, { width: value });
-                                    }
-                                  }}
-                                  className="text-sm"
+                                  onChange={(e) => updateAreaSize(area.id, parseInt(e.target.value), area.height)}
+                                  className="text-xs"
                                 />
                               </div>
                               <div>
-                                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Yükseklik:</label>
+                                <label className="text-xs text-gray-600 dark:text-gray-400">Yükseklik:</label>
                                 <Input
                                   type="number"
                                   value={area.height}
-                                  onChange={(e) => {
-                                    const value = parseInt(e.target.value);
-                                    if (isDesignArea) {
-                                      updateDesignArea(area.id, { height: value });
-                                    } else {
-                                      updateTextArea(area.id, { height: value });
-                                    }
-                                  }}
-                                  className="text-sm"
+                                  onChange={(e) => updateAreaSize(area.id, area.width, parseInt(e.target.value))}
+                                  className="text-xs"
                                 />
                               </div>
                             </div>
-                            
-                            {isDesignArea && 'rotation' in area && (
-                              <div>
-                                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Döndürme (derece):</label>
-                                <Input
-                                  type="number"
-                                  value={area.rotation}
-                                  onChange={(e) => updateDesignArea(area.id, { rotation: parseInt(e.target.value) })}
-                                  className="text-sm"
-                                />
+
+                            {/* Text Area Specific Properties */}
+                            {selectedArea.startsWith('text-') && (
+                              <div className="space-y-2">
+                                <div>
+                                  <label className="text-xs text-gray-600 dark:text-gray-400">Font:</label>
+                                  <select
+                                    value={(area as TextArea).font_family}
+                                    onChange={(e) => {
+                                      setTextAreas(prev => prev.map(ta => 
+                                        ta.id === area.id ? { ...ta, font_family: e.target.value } : ta
+                                      ));
+                                    }}
+                                    className="w-full text-xs p-1 border rounded"
+                                  >
+                                    {allFonts.map((font) => (
+                                      <option key={font.value} value={font.display}>
+                                        {font.display}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="text-xs text-gray-600 dark:text-gray-400">Font Boyutu:</label>
+                                  <Input
+                                    type="number"
+                                    value={(area as TextArea).font_size}
+                                    onChange={(e) => {
+                                      setTextAreas(prev => prev.map(ta => 
+                                        ta.id === area.id ? { ...ta, font_size: parseInt(e.target.value) } : ta
+                                      ));
+                                    }}
+                                    className="text-xs"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-gray-600 dark:text-gray-400">Renk:</label>
+                                  <input
+                                    type="color"
+                                    value={(area as TextArea).color}
+                                    onChange={(e) => {
+                                      setTextAreas(prev => prev.map(ta => 
+                                        ta.id === area.id ? { ...ta, color: e.target.value } : ta
+                                      ));
+                                    }}
+                                    className="w-full h-8 rounded"
+                                  />
+                                </div>
                               </div>
                             )}
-                            
-                            {!isDesignArea && 'font_size' in area && (
-                              <>
-                                <div>
-                                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Font Boyutu:</label>
-                                  <Input
-                                    type="number"
-                                    value={area.font_size}
-                                    onChange={(e) => updateTextArea(area.id, { font_size: parseInt(e.target.value) })}
-                                    className="text-sm"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Max Karakter:</label>
-                                  <Input
-                                    type="number"
-                                    value={area.max_chars}
-                                    onChange={(e) => updateTextArea(area.id, { max_chars: parseInt(e.target.value) })}
-                                    className="text-sm"
-                                  />
-                                </div>
-                              </>
-                            )}
+
+                            <Button
+                              onClick={() => deleteArea(area.id)}
+                              variant="danger"
+                              size="sm"
+                              className="w-full"
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Alanı Sil
+                            </Button>
                           </div>
                         );
                       })()}
                     </div>
                   )}
-                </div>
 
-                {/* Right Panel - Canvas Preview */}
-                <div className="space-y-4">
-                  <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                    <h4 className="font-medium text-gray-900 dark:text-white mb-3">Önizleme</h4>
-                    <div className="relative bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden" style={{ aspectRatio: '4/3' }}>
-                      {backgroundPreview ? (
-                        <div className="relative w-full h-full">
-                          <img
-                            src={backgroundPreview}
-                            alt="Background"
-                            className="w-full h-full object-contain"
-                          />
-                          
-                          {/* Design Areas Overlay */}
-                          {designAreas.map((area) => (
-                            <div
-                              key={area.id}
-                              className={`absolute border-2 border-blue-500 bg-blue-500/20 cursor-move ${
-                                selectedArea === area.id ? 'border-orange-500 bg-orange-500/20' : ''
-                              }`}
-                              style={{
-                                left: `${(area.x / canvasSize.width) * 100}%`,
-                                top: `${(area.y / canvasSize.height) * 100}%`,
-                                width: `${(area.width / canvasSize.width) * 100}%`,
-                                height: `${(area.height / canvasSize.height) * 100}%`,
-                                transform: `rotate(${area.rotation}deg)`
-                              }}
-                              onClick={() => setSelectedArea(area.id)}
-                            >
-                              <div className="absolute -top-6 left-0 text-xs bg-blue-500 text-white px-1 rounded">
-                                {area.name}
-                              </div>
-                            </div>
-                          ))}
-                          
-                          {/* Text Areas Overlay */}
-                          {textAreas.map((area) => (
-                            <div
-                              key={area.id}
-                              className={`absolute border-2 border-green-500 bg-green-500/20 cursor-move ${
-                                selectedArea === area.id ? 'border-orange-500 bg-orange-500/20' : ''
-                              }`}
-                              style={{
-                                left: `${(area.x / canvasSize.width) * 100}%`,
-                                top: `${(area.y / canvasSize.height) * 100}%`,
-                                width: `${(area.width / canvasSize.width) * 100}%`,
-                                height: `${(area.height / canvasSize.height) * 100}%`
-                              }}
-                              onClick={() => setSelectedArea(area.id)}
-                            >
-                              <div className="absolute -top-6 left-0 text-xs bg-green-500 text-white px-1 rounded">
-                                {area.name}
-                              </div>
-                              <div className="text-xs text-gray-600 p-1">
-                                Örnek yazı ({area.font_size}px)
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
-                          <div className="text-center">
-                            <Image className="h-12 w-12 mx-auto mb-2" />
-                            <p>Background görsel yükleyin</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="mt-3 text-xs text-gray-600 dark:text-gray-400">
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-1">
-                          <div className="w-3 h-3 bg-blue-500/50 border border-blue-500"></div>
-                          <span>Tasarım Alanı</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <div className="w-3 h-3 bg-green-500/50 border border-green-500"></div>
-                          <span>Yazı Alanı</span>
+                  {/* Toggle Areas Visibility */}
+                  <Button
+                    onClick={() => setShowAreas(!showAreas)}
+                    variant="secondary"
+                    className="w-full"
+                  >
+                    {showAreas ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
+                    {showAreas ? 'Alanları Gizle' : 'Alanları Göster'}
+                  </Button>
+
+                  {/* Save Button */}
+                  <Button
+                    onClick={saveTemplate}
+                    className="w-full bg-orange-600 hover:bg-orange-700"
+                    disabled={!templateName.trim() || !backgroundImage}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    Template\'i Kaydet
+                  </Button>
+                </div>
+              </div>
+
+              {/* Right Panel - Canvas */}
+              <div className="flex-1 p-6 overflow-auto">
+                <div className="flex items-center justify-center min-h-full">
+                  <div
+                    ref={canvasRef}
+                    className="relative bg-white border-2 border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden shadow-lg"
+                    style={{ width: '600px', height: '600px' }}
+                    onMouseMove={handleMouseMove}
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={handleMouseUp}
+                  >
+                    {/* Background Image */}
+                    {backgroundImage && (
+                      <img
+                        src={backgroundImage}
+                        alt="Background"
+                        className="w-full h-full object-cover"
+                        draggable={false}
+                      />
+                    )}
+
+                    {/* Design Areas */}
+                    {showAreas && designAreas.map((area) => (
+                      <div
+                        key={area.id}
+                        className={`absolute border-2 cursor-move ${
+                          selectedArea === area.id 
+                            ? 'border-orange-500 bg-orange-500 bg-opacity-20' 
+                            : 'border-blue-500 bg-blue-500 bg-opacity-20'
+                        }`}
+                        style={{
+                          left: area.x,
+                          top: area.y,
+                          width: area.width,
+                          height: area.height,
+                          transform: `rotate(${area.rotation}deg)`,
+                          opacity: area.opacity
+                        }}
+                        onMouseDown={(e) => handleMouseDown(e, area.id)}
+                      >
+                        <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-700">
+                          {area.name}
                         </div>
                       </div>
-                    </div>
+                    ))}
+
+                    {/* Text Areas */}
+                    {showAreas && textAreas.map((area) => (
+                      <div
+                        key={area.id}
+                        className={`absolute border-2 cursor-move ${
+                          selectedArea === area.id 
+                            ? 'border-orange-500 bg-orange-500 bg-opacity-20' 
+                            : 'border-green-500 bg-green-500 bg-opacity-20'
+                        }`}
+                        style={{
+                          left: area.x,
+                          top: area.y,
+                          width: area.width,
+                          height: area.height,
+                          transform: `rotate(${area.rotation}deg)`,
+                          fontFamily: area.font_family,
+                          fontSize: `${area.font_size}px`,
+                          color: area.color,
+                          textAlign: area.text_align
+                        }}
+                        onMouseDown={(e) => handleMouseDown(e, area.id)}
+                      >
+                        <div className="absolute inset-0 flex items-center justify-center text-xs font-medium">
+                          {area.placeholder_text}
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Logo Area */}
+                    {showAreas && logoArea && (
+                      <div
+                        className={`absolute border-2 cursor-move ${
+                          selectedArea === logoArea.id 
+                            ? 'border-orange-500 bg-orange-500 bg-opacity-20' 
+                            : 'border-purple-500 bg-purple-500 bg-opacity-20'
+                        }`}
+                        style={{
+                          left: logoArea.x,
+                          top: logoArea.y,
+                          width: logoArea.width,
+                          height: logoArea.height,
+                          transform: `rotate(${logoArea.rotation}deg)`,
+                          opacity: logoArea.opacity
+                        }}
+                        onMouseDown={(e) => handleMouseDown(e, logoArea.id)}
+                      >
+                        <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-700">
+                          {logoArea.name}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Empty State */}
+                    {!backgroundImage && (
+                      <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                        <div className="text-center">
+                          <Image className="h-16 w-16 mx-auto mb-4" />
+                          <p>Background görsel yükleyin</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-            </div>
-            
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
-              <Button onClick={resetModal} variant="secondary">
-                İptal
-              </Button>
-              <Button 
-                onClick={saveTemplate} 
-                disabled={isCreating || !templateName.trim()}
-                className="flex items-center space-x-2"
-              >
-                {isCreating ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Kaydediliyor...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4" />
-                    <span>{editingTemplate ? 'Güncelle' : 'Kaydet'}</span>
-                  </>
-                )}
-              </Button>
             </div>
           </div>
         </div>
