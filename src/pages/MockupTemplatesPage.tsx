@@ -88,6 +88,9 @@ const MockupTemplatesPage: React.FC = () => {
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [showAreas, setShowAreas] = useState(true);
   
+  // CRITICAL: Force re-render state for text areas
+  const [textRenderKey, setTextRenderKey] = useState(0);
+  
   const canvasRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -212,19 +215,23 @@ const MockupTemplatesPage: React.FC = () => {
     setSelectedArea(newArea.id);
   };
 
-  // CRITICAL: TAMAMEN YENİDEN YAZILMIŞ canvas tıklama sistemi
+  // CRITICAL: Canvas tıklama sistemi - sadece background'a tıklandığında seçimi kaldır
   const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
     console.log('🖱️ Canvas tıklandı, target:', e.target);
-    console.log('🖱️ Canvas ref:', canvasRef.current);
-    console.log('🖱️ Target === canvas ref?', e.target === canvasRef.current);
+    console.log('🖱️ Target tagName:', (e.target as HTMLElement).tagName);
+    console.log('🖱️ Target className:', (e.target as HTMLElement).className);
     
-    // CRITICAL: Sadece canvas'ın kendisine (background) tıklandığında seçimi kaldır
-    // Background image'a tıklanırsa da seçimi kaldır
-    if (e.target === canvasRef.current || 
-        (e.target as HTMLElement).tagName === 'IMG' && 
-        (e.target as HTMLElement).closest('[data-canvas-background]')) {
+    // CRITICAL: Sadece canvas container'ına veya background image'a tıklandığında seçimi kaldır
+    const target = e.target as HTMLElement;
+    const isCanvasBackground = target === canvasRef.current || 
+                              target.hasAttribute('data-canvas-background') ||
+                              target.tagName === 'IMG';
+    
+    if (isCanvasBackground) {
       console.log('✅ Canvas background\'ına tıklandı, seçim kaldırılıyor');
       setSelectedArea(null);
+    } else {
+      console.log('❌ Text area\'ya tıklandı, seçim korunuyor');
     }
   };
 
@@ -371,9 +378,9 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
-  // CRITICAL: TAMAMEN YENİDEN YAZILMIŞ ve DETAYLI DEBUG'lu font boyutu güncelleme fonksiyonu
+  // CRITICAL: TAMAMEN YENİDEN YAZILMIŞ font boyutu güncelleme fonksiyonu - ZORLA RE-RENDER ile
   const updateTextAreaProperty = (areaId: string, property: string, value: any) => {
-    console.log(`🔄 [updateTextAreaProperty] BAŞLADI`);
+    console.log(`🔄 [updateTextAreaProperty] BAŞLADI - ENHANCED VERSION`);
     console.log(`📝 Area ID: ${areaId}`);
     console.log(`🔧 Property: ${property}`);
     console.log(`💾 Value: "${value}" (type: ${typeof value})`);
@@ -387,11 +394,11 @@ const MockupTemplatesPage: React.FC = () => {
           
           let processedValue = value;
           
-          // CRITICAL: Font boyutu için özel işlem
+          // CRITICAL: Font boyutu için özel işlem ve validasyon
           if (property === 'font_size') {
-            console.log(`🔢 Font size işleniyor...`);
+            console.log(`🔢 Font size işleniyor - ENHANCED...`);
             
-            // String'den number'a çevir
+            // String'den number'a çevir ve validate et
             if (typeof value === 'string') {
               const numValue = parseInt(value, 10);
               processedValue = isNaN(numValue) ? 24 : Math.max(8, Math.min(72, numValue));
@@ -403,6 +410,13 @@ const MockupTemplatesPage: React.FC = () => {
               processedValue = 24; // Fallback
               console.log(`⚠️ Unexpected type, using fallback: ${processedValue}`);
             }
+            
+            // CRITICAL: Font boyutu değiştiğinde zorla re-render tetikle
+            console.log(`🚀 Font boyutu değişti, zorla re-render tetikleniyor...`);
+            setTimeout(() => {
+              setTextRenderKey(prev => prev + 1);
+              console.log(`🔄 Text render key güncellendi: ${textRenderKey + 1}`);
+            }, 50);
           }
           
           const updatedArea = { ...area, [property]: processedValue };
@@ -415,7 +429,7 @@ const MockupTemplatesPage: React.FC = () => {
       });
       
       console.log(`🔄 Güncellenmiş text areas:`, updated);
-      console.log(`🔄 [updateTextAreaProperty] TAMAMLANDI`);
+      console.log(`🔄 [updateTextAreaProperty] TAMAMLANDI - ENHANCED`);
       
       return updated;
     });
@@ -476,6 +490,7 @@ const MockupTemplatesPage: React.FC = () => {
     setTextAreas([]);
     setLogoArea(null);
     setSelectedArea(null);
+    setTextRenderKey(0);
   };
 
   const deleteTemplate = async (templateId: string) => {
@@ -881,10 +896,10 @@ const MockupTemplatesPage: React.FC = () => {
                                   </select>
                                 </div>
                                 
-                                {/* CRITICAL: Font boyutu - px yazısı kaldırıldı ve debug eklendi */}
+                                {/* CRITICAL: Font boyutu - SADECE "Font Boyutu:" yazısı, değer gösterilmiyor */}
                                 <div>
                                   <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                    Font Boyutu: {(area as TextArea).font_size}
+                                    Font Boyutu:
                                   </label>
                                   <input
                                     type="number"
@@ -1004,10 +1019,10 @@ const MockupTemplatesPage: React.FC = () => {
                       </div>
                     ))}
 
-                    {/* CRITICAL: Text Areas - SADECE seçili olduğunda çerçeve göster */}
+                    {/* CRITICAL: Text Areas - ENHANCED RENDERING with forced re-render key */}
                     {textAreas.map((area) => (
                       <div
-                        key={area.id}
+                        key={`${area.id}-${textRenderKey}`} // CRITICAL: Zorla re-render için key
                         className={`absolute cursor-move select-none ${
                           selectedArea === area.id 
                             ? 'border-2 border-orange-500 bg-orange-500 bg-opacity-20' 
@@ -1020,13 +1035,19 @@ const MockupTemplatesPage: React.FC = () => {
                           height: area.height,
                           transform: `rotate(${area.rotation}deg)`,
                           fontFamily: area.font_family,
-                          fontSize: `${area.font_size}px`,
-                          color: area.color
+                          fontSize: `${area.font_size}px`, // CRITICAL: Font boyutu doğrudan uygulanıyor
+                          color: area.color,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          textAlign: 'center',
+                          overflow: 'hidden',
+                          wordWrap: 'break-word'
                         }}
                         onClick={(e) => handleAreaClick(e, area.id)}
                         onMouseDown={(e) => handleMouseDown(e, area.id, 'move')}
                       >
-                        <div className="absolute inset-0 flex items-center justify-center text-xs font-medium p-1 overflow-hidden pointer-events-none">
+                        <div className="pointer-events-none w-full h-full flex items-center justify-center p-1">
                           {area.placeholder_text}
                         </div>
                         {selectedArea === area.id && (
