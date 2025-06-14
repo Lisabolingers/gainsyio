@@ -60,7 +60,7 @@ interface LogoArea {
   rotation: number;
   opacity: number;
   visible: boolean;
-  logoUrl?: string; // CRITICAL: Logo URL'si için yeni field
+  logoUrl?: string;
 }
 
 interface EtsyStore {
@@ -91,7 +91,10 @@ const MockupTemplatesPage: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAreaVisibility, setShowAreaVisibility] = useState(true);
 
-  // CRITICAL: Logo Selector States
+  // CRITICAL: Transformer görünürlüğünü kontrol eden state
+  const [showTransformer, setShowTransformer] = useState(false);
+
+  // Logo Selector States
   const [showLogoSelector, setShowLogoSelector] = useState(false);
   const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null);
 
@@ -202,8 +205,9 @@ const MockupTemplatesPage: React.FC = () => {
     setDesignAreas([]);
     setTextAreas([]);
     setLogoArea(null);
-    setLogoImage(null); // CRITICAL: Logo image'ı da temizle
+    setLogoImage(null);
     setSelectedId(null);
+    setShowTransformer(false); // CRITICAL: Transformer'ı gizle
     setCanvasSize({ width: 2000, height: 2000 });
     setShowEditor(true);
   };
@@ -217,8 +221,9 @@ const MockupTemplatesPage: React.FC = () => {
     setTextAreas(template.text_areas || []);
     setLogoArea(template.logo_area || null);
     setSelectedId(null);
+    setShowTransformer(false); // CRITICAL: Transformer'ı gizle
     
-    // CRITICAL: Eğer logo area'da logo URL'si varsa, logo image'ı yükle
+    // Logo image yükleme
     if (template.logo_area?.logoUrl) {
       const img = new window.Image();
       img.onload = () => {
@@ -404,6 +409,7 @@ const MockupTemplatesPage: React.FC = () => {
 
     setDesignAreas([newArea]);
     setSelectedId(newArea.id);
+    setShowTransformer(true); // CRITICAL: Alan eklendiğinde transformer'ı göster
   };
 
   const addTextArea = () => {
@@ -426,6 +432,7 @@ const MockupTemplatesPage: React.FC = () => {
 
     setTextAreas(prev => [...prev, newArea]);
     setSelectedId(newArea.id);
+    setShowTransformer(true); // CRITICAL: Alan eklendiğinde transformer'ı göster
   };
 
   const addLogoArea = () => {
@@ -447,16 +454,15 @@ const MockupTemplatesPage: React.FC = () => {
 
     setLogoArea(newArea);
     setSelectedId(newArea.id);
+    setShowTransformer(true); // CRITICAL: Alan eklendiğinde transformer'ı göster
     
-    // CRITICAL: Logo alanı eklendikten hemen sonra logo selector'ı aç
+    // Logo selector'ı aç
     setShowLogoSelector(true);
   };
 
-  // CRITICAL: Logo seçildiğinde çağrılacak fonksiyon
   const handleLogoSelect = (logoUrl: string) => {
     console.log('🖼️ Logo seçildi:', logoUrl);
     
-    // Logo image'ı yükle
     const img = new window.Image();
     img.onload = () => {
       setLogoImage(img);
@@ -468,19 +474,17 @@ const MockupTemplatesPage: React.FC = () => {
     };
     img.src = logoUrl;
     
-    // Logo area'ya URL'yi kaydet
     if (logoArea) {
       setLogoArea(prev => prev ? { ...prev, logoUrl } : null);
     }
     
-    // Modal'ı kapat
     setShowLogoSelector(false);
   };
 
-  // CRITICAL: Logo area'ya tıklandığında logo selector'ı aç
   const handleLogoAreaClick = () => {
     console.log('🖼️ Logo alanına tıklandı, logo selector açılıyor...');
     setSelectedId(logoArea?.id || null);
+    setShowTransformer(true); // CRITICAL: Logo area tıklandığında transformer'ı göster
     setShowLogoSelector(true);
   };
 
@@ -491,19 +495,29 @@ const MockupTemplatesPage: React.FC = () => {
       setTextAreas(prev => prev.filter(area => area.id !== areaId));
     } else if (areaId.startsWith('logo-')) {
       setLogoArea(null);
-      setLogoImage(null); // CRITICAL: Logo image'ı da temizle
+      setLogoImage(null);
     }
     
     if (selectedId === areaId) {
       setSelectedId(null);
+      setShowTransformer(false); // CRITICAL: Alan silindiğinde transformer'ı gizle
     }
   };
 
+  // CRITICAL: Canvas tıklama işleyicisi - boş alana tıklandığında seçimi kaldır
   const handleStageClick = (e: any) => {
     if (e.target === e.target.getStage()) {
-      console.log('🖱️ Boş alana tıklandı, seçim kaldırılıyor');
+      console.log('🖱️ Boş alana tıklandı, seçim kaldırılıyor ve transformer gizleniyor');
       setSelectedId(null);
+      setShowTransformer(false); // CRITICAL: Boş alana tıklandığında transformer'ı gizle
     }
+  };
+
+  // CRITICAL: Alan tıklama işleyicisi - transformer'ı göster
+  const handleAreaClick = (areaId: string) => {
+    console.log('🎯 Alan tıklandı, transformer gösteriliyor:', areaId);
+    setSelectedId(areaId);
+    setShowTransformer(true); // CRITICAL: Alan tıklandığında transformer'ı göster
   };
 
   const handleDragEnd = (areaId: string, e: any) => {
@@ -562,8 +576,9 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
+  // CRITICAL: Transformer'ı sadece showTransformer true olduğunda göster
   useEffect(() => {
-    if (!selectedId) {
+    if (!showTransformer || !selectedId) {
       transformerRef.current?.nodes([]);
       return;
     }
@@ -573,7 +588,7 @@ const MockupTemplatesPage: React.FC = () => {
       transformerRef.current.nodes([node]);
       transformerRef.current.getLayer()?.batchDraw();
     }
-  }, [selectedId]);
+  }, [selectedId, showTransformer]);
 
   const filteredTemplates = templates.filter(template =>
     template.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -743,8 +758,8 @@ const MockupTemplatesPage: React.FC = () => {
                           ref={(node) => (groupRefs.current[area.id] = node)}
                           x={area.x}
                           y={area.y}
-                          draggable
-                          onClick={() => setSelectedId(area.id)}
+                          draggable={showTransformer && selectedId === area.id} // CRITICAL: Sadece seçiliyken sürüklenebilir
+                          onClick={() => handleAreaClick(area.id)}
                           onDragEnd={(e) => handleDragEnd(area.id, e)}
                           onTransformEnd={(e) => handleTransformEnd(area.id, e)}
                         >
@@ -781,8 +796,8 @@ const MockupTemplatesPage: React.FC = () => {
                           ref={(node) => (groupRefs.current[area.id] = node)}
                           x={area.x}
                           y={area.y}
-                          draggable
-                          onClick={() => setSelectedId(area.id)}
+                          draggable={showTransformer && selectedId === area.id} // CRITICAL: Sadece seçiliyken sürüklenebilir
+                          onClick={() => handleAreaClick(area.id)}
                           onDragEnd={(e) => handleDragEnd(area.id, e)}
                           onTransformEnd={(e) => handleTransformEnd(area.id, e)}
                         >
@@ -819,12 +834,11 @@ const MockupTemplatesPage: React.FC = () => {
                           ref={(node) => (groupRefs.current[logoArea.id] = node)}
                           x={logoArea.x}
                           y={logoArea.y}
-                          draggable
-                          onClick={handleLogoAreaClick} // CRITICAL: Logo area'ya tıklandığında logo selector'ı aç
+                          draggable={showTransformer && selectedId === logoArea.id} // CRITICAL: Sadece seçiliyken sürüklenebilir
+                          onClick={handleLogoAreaClick}
                           onDragEnd={(e) => handleDragEnd(logoArea.id, e)}
                           onTransformEnd={(e) => handleTransformEnd(logoArea.id, e)}
                         >
-                          {/* CRITICAL: Eğer logo image varsa onu göster, yoksa placeholder */}
                           {logoImage ? (
                             <KonvaImage
                               image={logoImage}
@@ -865,8 +879,8 @@ const MockupTemplatesPage: React.FC = () => {
                         </Group>
                       )}
 
-                      {/* Transformer */}
-                      {selectedId && showAreaVisibility && (
+                      {/* CRITICAL: Transformer sadece showTransformer true olduğunda göster */}
+                      {selectedId && showTransformer && showAreaVisibility && (
                         <Transformer
                           ref={transformerRef}
                           borderStroke="#0066ff"
@@ -885,6 +899,9 @@ const MockupTemplatesPage: React.FC = () => {
               <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
                 <p>💡 <strong>İpucu:</strong> Template kaydedilebilmesi için lütfen template adı ve tasarım alanı eklemelisiniz. Logo ve yazı eklemek isteğe bağlıdır.</p>
                 <p>Canvas boyutu: {canvasSize.width} × {canvasSize.height} px</p>
+                <p className="mt-2 text-orange-600 dark:text-orange-400">
+                  🖱️ <strong>Boş alana tıklayarak seçimi kaldırabilir ve sadece alanları görebilirsiniz</strong>
+                </p>
                 {logoArea && !logoImage && (
                   <p className="text-orange-600 dark:text-orange-400 mt-2">
                     🖼️ <strong>Logo alanına tıklayarak Store Images'dan logo seçebilirsiniz</strong>
@@ -931,7 +948,7 @@ const MockupTemplatesPage: React.FC = () => {
                 </CardContent>
               </Card>
 
-              {/* CRITICAL: Logo Area için özel bilgi paneli */}
+              {/* Logo Area için özel bilgi paneli */}
               {logoArea && (
                 <Card>
                   <CardHeader>
@@ -996,7 +1013,7 @@ const MockupTemplatesPage: React.FC = () => {
               )}
 
               {/* Selected Area Properties */}
-              {selectedId && getSelectedArea() && (
+              {selectedId && getSelectedArea() && showTransformer && (
                 <Card>
                   <CardHeader>
                     <div className="flex items-center justify-between">
@@ -1094,7 +1111,7 @@ const MockupTemplatesPage: React.FC = () => {
           className="hidden"
         />
 
-        {/* CRITICAL: Logo Selector Modal */}
+        {/* Logo Selector Modal */}
         {showLogoSelector && (
           <LogoSelector
             onSelect={handleLogoSelect}
