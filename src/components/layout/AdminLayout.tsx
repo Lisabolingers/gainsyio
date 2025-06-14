@@ -24,9 +24,7 @@ const AdminLayout: React.FC = () => {
       icon: FileTemplate,
       hasSubmenu: true,
       submenu: [
-        { name: 'All Templates', href: '/admin/templates', icon: FileTemplate },
         { name: 'Auto Text to Image', href: '/admin/templates/auto-text-to-image', icon: Zap },
-        { name: 'Text Templates', href: '/admin/templates/text', icon: Type },
         { name: 'Listing Templates', href: '/admin/templates/listing', icon: FileTemplate },
         { name: 'Mockup Templates', href: '/admin/templates/mockup', icon: Image },
         { name: 'Update Templates', href: '/admin/templates/update', icon: FileTemplate },
@@ -35,6 +33,7 @@ const AdminLayout: React.FC = () => {
     { name: 'Listing', href: '/admin/listing', icon: PlusCircle },
     { name: 'Library', href: '/admin/library', icon: Library },
     { name: 'Store Images', href: '/admin/store-images', icon: Image },
+    { name: 'Text Templates', href: '/admin/templates/text', icon: Type },
     { name: 'My Fonts', href: '/admin/my-font', icon: Type },
   ];
 
