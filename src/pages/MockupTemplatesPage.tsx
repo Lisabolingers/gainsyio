@@ -354,8 +354,9 @@ const MockupTemplatesPage: React.FC = () => {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) { // 10MB limit
-      alert('Dosya boyutu 10MB\'dan küçük olmalı!');
+    // CRITICAL: Dosya boyutu sınırını 20MB'a çıkardık
+    if (file.size > 20 * 1024 * 1024) { // 20MB limit
+      alert('Dosya boyutu 20MB\'dan küçük olmalı!');
       return;
     }
 
@@ -653,12 +654,13 @@ const MockupTemplatesPage: React.FC = () => {
                     ))}
                   </select>
                 </div>
+                {/* CRITICAL: Buton metni "Mockup Yükle" olarak değiştirildi */}
                 <Button
                   onClick={() => fileInputRef.current?.click()}
                   variant="secondary"
                   size="sm"
                 >
-                  📁 Background Yükle
+                  📁 Mockup Yükle
                 </Button>
               </div>
 
