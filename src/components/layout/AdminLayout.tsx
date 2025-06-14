@@ -24,22 +24,22 @@ const AdminLayout: React.FC = () => {
       icon: FileTemplate,
       hasSubmenu: true,
       submenu: [
-        { name: 'Auto Text to Image', href: '/admin/templates/auto-text-to-image', icon: Zap },
+        { name: 'Text Templates', href: '/admin/templates/text', icon: Type },
         { name: 'Listing Templates', href: '/admin/templates/listing', icon: FileTemplate },
         { name: 'Mockup Templates', href: '/admin/templates/mockup', icon: Image },
         { name: 'Update Templates', href: '/admin/templates/update', icon: FileTemplate },
+        { name: 'Store Images', href: '/admin/store-images', icon: Image },
       ]
     },
+    { name: 'Auto Text to Image', href: '/admin/templates/auto-text-to-image', icon: Zap },
+    { name: 'My Fonts', href: '/admin/my-font', icon: Type },
     { name: 'Listing', href: '/admin/listing', icon: PlusCircle },
     { name: 'Library', href: '/admin/library', icon: Library },
-    { name: 'Store Images', href: '/admin/store-images', icon: Image },
-    { name: 'Text Templates', href: '/admin/templates/text', icon: Type },
-    { name: 'My Fonts', href: '/admin/my-font', icon: Type },
   ];
 
   // Check if templates submenu should be expanded
   React.useEffect(() => {
-    if (location.pathname.startsWith('/admin/templates')) {
+    if (location.pathname.startsWith('/admin/templates') || location.pathname.startsWith('/admin/store-images')) {
       setTemplatesExpanded(true);
     }
   }, [location.pathname]);
@@ -111,7 +111,7 @@ const AdminLayout: React.FC = () => {
                     onClick={toggleTemplatesSubmenu}
                     className={`
                       group flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-lg transition-colors
-                      ${isActive(item.href) || location.pathname.startsWith('/admin/templates')
+                      ${isActive(item.href) || location.pathname.startsWith('/admin/templates') || location.pathname.startsWith('/admin/store-images')
                         ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400'
                         : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
                       }
@@ -120,7 +120,7 @@ const AdminLayout: React.FC = () => {
                     <div className="flex items-center">
                       <item.icon className={`
                         mr-3 h-5 w-5 flex-shrink-0
-                        ${isActive(item.href) || location.pathname.startsWith('/admin/templates')
+                        ${isActive(item.href) || location.pathname.startsWith('/admin/templates') || location.pathname.startsWith('/admin/store-images')
                           ? 'text-orange-500'
                           : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
                         }
