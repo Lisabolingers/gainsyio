@@ -45,8 +45,11 @@ const DesignSettings = () => {
       styleOption: 'normal',
     }
   ]);
-  
   const [selectedId, setSelectedId] = useState(1);
+  
+  // CRITICAL: Seçim çerçevesini gösterip gizlemek için state
+  const [showSelectionFrame, setShowSelectionFrame] = useState(false);
+  
   const [forceRender, setForceRender] = useState(0);
   const [fontUploading, setFontUploading] = useState(false);
   const [fontsInitialized, setFontsInitialized] = useState(false);
@@ -252,8 +255,9 @@ const DesignSettings = () => {
     );
   }, [canvasSize.width, canvasSize.height]);
 
+  // CRITICAL: Transformer'ı sadece showSelectionFrame true olduğunda göster
   useEffect(() => {
-    if (selectedId === null) {
+    if (!showSelectionFrame || selectedId === null) {
       transformerRef.current?.nodes([]);
       return;
     }
@@ -275,7 +279,7 @@ const DesignSettings = () => {
       
       transformer.getLayer()?.batchDraw();
     }
-  }, [selectedId, texts, scale]);
+  }, [selectedId, texts, scale, showSelectionFrame]);
 
   const adjustFontSize = (text) => {
     const baseFontSize = text.maxFontSize || 50;
@@ -301,9 +305,13 @@ const DesignSettings = () => {
     );
   }, [texts.map(t => t.text + t.letterSpacing + t.lineHeight + t.width + t.height)]);
 
+  // CRITICAL: Canvas tıklama işleyicisi - boş alana tıklandığında seçimi kaldır
   const handleStageClick = (e) => {
+    // Eğer tıklanan element stage'in kendisiyse (boş alan), seçimi kaldır
     if (e.target === e.target.getStage()) {
+      console.log('🖱️ Boş alana tıklandı, seçim kaldırılıyor');
       setSelectedId(null);
+      setShowSelectionFrame(false);
     }
   };
 
@@ -320,6 +328,7 @@ const DesignSettings = () => {
     });
     setTexts([...texts, newText]);
     setSelectedId(newId);
+    setShowSelectionFrame(true); // Yeni text eklendiğinde seçim çerçevesini göster
   };
 
   // Handle text drag with boundary constraints
@@ -358,6 +367,13 @@ const DesignSettings = () => {
           : text
       )
     );
+  };
+
+  // CRITICAL: Text tıklama işleyicisi - seçim çerçevesini göster
+  const handleTextClick = (textId) => {
+    console.log('📝 Text tıklandı:', textId);
+    setSelectedId(textId);
+    setShowSelectionFrame(true);
   };
 
   const downloadImage = () => {
@@ -670,8 +686,8 @@ const DesignSettings = () => {
         ref={(node) => (groupRefs.current[text.id] = node)}
         x={text.x}
         y={text.y}
-        draggable
-        onClick={() => setSelectedId(text.id)}
+        draggable={showSelectionFrame} // CRITICAL: Sadece seçim çerçevesi görünürken sürüklenebilir
+        onClick={() => handleTextClick(text.id)}
         onDragEnd={(e) => handleTextDragEnd(text.id, e)}
         onTransformEnd={(e) => handleTransformEnd(text.id, e)}
         dragBoundFunc={(pos) => {
@@ -801,7 +817,8 @@ const DesignSettings = () => {
                 <Layer key={`layer-${forceRender}-${fontsInitialized}`}>
                   {texts.map((text) => renderKonvaText(text))}
 
-                  {selectedId && (
+                  {/* CRITICAL: Transformer sadece showSelectionFrame true olduğunda göster */}
+                  {selectedId && showSelectionFrame && (
                     <Transformer 
                       ref={transformerRef} 
                       borderStroke="#0066ff" 
@@ -861,6 +878,18 @@ const DesignSettings = () => {
               className="flex-1"
             />
           </div>
+          
+          {/* CRITICAL: Seçim çerçevesi toggle butonu */}
+          <div className="flex flex-col gap-2 mb-4">
+            <Button 
+              onClick={() => setShowSelectionFrame(!showSelectionFrame)}
+              variant="secondary" 
+              className="w-full"
+            >
+              {showSelectionFrame ? '👁️ Seçim Çerçevesini Gizle' : '🔧 Seçim Çerçevesini Göster'}
+            </Button>
+          </div>
+          
           <div className="flex flex-col gap-2">
             <Button onClick={downloadImage} disabled={!templateName} className="w-full">
               DOWNLOAD DESIGN
@@ -868,6 +897,12 @@ const DesignSettings = () => {
             <Button onClick={saveTemplate} disabled={!templateName} variant="secondary" className="w-full">
               {currentTemplateId ? 'UPDATE TEMPLATE' : 'SAVE TEMPLATE'}
             </Button>
+          </div>
+          
+          {/* CRITICAL: Kullanıcı ipucu */}
+          <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
+            <p>💡 <strong>İpucu:</strong> Boş alana tıklayarak sadece yazıları görebilirsiniz</p>
+            <p>Yazıları düzenlemek için seçim çerçevesini açın</p>
           </div>
         </div>
       </div>
