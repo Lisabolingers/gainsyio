@@ -276,6 +276,12 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
+  const updateTextAreaProperty = (areaId: string, property: string, value: any) => {
+    setTextAreas(prev => prev.map(area => 
+      area.id === areaId ? { ...area, [property]: value } : area
+    ));
+  };
+
   const deleteArea = (areaId: string) => {
     if (areaId.startsWith('design-')) {
       setDesignAreas(prev => prev.filter(area => area.id !== areaId));
@@ -695,40 +701,52 @@ const MockupTemplatesPage: React.FC = () => {
 
                         return (
                           <div className="space-y-3">
-                            <div className="grid grid-cols-2 gap-2">
+                            {/* Size Controls - Fixed Layout */}
+                            <div className="space-y-2">
                               <div>
-                                <label className="text-xs text-gray-600 dark:text-gray-400">Genişlik:</label>
+                                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Genişlik:</label>
                                 <Input
                                   type="number"
                                   value={area.width}
-                                  onChange={(e) => updateAreaSize(area.id, parseInt(e.target.value), area.height)}
-                                  className="text-xs"
+                                  onChange={(e) => updateAreaSize(area.id, parseInt(e.target.value) || 0, area.height)}
+                                  className="w-full text-sm"
+                                  min="10"
+                                  max="800"
                                 />
                               </div>
                               <div>
-                                <label className="text-xs text-gray-600 dark:text-gray-400">Yükseklik:</label>
+                                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Yükseklik:</label>
                                 <Input
                                   type="number"
                                   value={area.height}
-                                  onChange={(e) => updateAreaSize(area.id, area.width, parseInt(e.target.value))}
-                                  className="text-xs"
+                                  onChange={(e) => updateAreaSize(area.id, area.width, parseInt(e.target.value) || 0)}
+                                  className="w-full text-sm"
+                                  min="10"
+                                  max="800"
                                 />
                               </div>
                             </div>
 
                             {/* Text Area Specific Properties */}
                             {selectedArea.startsWith('text-') && (
-                              <div className="space-y-2">
+                              <div className="space-y-3">
                                 <div>
-                                  <label className="text-xs text-gray-600 dark:text-gray-400">Font:</label>
+                                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Yazı Metni:</label>
+                                  <textarea
+                                    value={(area as TextArea).placeholder_text}
+                                    onChange={(e) => updateTextAreaProperty(area.id, 'placeholder_text', e.target.value)}
+                                    className="w-full text-sm p-2 border rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 resize-none"
+                                    rows={2}
+                                    placeholder="Örnek metin girin..."
+                                  />
+                                </div>
+                                
+                                <div>
+                                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Font:</label>
                                   <select
                                     value={(area as TextArea).font_family}
-                                    onChange={(e) => {
-                                      setTextAreas(prev => prev.map(ta => 
-                                        ta.id === area.id ? { ...ta, font_family: e.target.value } : ta
-                                      ));
-                                    }}
-                                    className="w-full text-xs p-1 border rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
+                                    onChange={(e) => updateTextAreaProperty(area.id, 'font_family', e.target.value)}
+                                    className="w-full text-sm p-2 border rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
                                   >
                                     {allFonts.map((font) => (
                                       <option key={font.value} value={font.display} className="text-gray-900 dark:text-white bg-white dark:bg-gray-700">
@@ -737,30 +755,51 @@ const MockupTemplatesPage: React.FC = () => {
                                     ))}
                                   </select>
                                 </div>
+                                
                                 <div>
-                                  <label className="text-xs text-gray-600 dark:text-gray-400">Font Boyutu:</label>
+                                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Font Boyutu:</label>
                                   <Input
                                     type="number"
                                     value={(area as TextArea).font_size}
-                                    onChange={(e) => {
-                                      setTextAreas(prev => prev.map(ta => 
-                                        ta.id === area.id ? { ...ta, font_size: parseInt(e.target.value) } : ta
-                                      ));
-                                    }}
-                                    className="text-xs"
+                                    onChange={(e) => updateTextAreaProperty(area.id, 'font_size', parseInt(e.target.value) || 12)}
+                                    className="w-full text-sm"
+                                    min="8"
+                                    max="72"
                                   />
                                 </div>
+                                
                                 <div>
-                                  <label className="text-xs text-gray-600 dark:text-gray-400">Renk:</label>
+                                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Renk:</label>
                                   <input
                                     type="color"
                                     value={(area as TextArea).color}
-                                    onChange={(e) => {
-                                      setTextAreas(prev => prev.map(ta => 
-                                        ta.id === area.id ? { ...ta, color: e.target.value } : ta
-                                      ));
-                                    }}
-                                    className="w-full h-8 rounded"
+                                    onChange={(e) => updateTextAreaProperty(area.id, 'color', e.target.value)}
+                                    className="w-full h-8 rounded border border-gray-300 dark:border-gray-600"
+                                  />
+                                </div>
+                                
+                                <div>
+                                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Hizalama:</label>
+                                  <select
+                                    value={(area as TextArea).text_align}
+                                    onChange={(e) => updateTextAreaProperty(area.id, 'text_align', e.target.value)}
+                                    className="w-full text-sm p-2 border rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
+                                  >
+                                    <option value="left">Sol</option>
+                                    <option value="center">Orta</option>
+                                    <option value="right">Sağ</option>
+                                  </select>
+                                </div>
+                                
+                                <div>
+                                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Max Karakter:</label>
+                                  <Input
+                                    type="number"
+                                    value={(area as TextArea).max_characters}
+                                    onChange={(e) => updateTextAreaProperty(area.id, 'max_characters', parseInt(e.target.value) || 100)}
+                                    className="w-full text-sm"
+                                    min="10"
+                                    max="500"
                                   />
                                 </div>
                               </div>
@@ -871,7 +910,7 @@ const MockupTemplatesPage: React.FC = () => {
                         }}
                         onMouseDown={(e) => handleMouseDown(e, area.id)}
                       >
-                        <div className="absolute inset-0 flex items-center justify-center text-xs font-medium">
+                        <div className="absolute inset-0 flex items-center justify-center text-xs font-medium p-1 overflow-hidden">
                           {area.placeholder_text}
                         </div>
                       </div>
