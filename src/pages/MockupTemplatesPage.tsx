@@ -16,6 +16,7 @@ interface MockupTemplate {
   design_areas: DesignArea[];
   text_areas: TextArea[];
   logo_area?: LogoArea;
+  design_type?: 'black' | 'white'; // CRITICAL: Yeni design type field'ı
   is_default: boolean;
   created_at: string;
   updated_at: string;
@@ -90,6 +91,9 @@ const MockupTemplatesPage: React.FC = () => {
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [showAreas, setShowAreas] = useState(true);
   const [showLogoSelector, setShowLogoSelector] = useState(false);
+  
+  // CRITICAL: Design type state'i eklendi
+  const [selectedDesignType, setSelectedDesignType] = useState<'black' | 'white'>('black');
   
   // CRITICAL: Force re-render state for text areas
   const [textRenderKey, setTextRenderKey] = useState(0);
@@ -480,12 +484,14 @@ const MockupTemplatesPage: React.FC = () => {
     }
 
     try {
+      // CRITICAL: Design type'ı da template data'ya ekle
       const templateData = {
         user_id: user?.id,
         name: templateName,
         image_url: backgroundImage,
         design_areas: designAreas,
         text_areas: textAreas,
+        design_type: selectedDesignType, // CRITICAL: Design type eklendi
         ...(logoArea && { logo_area: logoArea }),
         is_default: false
       };
@@ -517,6 +523,7 @@ const MockupTemplatesPage: React.FC = () => {
     setTextAreas([]);
     setLogoArea(null);
     setSelectedArea(null);
+    setSelectedDesignType('black'); // CRITICAL: Design type'ı da reset et
     setTextRenderKey(0);
   };
 
@@ -550,6 +557,7 @@ const MockupTemplatesPage: React.FC = () => {
           image_url: template.image_url,
           design_areas: template.design_areas,
           text_areas: template.text_areas,
+          design_type: template.design_type || 'black', // CRITICAL: Design type'ı da kopyala
           ...(template.logo_area && { logo_area: template.logo_area }),
           is_default: false
         });
@@ -758,6 +766,16 @@ const MockupTemplatesPage: React.FC = () => {
                         <div>Tasarım: {template.design_areas.length}</div>
                         <div>Yazı: {template.text_areas.length}</div>
                         <div>Logo: {template.logo_area ? 1 : 0}</div>
+                        {/* CRITICAL: Design type göstergesi eklendi */}
+                        <div className="mt-1">
+                          <span className={`px-2 py-1 rounded text-xs ${
+                            template.design_type === 'black' 
+                              ? 'bg-gray-900 text-white' 
+                              : 'bg-white text-gray-900'
+                          }`}>
+                            {template.design_type === 'black' ? '⚫ Black' : '⚪ White'} Design
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1012,15 +1030,41 @@ const MockupTemplatesPage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Toggle Areas Visibility */}
-                  <Button
-                    onClick={() => setShowAreas(!showAreas)}
-                    variant="secondary"
-                    className="w-full"
-                  >
-                    {showAreas ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
-                    {showAreas ? 'Alanları Gizle' : 'Alanları Göster'}
-                  </Button>
+                  {/* CRITICAL: Design Type Selection - Template kaydet butonunun üstünde */}
+                  <div className="space-y-3 p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                    <h3 className="font-medium text-gray-900 dark:text-white">
+                      🎨 Tasarım Tipi Seçin:
+                    </h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        onClick={() => setSelectedDesignType('black')}
+                        variant={selectedDesignType === 'black' ? 'primary' : 'secondary'}
+                        className={`flex items-center justify-center space-x-2 ${
+                          selectedDesignType === 'black' 
+                            ? 'bg-gray-900 text-white hover:bg-gray-800' 
+                            : 'bg-gray-200 text-gray-900 hover:bg-gray-300'
+                        }`}
+                      >
+                        <span>⚫</span>
+                        <span>Black Design</span>
+                      </Button>
+                      <Button
+                        onClick={() => setSelectedDesignType('white')}
+                        variant={selectedDesignType === 'white' ? 'primary' : 'secondary'}
+                        className={`flex items-center justify-center space-x-2 ${
+                          selectedDesignType === 'white' 
+                            ? 'bg-white text-gray-900 hover:bg-gray-100 border-2 border-gray-300' 
+                            : 'bg-gray-200 text-gray-900 hover:bg-gray-300'
+                        }`}
+                      >
+                        <span>⚪</span>
+                        <span>White Design</span>
+                      </Button>
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      Bu mockup için {selectedDesignType === 'black' ? 'siyah' : 'beyaz'} tasarım kullanılacak
+                    </p>
+                  </div>
 
                   {/* Save Button */}
                   <Button
