@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Image, Plus, Edit, Trash2, Copy, Search, Filter, Grid, List, Save, Download, Upload, X, Store, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase, testSupabaseConnection } from '../lib/supabase';
@@ -41,11 +41,19 @@ const MockupTemplatesPage: React.FC = () => {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
-  // Create Modal States
+  // CRITICAL: Canvas ve Design States - ESKİ HALİ
   const [templateName, setTemplateName] = useState('');
   const [backgroundImage, setBackgroundImage] = useState<File | null>(null);
   const [backgroundPreview, setBackgroundPreview] = useState<string>('');
   const [designType, setDesignType] = useState<'black' | 'white'>('black');
+  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
+  const [designAreas, setDesignAreas] = useState<any[]>([]);
+  const [textAreas, setTextAreas] = useState<any[]>([]);
+  const [logoArea, setLogoArea] = useState<any>(null);
+  const [selectedArea, setSelectedArea] = useState<string | null>(null);
+  
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
@@ -141,6 +149,164 @@ const MockupTemplatesPage: React.FC = () => {
     await loadTemplates(true);
   };
 
+  // CRITICAL: Canvas Drawing Functions - ESKİ HALİ
+  const drawCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw background image if exists
+    if (backgroundPreview) {
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        drawAreas(ctx);
+      };
+      img.src = backgroundPreview;
+    } else {
+      // Draw white background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      drawAreas(ctx);
+    }
+  };
+
+  const drawAreas = (ctx: CanvasRenderingContext2D) => {
+    // Draw design areas
+    designAreas.forEach((area, index) => {
+      ctx.strokeStyle = selectedArea === `design-${index}` ? '#ff6b00' : '#0066ff';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.strokeRect(area.x, area.y, area.width, area.height);
+      
+      // Label
+      ctx.fillStyle = '#0066ff';
+      ctx.font = '12px Arial';
+      ctx.fillText(`Design ${index + 1}`, area.x + 5, area.y + 15);
+    });
+
+    // Draw text areas
+    textAreas.forEach((area, index) => {
+      ctx.strokeStyle = selectedArea === `text-${index}` ? '#ff6b00' : '#00aa00';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 3]);
+      ctx.strokeRect(area.x, area.y, area.width, area.height);
+      
+      // Label
+      ctx.fillStyle = '#00aa00';
+      ctx.font = '12px Arial';
+      ctx.fillText(`Text ${index + 1}`, area.x + 5, area.y + 15);
+    });
+
+    // Draw logo area
+    if (logoArea) {
+      ctx.strokeStyle = selectedArea === 'logo' ? '#ff6b00' : '#aa00aa';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([7, 3]);
+      ctx.strokeRect(logoArea.x, logoArea.y, logoArea.width, logoArea.height);
+      
+      // Label
+      ctx.fillStyle = '#aa00aa';
+      ctx.font = '12px Arial';
+      ctx.fillText('Logo Area', logoArea.x + 5, logoArea.y + 15);
+    }
+
+    ctx.setLineDash([]); // Reset line dash
+  };
+
+  useEffect(() => {
+    drawCanvas();
+  }, [backgroundPreview, designAreas, textAreas, logoArea, selectedArea, canvasSize]);
+
+  // CRITICAL: Area Management Functions - ESKİ HALİ
+  const addDesignArea = () => {
+    const newArea = {
+      id: `design-${Date.now()}`,
+      x: 50 + designAreas.length * 20,
+      y: 50 + designAreas.length * 20,
+      width: 150,
+      height: 150,
+      rotation: 0
+    };
+    setDesignAreas([...designAreas, newArea]);
+    setSelectedArea(`design-${designAreas.length}`);
+  };
+
+  const addTextArea = () => {
+    const newArea = {
+      id: `text-${Date.now()}`,
+      x: 100 + textAreas.length * 20,
+      y: 100 + textAreas.length * 20,
+      width: 200,
+      height: 50,
+      fontSize: 16,
+      fontFamily: 'Arial',
+      color: designType === 'black' ? '#000000' : '#ffffff'
+    };
+    setTextAreas([...textAreas, newArea]);
+    setSelectedArea(`text-${textAreas.length}`);
+  };
+
+  const addLogoArea = () => {
+    if (logoArea) {
+      alert('Logo alanı zaten mevcut!');
+      return;
+    }
+    
+    const newLogoArea = {
+      id: 'logo',
+      x: 200,
+      y: 200,
+      width: 100,
+      height: 100,
+      rotation: 0
+    };
+    setLogoArea(newLogoArea);
+    setSelectedArea('logo');
+  };
+
+  // CRITICAL: Canvas Click Handler - ESKİ HALİ
+  const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    // Check if clicked on any area
+    let clickedArea = null;
+
+    // Check design areas
+    designAreas.forEach((area, index) => {
+      if (x >= area.x && x <= area.x + area.width && 
+          y >= area.y && y <= area.y + area.height) {
+        clickedArea = `design-${index}`;
+      }
+    });
+
+    // Check text areas
+    textAreas.forEach((area, index) => {
+      if (x >= area.x && x <= area.x + area.width && 
+          y >= area.y && y <= area.y + area.height) {
+        clickedArea = `text-${index}`;
+      }
+    });
+
+    // Check logo area
+    if (logoArea && x >= logoArea.x && x <= logoArea.x + logoArea.width && 
+        y >= logoArea.y && y <= logoArea.y + logoArea.height) {
+      clickedArea = 'logo';
+    }
+
+    setSelectedArea(clickedArea);
+  };
+
   const saveTemplate = async () => {
     if (!templateName.trim()) {
       alert('Lütfen template adı girin!');
@@ -167,9 +333,9 @@ const MockupTemplatesPage: React.FC = () => {
         user_id: user.id,
         name: templateName,
         image_url: base64Image,
-        design_areas: [],
-        text_areas: [],
-        logo_area: null,
+        design_areas: designAreas,
+        text_areas: textAreas,
+        logo_area: logoArea,
         design_type: designType,
         is_default: false
       };
@@ -194,6 +360,10 @@ const MockupTemplatesPage: React.FC = () => {
       setBackgroundImage(null);
       setBackgroundPreview('');
       setDesignType('black');
+      setDesignAreas([]);
+      setTextAreas([]);
+      setLogoArea(null);
+      setSelectedArea(null);
       setShowCreateModal(false);
       
       alert('Template başarıyla kaydedildi! 🎉');
@@ -727,11 +897,12 @@ const MockupTemplatesPage: React.FC = () => {
         </>
       )}
 
-      {/* Create Modal - TAM ÖZELLİKLERLE ESKİ HALİ */}
+      {/* CRITICAL: Create Modal - CANVAS VE YAN MENÜLERLE ESKİ HALİ */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-7xl h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                   Yeni Mockup Template Oluştur
@@ -744,168 +915,339 @@ const MockupTemplatesPage: React.FC = () => {
                 </button>
               </div>
             </div>
-            
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)] space-y-6">
-              {/* Template Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Template Adı:
-                </label>
-                <Input
-                  value={templateName}
-                  onChange={(e) => setTemplateName(e.target.value)}
-                  placeholder="Template adı girin..."
-                  className="w-full"
-                />
+
+            {/* CRITICAL: Main Content - Canvas + Sidebar Layout */}
+            <div className="flex flex-1 overflow-hidden">
+              {/* CRITICAL: Canvas Area - Sol Taraf */}
+              <div className="flex-1 flex flex-col bg-gray-100 dark:bg-gray-900">
+                {/* Canvas Header */}
+                <div className="p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-medium text-gray-900 dark:text-white">Canvas</h3>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        {canvasSize.width} × {canvasSize.height}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Canvas Container */}
+                <div className="flex-1 flex items-center justify-center p-6">
+                  <div className="bg-white rounded-lg shadow-lg p-4">
+                    <canvas
+                      ref={canvasRef}
+                      width={canvasSize.width}
+                      height={canvasSize.height}
+                      onClick={handleCanvasClick}
+                      className="border border-gray-300 dark:border-gray-600 cursor-crosshair"
+                      style={{ maxWidth: '100%', maxHeight: '100%' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Canvas Footer */}
+                <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-2">
+                        <label className="text-sm text-gray-600 dark:text-gray-400">Genişlik:</label>
+                        <Input
+                          type="number"
+                          value={canvasSize.width}
+                          onChange={(e) => setCanvasSize(prev => ({ ...prev, width: parseInt(e.target.value) || 800 }))}
+                          className="w-20 text-sm"
+                        />
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <label className="text-sm text-gray-600 dark:text-gray-400">Yükseklik:</label>
+                        <Input
+                          type="number"
+                          value={canvasSize.height}
+                          onChange={(e) => setCanvasSize(prev => ({ ...prev, height: parseInt(e.target.value) || 600 }))}
+                          className="w-20 text-sm"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      onClick={saveTemplate}
+                      disabled={!templateName.trim() || !backgroundImage}
+                      className="bg-orange-600 hover:bg-orange-700"
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      Template\'i Kaydet
+                    </Button>
+                  </div>
+                </div>
               </div>
 
-              {/* Background Image Upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Background Görsel:
-                </label>
-                <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center">
-                  {backgroundPreview ? (
-                    <div className="space-y-4">
-                      <img
-                        src={backgroundPreview}
-                        alt="Preview"
-                        className="max-w-full h-48 object-contain mx-auto rounded"
-                      />
+              {/* CRITICAL: Sidebar - Sağ Taraf */}
+              <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                  <h3 className="font-medium text-gray-900 dark:text-white">Template Ayarları</h3>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                  {/* Template Name */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Template Adı:
+                    </label>
+                    <Input
+                      value={templateName}
+                      onChange={(e) => setTemplateName(e.target.value)}
+                      placeholder="Template adı girin..."
+                      className="w-full"
+                    />
+                  </div>
+
+                  {/* Background Image Upload */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Background Görsel:
+                    </label>
+                    <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 text-center">
+                      {backgroundPreview ? (
+                        <div className="space-y-3">
+                          <img
+                            src={backgroundPreview}
+                            alt="Preview"
+                            className="max-w-full h-32 object-contain mx-auto rounded"
+                          />
+                          <Button
+                            onClick={() => {
+                              setBackgroundImage(null);
+                              setBackgroundPreview('');
+                            }}
+                            variant="secondary"
+                            size="sm"
+                          >
+                            Görsel Değiştir
+                          </Button>
+                        </div>
+                      ) : (
+                        <div>
+                          <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                          <p className="text-gray-500 dark:text-gray-400 mb-3 text-sm">
+                            Görsel yüklemek için tıklayın
+                          </p>
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageSelect}
+                            className="hidden"
+                          />
+                          <Button
+                            onClick={() => fileInputRef.current?.click()}
+                            variant="secondary"
+                            size="sm"
+                          >
+                            Dosya Seç
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Design Type Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                      🎨 Tasarım Tipi:
+                    </label>
+                    <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
+                      <div className="space-y-2">
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="designType"
+                            value="black"
+                            checked={designType === 'black'}
+                            onChange={(e) => setDesignType(e.target.value as 'black' | 'white')}
+                            className="text-orange-600 focus:ring-orange-500"
+                          />
+                          <div className="flex items-center space-x-2">
+                            <div className="w-4 h-4 bg-black rounded border"></div>
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">Black Design</span>
+                          </div>
+                        </label>
+                        
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="designType"
+                            value="white"
+                            checked={designType === 'white'}
+                            onChange={(e) => setDesignType(e.target.value as 'black' | 'white')}
+                            className="text-orange-600 focus:ring-orange-500"
+                          />
+                          <div className="flex items-center space-x-2">
+                            <div className="w-4 h-4 bg-white rounded border border-gray-300"></div>
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">White Design</span>
+                          </div>
+                        </label>
+                      </div>
+                      <p className="text-xs text-orange-700 dark:text-orange-400 mt-2">
+                        Bu mockup için {designType === 'black' ? 'siyah' : 'beyaz'} tasarım kullanılacak
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Area Addition Buttons */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                      Alan Ekle:
+                    </label>
+                    <div className="space-y-2">
                       <Button
-                        onClick={() => {
-                          setBackgroundImage(null);
-                          setBackgroundPreview('');
-                        }}
+                        onClick={addDesignArea}
                         variant="secondary"
-                        size="sm"
+                        className="w-full flex items-center justify-center space-x-2"
                       >
-                        Görsel Değiştir
+                        <span className="material-icons text-lg">design_services</span>
+                        <span>Tasarım Alanı Ekle</span>
+                      </Button>
+                      
+                      <Button
+                        onClick={addTextArea}
+                        variant="secondary"
+                        className="w-full flex items-center justify-center space-x-2"
+                      >
+                        <span className="material-icons text-lg">text_fields</span>
+                        <span>Yazı Alanı Ekle</span>
+                      </Button>
+                      
+                      <Button
+                        onClick={addLogoArea}
+                        variant="secondary"
+                        className="w-full flex items-center justify-center space-x-2"
+                        disabled={!!logoArea}
+                      >
+                        <span className="material-icons text-lg">image</span>
+                        <span>Logo Alanı Ekle</span>
                       </Button>
                     </div>
-                  ) : (
+                  </div>
+
+                  {/* Area List */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                      Alanlar:
+                    </label>
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {/* Design Areas */}
+                      {designAreas.map((area, index) => (
+                        <div
+                          key={`design-${index}`}
+                          className={`p-2 rounded border cursor-pointer ${
+                            selectedArea === `design-${index}` 
+                              ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20' 
+                              : 'border-gray-200 dark:border-gray-600'
+                          }`}
+                          onClick={() => setSelectedArea(`design-${index}`)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-blue-600 dark:text-blue-400">
+                              🎨 Tasarım Alanı {index + 1}
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDesignAreas(prev => prev.filter((_, i) => i !== index));
+                                if (selectedArea === `design-${index}`) {
+                                  setSelectedArea(null);
+                                }
+                              }}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Text Areas */}
+                      {textAreas.map((area, index) => (
+                        <div
+                          key={`text-${index}`}
+                          className={`p-2 rounded border cursor-pointer ${
+                            selectedArea === `text-${index}` 
+                              ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20' 
+                              : 'border-gray-200 dark:border-gray-600'
+                          }`}
+                          onClick={() => setSelectedArea(`text-${index}`)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-green-600 dark:text-green-400">
+                              📝 Yazı Alanı {index + 1}
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTextAreas(prev => prev.filter((_, i) => i !== index));
+                                if (selectedArea === `text-${index}`) {
+                                  setSelectedArea(null);
+                                }
+                              }}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Logo Area */}
+                      {logoArea && (
+                        <div
+                          className={`p-2 rounded border cursor-pointer ${
+                            selectedArea === 'logo' 
+                              ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20' 
+                              : 'border-gray-200 dark:border-gray-600'
+                          }`}
+                          onClick={() => setSelectedArea('logo')}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-purple-600 dark:text-purple-400">
+                              🖼️ Logo Alanı
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLogoArea(null);
+                                if (selectedArea === 'logo') {
+                                  setSelectedArea(null);
+                                }
+                              }}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Selected Area Properties */}
+                  {selectedArea && (
                     <div>
-                      <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-500 dark:text-gray-400 mb-4">
-                        Görsel yüklemek için tıklayın
-                      </p>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageSelect}
-                        className="hidden"
-                        id="background-upload"
-                      />
-                      <label
-                        htmlFor="background-upload"
-                        className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
-                      >
-                        Dosya Seç
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                        Seçili Alan Özellikleri:
                       </label>
+                      <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 space-y-3">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {selectedArea.includes('design') && '🎨 Tasarım Alanı'}
+                          {selectedArea.includes('text') && '📝 Yazı Alanı'}
+                          {selectedArea === 'logo' && '🖼️ Logo Alanı'}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Canvas üzerinde seçili alanı sürükleyerek konumunu değiştirebilirsiniz.
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>
-              </div>
-
-              {/* Design Type Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                  🎨 Tasarım Tipi Seçin:
-                </label>
-                <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
-                  <div className="flex space-x-4">
-                    <label className="flex items-center space-x-3 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="designType"
-                        value="black"
-                        checked={designType === 'black'}
-                        onChange={(e) => setDesignType(e.target.value as 'black' | 'white')}
-                        className="text-orange-600 focus:ring-orange-500"
-                      />
-                      <div className="flex items-center space-x-2">
-                        <div className="w-6 h-6 bg-black rounded border-2 border-gray-300"></div>
-                        <span className="font-medium text-gray-900 dark:text-white">Black Design</span>
-                      </div>
-                    </label>
-                    
-                    <label className="flex items-center space-x-3 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="designType"
-                        value="white"
-                        checked={designType === 'white'}
-                        onChange={(e) => setDesignType(e.target.value as 'black' | 'white')}
-                        className="text-orange-600 focus:ring-orange-500"
-                      />
-                      <div className="flex items-center space-x-2">
-                        <div className="w-6 h-6 bg-white rounded border-2 border-gray-300"></div>
-                        <span className="font-medium text-gray-900 dark:text-white">White Design</span>
-                      </div>
-                    </label>
-                  </div>
-                  <p className="text-sm text-orange-700 dark:text-orange-400 mt-2">
-                    Bu mockup için {designType === 'black' ? 'siyah' : 'beyaz'} tasarım kullanılacak
-                  </p>
-                </div>
-              </div>
-
-              {/* Area Addition Buttons */}
-              <div className="space-y-3">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Alan Ekle:
-                </label>
-                <div className="grid grid-cols-3 gap-3">
-                  <Button
-                    variant="secondary"
-                    className="flex items-center justify-center space-x-2 p-3"
-                    disabled
-                  >
-                    <span className="material-icons text-lg">design_services</span>
-                    <span className="text-sm">Tasarım Alanı</span>
-                  </Button>
-                  
-                  <Button
-                    variant="secondary"
-                    className="flex items-center justify-center space-x-2 p-3"
-                    disabled
-                  >
-                    <span className="material-icons text-lg">text_fields</span>
-                    <span className="text-sm">Yazı Alanı Ekle</span>
-                  </Button>
-                  
-                  <Button
-                    variant="secondary"
-                    className="flex items-center justify-center space-x-2 p-3"
-                    disabled
-                  >
-                    <span className="material-icons text-lg">image</span>
-                    <span className="text-sm">Logo Alanı</span>
-                  </Button>
-                </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  * Alan ekleme özellikleri template kaydedildikten sonra aktif olacak
-                </p>
-              </div>
-            </div>
-            
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex space-x-3">
-                <Button
-                  onClick={saveTemplate}
-                  className="flex-1"
-                  disabled={!templateName.trim() || !backgroundImage}
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  Template\'i Kaydet
-                </Button>
-                <Button
-                  onClick={() => setShowCreateModal(false)}
-                  variant="secondary"
-                  className="flex-1"
-                >
-                  İptal
-                </Button>
               </div>
             </div>
           </div>
