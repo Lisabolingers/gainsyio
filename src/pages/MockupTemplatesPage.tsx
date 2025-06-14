@@ -870,50 +870,7 @@ const MockupTemplatesPage: React.FC = () => {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {/* Common Properties */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs text-gray-600 dark:text-gray-400">X:</label>
-                        <Input
-                          type="number"
-                          value={Math.round(getSelectedArea()?.x || 0)}
-                          onChange={(e) => updateSelectedArea('x', parseInt(e.target.value))}
-                          className="text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-600 dark:text-gray-400">Y:</label>
-                        <Input
-                          type="number"
-                          value={Math.round(getSelectedArea()?.y || 0)}
-                          onChange={(e) => updateSelectedArea('y', parseInt(e.target.value))}
-                          className="text-sm"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs text-gray-600 dark:text-gray-400">Genişlik:</label>
-                        <Input
-                          type="number"
-                          value={Math.round(getSelectedArea()?.width || 0)}
-                          onChange={(e) => updateSelectedArea('width', parseInt(e.target.value))}
-                          className="text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-600 dark:text-gray-400">Yükseklik:</label>
-                        <Input
-                          type="number"
-                          value={Math.round(getSelectedArea()?.height || 0)}
-                          onChange={(e) => updateSelectedArea('height', parseInt(e.target.value))}
-                          className="text-sm"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Text Area Specific Properties */}
+                    {/* Text Area Specific Properties - Sadeleştirilmiş */}
                     {selectedId.startsWith('text-') && (
                       <>
                         <div>
@@ -942,35 +899,6 @@ const MockupTemplatesPage: React.FC = () => {
                             className="text-sm h-10"
                           />
                         </div>
-                        <div>
-                          <label className="text-xs text-gray-600 dark:text-gray-400">Hizalama:</label>
-                          <select
-                            value={(getSelectedArea() as TextArea)?.align || 'center'}
-                            onChange={(e) => updateSelectedArea('align', e.target.value)}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                          >
-                            <option value="left">Sol</option>
-                            <option value="center">Orta</option>
-                            <option value="right">Sağ</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-600 dark:text-gray-400">Placeholder:</label>
-                          <Input
-                            value={(getSelectedArea() as TextArea)?.placeholder || ''}
-                            onChange={(e) => updateSelectedArea('placeholder', e.target.value)}
-                            className="text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-600 dark:text-gray-400">Max Karakter:</label>
-                          <Input
-                            type="number"
-                            value={(getSelectedArea() as TextArea)?.maxChars || 100}
-                            onChange={(e) => updateSelectedArea('maxChars', parseInt(e.target.value))}
-                            className="text-sm"
-                          />
-                        </div>
                       </>
                     )}
 
@@ -995,94 +923,6 @@ const MockupTemplatesPage: React.FC = () => {
                   </CardContent>
                 </Card>
               )}
-
-              {/* Areas List */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Alanlar Listesi</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {designAreas.map((area) => (
-                    <div
-                      key={area.id}
-                      className={`p-2 rounded border cursor-pointer ${
-                        selectedId === area.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-600'
-                      }`}
-                      onClick={() => setSelectedId(area.id)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">🔷 Tasarım Alanı</span>
-                        <Button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteArea(area.id);
-                          }}
-                          variant="danger"
-                          size="sm"
-                          className="p-1 h-6 w-6"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-
-                  {textAreas.map((area) => (
-                    <div
-                      key={area.id}
-                      className={`p-2 rounded border cursor-pointer ${
-                        selectedId === area.id ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-gray-600'
-                      }`}
-                      onClick={() => setSelectedId(area.id)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">📝 {area.text}</span>
-                        <Button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteArea(area.id);
-                          }}
-                          variant="danger"
-                          size="sm"
-                          className="p-1 h-6 w-6"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-
-                  {logoArea && (
-                    <div
-                      className={`p-2 rounded border cursor-pointer ${
-                        selectedId === logoArea.id ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'border-gray-200 dark:border-gray-600'
-                      }`}
-                      onClick={() => setSelectedId(logoArea.id)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">🖼️ Logo Alanı</span>
-                        <Button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteArea(logoArea.id);
-                          }}
-                          variant="danger"
-                          size="sm"
-                          className="p-1 h-6 w-6"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {designAreas.length === 0 && textAreas.length === 0 && !logoArea && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-                      Henüz alan eklenmemiş
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
             </div>
           </div>
         </div>
