@@ -84,6 +84,7 @@ const MockupTemplatesPage: React.FC = () => {
   const [logoArea, setLogoArea] = useState<LogoArea | null>(null);
   const [selectedArea, setSelectedArea] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [showAreas, setShowAreas] = useState(true);
   
@@ -211,10 +212,22 @@ const MockupTemplatesPage: React.FC = () => {
     setSelectedArea(newArea.id);
   };
 
-  const handleMouseDown = (e: React.MouseEvent, areaId: string) => {
+  // CRITICAL: Geliştirilmiş mouse event handlers
+  const handleMouseDown = (e: React.MouseEvent, areaId: string, action: 'move' | 'resize' = 'move') => {
     e.preventDefault();
+    e.stopPropagation();
+    
+    console.log(`🖱️ Mouse down: ${areaId}, action: ${action}`);
+    
     setSelectedArea(areaId);
-    setIsDragging(true);
+    
+    if (action === 'move') {
+      setIsDragging(true);
+      setIsResizing(false);
+    } else {
+      setIsResizing(true);
+      setIsDragging(false);
+    }
     
     const rect = canvasRef.current?.getBoundingClientRect();
     if (rect) {
@@ -229,22 +242,82 @@ const MockupTemplatesPage: React.FC = () => {
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || !selectedArea) return;
+    if (!selectedArea || (!isDragging && !isResizing)) return;
     
     const rect = canvasRef.current?.getBoundingClientRect();
-    if (rect) {
-      const newX = e.clientX - rect.left - dragOffset.x;
-      const newY = e.clientY - rect.top - dragOffset.y;
+    if (!rect) return;
+    
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    if (isDragging) {
+      const newX = Math.max(0, Math.min(600 - 50, mouseX - dragOffset.x));
+      const newY = Math.max(0, Math.min(600 - 50, mouseY - dragOffset.y));
       
+      console.log(`🔄 Dragging ${selectedArea} to: ${newX}, ${newY}`);
       updateAreaPosition(selectedArea, newX, newY);
+    } else if (isResizing) {
+      const area = [...designAreas, ...textAreas, ...(logoArea ? [logoArea] : [])].find(a => a.id === selectedArea);
+      if (area) {
+        const newWidth = Math.max(30, mouseX - area.x);
+        const newHeight = Math.max(20, mouseY - area.y);
+        
+        console.log(`🔄 Resizing ${selectedArea} to: ${newWidth}x${newHeight}`);
+        updateAreaSize(selectedArea, newWidth, newHeight);
+      }
     }
   };
 
   const handleMouseUp = () => {
+    console.log('🖱️ Mouse up - stopping drag/resize');
     setIsDragging(false);
+    setIsResizing(false);
   };
 
+  // CRITICAL: Global mouse events for better drag experience
+  useEffect(() => {
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (!selectedArea || (!isDragging && !isResizing)) return;
+      
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      if (isDragging) {
+        const newX = Math.max(0, Math.min(600 - 50, mouseX - dragOffset.x));
+        const newY = Math.max(0, Math.min(600 - 50, mouseY - dragOffset.y));
+        updateAreaPosition(selectedArea, newX, newY);
+      } else if (isResizing) {
+        const area = [...designAreas, ...textAreas, ...(logoArea ? [logoArea] : [])].find(a => a.id === selectedArea);
+        if (area) {
+          const newWidth = Math.max(30, mouseX - area.x);
+          const newHeight = Math.max(20, mouseY - area.y);
+          updateAreaSize(selectedArea, newWidth, newHeight);
+        }
+      }
+    };
+
+    const handleGlobalMouseUp = () => {
+      setIsDragging(false);
+      setIsResizing(false);
+    };
+
+    if (isDragging || isResizing) {
+      document.addEventListener('mousemove', handleGlobalMouseMove);
+      document.addEventListener('mouseup', handleGlobalMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleGlobalMouseMove);
+      document.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [isDragging, isResizing, selectedArea, dragOffset]);
+
   const updateAreaPosition = (areaId: string, x: number, y: number) => {
+    console.log(`📍 Updating position for ${areaId}: ${x}, ${y}`);
+    
     if (areaId.startsWith('design-')) {
       setDesignAreas(prev => prev.map(area => 
         area.id === areaId ? { ...area, x, y } : area
@@ -259,6 +332,8 @@ const MockupTemplatesPage: React.FC = () => {
   };
 
   const updateAreaSize = (areaId: string, width: number, height: number) => {
+    console.log(`📏 Updating size for ${areaId}: ${width}x${height}`);
+    
     if (areaId.startsWith('design-')) {
       setDesignAreas(prev => prev.map(area => 
         area.id === areaId ? { ...area, width, height } : area
@@ -398,6 +473,18 @@ const MockupTemplatesPage: React.FC = () => {
     const area = [...designAreas, ...textAreas, ...(logoArea ? [logoArea] : [])].find(a => a.id === selectedArea);
     return area;
   };
+
+  // CRITICAL: Resize handle component
+  const ResizeHandle: React.FC<{ areaId: string; position: 'se' }> = ({ areaId, position }) => (
+    <div
+      className="absolute w-3 h-3 bg-orange-500 border border-white cursor-se-resize"
+      style={{
+        right: position === 'se' ? -6 : undefined,
+        bottom: position === 'se' ? -6 : undefined,
+      }}
+      onMouseDown={(e) => handleMouseDown(e, areaId, 'resize')}
+    />
+  );
 
   if (loading) {
     return (
@@ -792,7 +879,7 @@ const MockupTemplatesPage: React.FC = () => {
                 <div className="flex items-center justify-center min-h-full">
                   <div
                     ref={canvasRef}
-                    className="relative bg-white border-2 border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden shadow-lg"
+                    className="relative bg-white border-2 border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden shadow-lg select-none"
                     style={{ width: '600px', height: '600px' }}
                     onMouseMove={handleMouseMove}
                     onMouseUp={handleMouseUp}
@@ -803,7 +890,7 @@ const MockupTemplatesPage: React.FC = () => {
                       <img
                         src={backgroundImage}
                         alt="Background"
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover pointer-events-none"
                         draggable={false}
                       />
                     )}
@@ -812,7 +899,7 @@ const MockupTemplatesPage: React.FC = () => {
                     {showAreas && designAreas.map((area) => (
                       <div
                         key={area.id}
-                        className={`absolute border-2 cursor-move ${
+                        className={`absolute border-2 cursor-move select-none ${
                           selectedArea === area.id 
                             ? 'border-orange-500 bg-orange-500 bg-opacity-20' 
                             : 'border-blue-500 bg-blue-500 bg-opacity-20'
@@ -825,11 +912,14 @@ const MockupTemplatesPage: React.FC = () => {
                           transform: `rotate(${area.rotation}deg)`,
                           opacity: area.opacity
                         }}
-                        onMouseDown={(e) => handleMouseDown(e, area.id)}
+                        onMouseDown={(e) => handleMouseDown(e, area.id, 'move')}
                       >
-                        <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-700">
+                        <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-700 pointer-events-none">
                           {area.name}
                         </div>
+                        {selectedArea === area.id && (
+                          <ResizeHandle areaId={area.id} position="se" />
+                        )}
                       </div>
                     ))}
 
@@ -837,7 +927,7 @@ const MockupTemplatesPage: React.FC = () => {
                     {showAreas && textAreas.map((area) => (
                       <div
                         key={area.id}
-                        className={`absolute border-2 cursor-move ${
+                        className={`absolute border-2 cursor-move select-none ${
                           selectedArea === area.id 
                             ? 'border-orange-500 bg-orange-500 bg-opacity-20' 
                             : 'border-green-500 bg-green-500 bg-opacity-20'
@@ -852,18 +942,21 @@ const MockupTemplatesPage: React.FC = () => {
                           fontSize: `${area.font_size}px`,
                           color: area.color
                         }}
-                        onMouseDown={(e) => handleMouseDown(e, area.id)}
+                        onMouseDown={(e) => handleMouseDown(e, area.id, 'move')}
                       >
-                        <div className="absolute inset-0 flex items-center justify-center text-xs font-medium p-1 overflow-hidden">
+                        <div className="absolute inset-0 flex items-center justify-center text-xs font-medium p-1 overflow-hidden pointer-events-none">
                           {area.placeholder_text}
                         </div>
+                        {selectedArea === area.id && (
+                          <ResizeHandle areaId={area.id} position="se" />
+                        )}
                       </div>
                     ))}
 
                     {/* Logo Area */}
                     {showAreas && logoArea && (
                       <div
-                        className={`absolute border-2 cursor-move ${
+                        className={`absolute border-2 cursor-move select-none ${
                           selectedArea === logoArea.id 
                             ? 'border-orange-500 bg-orange-500 bg-opacity-20' 
                             : 'border-purple-500 bg-purple-500 bg-opacity-20'
@@ -876,17 +969,20 @@ const MockupTemplatesPage: React.FC = () => {
                           transform: `rotate(${logoArea.rotation}deg)`,
                           opacity: logoArea.opacity
                         }}
-                        onMouseDown={(e) => handleMouseDown(e, logoArea.id)}
+                        onMouseDown={(e) => handleMouseDown(e, logoArea.id, 'move')}
                       >
-                        <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-700">
+                        <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-700 pointer-events-none">
                           {logoArea.name}
                         </div>
+                        {selectedArea === logoArea.id && (
+                          <ResizeHandle areaId={logoArea.id} position="se" />
+                        )}
                       </div>
                     )}
 
                     {/* Empty State */}
                     {!backgroundImage && (
-                      <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                      <div className="absolute inset-0 flex items-center justify-center text-gray-400 pointer-events-none">
                         <div className="text-center">
                           <Image className="h-16 w-16 mx-auto mb-4" />
                           <p>Background görsel yükleyin</p>
