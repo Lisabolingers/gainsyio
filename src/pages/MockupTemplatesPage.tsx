@@ -212,6 +212,15 @@ const MockupTemplatesPage: React.FC = () => {
     setSelectedArea(newArea.id);
   };
 
+  // CRITICAL: Canvas tıklama işleyicisi - boş alana tıklandığında seçimi kaldır
+  const handleCanvasClick = (e: React.MouseEvent) => {
+    // Eğer tıklanan element canvas'ın kendisi ise (background) seçimi kaldır
+    if (e.target === e.currentTarget) {
+      console.log('🖱️ Canvas boş alanına tıklandı, seçim kaldırılıyor');
+      setSelectedArea(null);
+    }
+  };
+
   // CRITICAL: Geliştirilmiş mouse event handlers
   const handleMouseDown = (e: React.MouseEvent, areaId: string, action: 'move' | 'resize' = 'move') => {
     e.preventDefault();
@@ -347,22 +356,24 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
-  // CRITICAL: Fixed font size update function
+  // CRITICAL: Düzeltilmiş font boyutu güncelleme fonksiyonu
   const updateTextAreaProperty = (areaId: string, property: string, value: any) => {
-    console.log(`🔄 Updating text area property: ${areaId}, ${property} = ${value}`);
+    console.log(`🔄 Text area property güncelleniyor: ${areaId}, ${property} = ${value}`);
     
-    // CRITICAL: Ensure font_size is properly converted to number
+    // CRITICAL: Font boyutu için özel işlem
     let processedValue = value;
     if (property === 'font_size') {
-      processedValue = parseInt(value) || 12; // Default to 12 if invalid
-      console.log(`📝 Font size processed: ${value} -> ${processedValue}`);
+      // String'i number'a çevir, geçersizse default değer kullan
+      const numValue = typeof value === 'string' ? parseInt(value, 10) : value;
+      processedValue = isNaN(numValue) ? 12 : Math.max(8, Math.min(72, numValue));
+      console.log(`📝 Font size işlendi: ${value} -> ${processedValue}`);
     }
     
     setTextAreas(prev => {
       const updated = prev.map(area => 
         area.id === areaId ? { ...area, [property]: processedValue } : area
       );
-      console.log(`✅ Text areas updated:`, updated);
+      console.log(`✅ Text areas güncellendi:`, updated.find(a => a.id === areaId));
       return updated;
     });
   };
@@ -829,14 +840,14 @@ const MockupTemplatesPage: React.FC = () => {
                                 
                                 <div>
                                   <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Font Boyutu:</label>
-                                  <Input
+                                  <input
                                     type="number"
                                     value={(area as TextArea).font_size}
                                     onChange={(e) => {
-                                      console.log(`🔄 Font size input changed: ${e.target.value}`);
+                                      console.log(`🔄 Font size input değişti: ${e.target.value}`);
                                       updateTextAreaProperty(area.id, 'font_size', e.target.value);
                                     }}
-                                    className="w-full text-sm"
+                                    className="w-full text-sm p-2 border rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
                                     min="8"
                                     max="72"
                                     step="1"
@@ -902,6 +913,7 @@ const MockupTemplatesPage: React.FC = () => {
                     onMouseMove={handleMouseMove}
                     onMouseUp={handleMouseUp}
                     onMouseLeave={handleMouseUp}
+                    onClick={handleCanvasClick}
                   >
                     {/* Background Image */}
                     {backgroundImage && (
