@@ -944,16 +944,6 @@ const DesignSettings = () => {
         <Button className="mt-4 w-full" onClick={addText}>
           Add Text
         </Button>
-          
-        {/* Enhanced user tips */}
-        <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <div className="text-sm text-blue-700 dark:text-blue-400 space-y-1">
-            <p><strong>💡 Tips:</strong></p>
-            <p>• <strong>Click empty area</strong> → Clears selection, shows only text</p>
-            <p>• <strong>Click on text</strong> → Selects text and shows editing frame</p>
-            <p>• <strong>Dragging</strong> → Only selected texts can be dragged</p>
-          </div>
-        </div>
       </div>
     </div>
   );
