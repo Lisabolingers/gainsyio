@@ -45,6 +45,7 @@ interface Props {
   alignText: (alignment: string) => void;
   updateTextProperty: (textId: number, property: string, value: any) => void;
   onDelete: (textId: number) => void;
+  onFontUploaded?: () => void; // CRITICAL: Font yüklendiğinde callback
 }
 
 const AccordionTextControls: React.FC<Props> = ({
@@ -59,7 +60,8 @@ const AccordionTextControls: React.FC<Props> = ({
   handleFontUpload,
   alignText,
   updateTextProperty,
-  onDelete
+  onDelete,
+  onFontUploaded
 }) => {
   // CRITICAL: Her text için ayrı state - sadece bir bölüm açık olabilir
   const [activeSection, setActiveSection] = useState<'textOptions' | 'colorOptions' | 'styleOptions' | null>('textOptions');
@@ -82,6 +84,19 @@ const AccordionTextControls: React.FC<Props> = ({
     } else {
       console.log(`✅ Yeni bölüm açılıyor: ${section}`);
       setActiveSection(section);
+    }
+  };
+
+  // CRITICAL: Font yüklendiğinde callback'i çağır
+  const handleFontUploadWithCallback = (fontData: { display: string, value: string }) => {
+    console.log('🎉 Font yüklendi, callback çağrılıyor:', fontData);
+    
+    // Yeni font'u seçili text'e otomatik uygula
+    updateTextProperty(text.id, 'fontFamily', fontData.display);
+    
+    // Parent component'e bildir
+    if (onFontUploaded) {
+      onFontUploaded();
     }
   };
 
@@ -155,8 +170,12 @@ const AccordionTextControls: React.FC<Props> = ({
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Font:</label>
                     <div className="flex gap-2">
                       <select 
+                        key={`font-select-${text.id}-${allFonts.length}`} // CRITICAL: Key ile zorla re-render
                         value={text.fontFamily} 
-                        onChange={(e) => updateTextProperty(text.id, 'fontFamily', e.target.value)} 
+                        onChange={(e) => {
+                          console.log(`🔄 Font değiştiriliyor: ${e.target.value}`);
+                          updateTextProperty(text.id, 'fontFamily', e.target.value);
+                        }} 
                         className="flex-1 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                         disabled={fontsLoading || !fontsInitialized}
                       >
@@ -166,7 +185,7 @@ const AccordionTextControls: React.FC<Props> = ({
                       </select>
                       
                       <FontUploadButton 
-                        onFontUploaded={() => {}}
+                        onFontUploaded={handleFontUploadWithCallback}
                         className="p-2 h-10 w-10 flex items-center justify-center"
                       />
                     </div>

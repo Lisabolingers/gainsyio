@@ -21,11 +21,8 @@ const DesignSettings = () => {
     'Comic Sans MS', 'Courier New'
   ];
   
-  // Tüm fontları birleştir
-  const allFonts = [
-    ...systemFonts,
-    ...userFonts.map(font => font.font_name)
-  ];
+  // CRITICAL: Font listesi state'i - otomatik güncelleme için
+  const [allFonts, setAllFonts] = useState<string[]>(systemFonts);
   
   const [canvasSize, setCanvasSize] = useState({ width: 1000, height: 1000 });
   const [templateName, setTemplateName] = useState('');
@@ -58,6 +55,20 @@ const DesignSettings = () => {
   const transformerRef = useRef();
   const groupRefs = useRef({});
   const fileInputRef = useRef();
+
+  // CRITICAL: Font listesini güncelle - userFonts değiştiğinde
+  useEffect(() => {
+    const updatedFonts = [
+      ...systemFonts,
+      ...userFonts.map(font => font.font_name)
+    ];
+    
+    console.log('🔄 Font listesi güncelleniyor:', updatedFonts);
+    setAllFonts(updatedFonts);
+    
+    // Canvas'ı zorla yeniden render et
+    setForceRender(prev => prev + 1);
+  }, [userFonts]);
 
   // CRITICAL: Template yükleme - URL'den template ID'si al
   useEffect(() => {
@@ -617,6 +628,23 @@ const DesignSettings = () => {
     }
   };
 
+  // CRITICAL: Font yüklendiğinde callback
+  const handleFontUploaded = async () => {
+    console.log('🎉 Font yüklendi, font listesi yenileniyor...');
+    
+    try {
+      // Font listesini yenile
+      await loadUserFonts();
+      
+      // Canvas'ı zorla yeniden render et
+      setForceRender(prev => prev + 1);
+      
+      console.log('✅ Font listesi başarıyla yenilendi');
+    } catch (error) {
+      console.error('❌ Font listesi yenileme hatası:', error);
+    }
+  };
+
   // CRITICAL: Enhanced text rendering with proper font handling
   const renderKonvaText = (text) => {
     console.log(`🎨 Text render ediliyor: "${text.text.substring(0, 20)}..." font: ${text.fontFamily}`);
@@ -871,6 +899,7 @@ const DesignSettings = () => {
             alignText={alignText}
             updateTextProperty={updateTextProperty}
             onDelete={deleteText}
+            onFontUploaded={handleFontUploaded} // CRITICAL: Callback eklendi
           />
         ))}
         
