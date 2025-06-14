@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Plus, Edit, Trash2, Eye, Search, Filter, Grid, List, ExternalLink, Star, Heart, TrendingUp, Store, Calendar, DollarSign, Tag, Image as ImageIcon, MoreHorizontal } from 'lucide-react';
+import { Package, Plus, Edit, Trash2, Eye, Search, Filter, List, ExternalLink, Star, Heart, TrendingUp, Store, Calendar, DollarSign, Tag, Image as ImageIcon, MoreHorizontal } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
@@ -42,7 +42,6 @@ const ProductsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'price_high' | 'price_low' | 'views' | 'sales'>('newest');
 
@@ -390,20 +389,10 @@ const ProductsPage: React.FC = () => {
             <option value="sales">Best Selling</option>
           </select>
 
-          {/* View Mode */}
-          <div className="flex border border-gray-300 dark:border-gray-600 rounded-lg">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 ${viewMode === 'grid' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400'} rounded-l-lg`}
-            >
-              <Grid className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-2 ${viewMode === 'list' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400'} rounded-r-lg`}
-            >
-              <List className="h-4 w-4" />
-            </button>
+          {/* List View Indicator */}
+          <div className="flex items-center px-3 py-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+            <List className="h-4 w-4 text-orange-600 dark:text-orange-400 mr-2" />
+            <span className="text-sm text-orange-700 dark:text-orange-400 font-medium">List View</span>
           </div>
         </div>
       </div>
@@ -470,258 +459,156 @@ const ProductsPage: React.FC = () => {
             </label>
           </div>
 
-          {/* Grid View */}
-          {viewMode === 'grid' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredProducts.map((product) => (
-                <Card key={product.id} className="hover:shadow-lg transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      {/* Product Image */}
-                      <div className="relative aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
+          {/* List View - Always Displayed */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <input
+                      type="checkbox"
+                      checked={selectedProducts.length === filteredProducts.length}
+                      onChange={selectAllProducts}
+                      className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                    />
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Product
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Price
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Performance
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Tags
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Created
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {filteredProducts.map((product) => (
+                  <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={selectedProducts.includes(product.id)}
+                        onChange={() => toggleProductSelection(product.id)}
+                        className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                      />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-3">
                         <img
                           src={product.images[0]}
                           alt={product.title}
-                          className="w-full h-full object-cover"
+                          className="w-12 h-12 object-cover rounded-lg"
                         />
-                        
-                        {/* Status Badge */}
-                        <div className="absolute top-2 left-2">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(product.status)}`}>
-                            {getStatusIcon(product.status)} {product.status}
-                          </span>
-                        </div>
-
-                        {/* Selection Checkbox */}
-                        <div className="absolute top-2 right-2">
-                          <input
-                            type="checkbox"
-                            checked={selectedProducts.includes(product.id)}
-                            onChange={() => toggleProductSelection(product.id)}
-                            className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                          />
-                        </div>
-
-                        {/* Quick Actions Overlay */}
-                        <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center space-x-2">
-                          <button
-                            onClick={() => alert('View product details')}
-                            className="p-2 bg-white text-gray-900 rounded-full hover:bg-gray-100"
-                            title="View details"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => alert('Edit product')}
-                            className="p-2 bg-white text-gray-900 rounded-full hover:bg-gray-100"
-                            title="Edit product"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => alert('View on Etsy')}
-                            className="p-2 bg-white text-gray-900 rounded-full hover:bg-gray-100"
-                            title="View on Etsy"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Product Info */}
-                      <div className="space-y-2">
-                        <h3 className="font-medium text-gray-900 dark:text-white text-sm line-clamp-2">
-                          {product.title}
-                        </h3>
-                        
-                        <div className="flex items-center justify-between">
-                          <span className="text-lg font-bold text-gray-900 dark:text-white">
-                            ${product.price}
-                          </span>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {product.currency}
-                          </span>
-                        </div>
-
-                        {/* Stats */}
-                        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                          <div className="flex items-center space-x-3">
-                            <div className="flex items-center space-x-1">
-                              <Eye className="h-3 w-3" />
-                              <span>{product.views}</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <Heart className="h-3 w-3" />
-                              <span>{product.favorites}</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <TrendingUp className="h-3 w-3" />
-                              <span>{product.sales_count}</span>
-                            </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2 max-w-xs">
+                            {product.title}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {product.store?.store_name} • ID: {product.external_id}
                           </div>
                         </div>
-
-                        {/* Tags */}
-                        <div className="flex flex-wrap gap-1">
-                          {product.tags.slice(0, 3).map((tag, index) => (
-                            <span
-                              key={index}
-                              className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-xs rounded-full text-gray-600 dark:text-gray-400"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                          {product.tags.length > 3 && (
-                            <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-xs rounded-full text-gray-600 dark:text-gray-400">
-                              +{product.tags.length - 3}
-                            </span>
-                          )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(product.status)}`}>
+                        {getStatusIcon(product.status)} {product.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">
+                        ${product.price}
+                      </div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {product.currency}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center space-x-1" title="Views">
+                          <Eye className="h-4 w-4" />
+                          <span>{product.views.toLocaleString()}</span>
                         </div>
-
-                        {/* Date */}
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          Created: {formatDate(product.created_at)}
+                        <div className="flex items-center space-x-1" title="Favorites">
+                          <Heart className="h-4 w-4" />
+                          <span>{product.favorites}</span>
+                        </div>
+                        <div className="flex items-center space-x-1" title="Sales">
+                          <TrendingUp className="h-4 w-4" />
+                          <span>{product.sales_count}</span>
                         </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          {/* List View */}
-          {viewMode === 'list' && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-700">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      <input
-                        type="checkbox"
-                        checked={selectedProducts.length === filteredProducts.length}
-                        onChange={selectAllProducts}
-                        className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                      />
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Product
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Price
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Performance
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Created
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Actions
-                    </th>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-wrap gap-1 max-w-xs">
+                        {product.tags.slice(0, 3).map((tag, index) => (
+                          <span
+                            key={index}
+                            className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-xs rounded-full text-gray-600 dark:text-gray-400"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                        {product.tags.length > 3 && (
+                          <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-xs rounded-full text-gray-600 dark:text-gray-400">
+                            +{product.tags.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      {formatDate(product.created_at)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => alert('View product details')}
+                          className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300"
+                          title="View details"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => alert('Edit product')}
+                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                          title="Edit product"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => alert('View on Etsy')}
+                          className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                          title="View on Etsy"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => alert('More actions')}
+                          className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
+                          title="More actions"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {filteredProducts.map((product) => (
-                    <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <input
-                          type="checkbox"
-                          checked={selectedProducts.includes(product.id)}
-                          onChange={() => toggleProductSelection(product.id)}
-                          className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                        />
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-3">
-                          <img
-                            src={product.images[0]}
-                            alt={product.title}
-                            className="w-12 h-12 object-cover rounded-lg"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                              {product.title}
-                            </div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">
-                              {product.store?.store_name}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(product.status)}`}>
-                          {getStatusIcon(product.status)} {product.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          ${product.price}
-                        </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          {product.currency}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-                          <div className="flex items-center space-x-1">
-                            <Eye className="h-4 w-4" />
-                            <span>{product.views}</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <Heart className="h-4 w-4" />
-                            <span>{product.favorites}</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <TrendingUp className="h-4 w-4" />
-                            <span>{product.sales_count}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {formatDate(product.created_at)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => alert('View product details')}
-                            className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300"
-                            title="View details"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => alert('Edit product')}
-                            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                            title="Edit product"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => alert('View on Etsy')}
-                            className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                            title="View on Etsy"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => alert('More actions')}
-                            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
-                            title="More actions"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
 
@@ -731,14 +618,14 @@ const ProductsPage: React.FC = () => {
           <Package className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
           <div>
             <h3 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
-              📦 Sample Product Data
+              📦 Sample Product Data - List View Only
             </h3>
             <p className="text-sm text-blue-600 dark:text-blue-300">
-              These are sample products to demonstrate the interface. In the real application, 
-              products will be synced from your connected Etsy stores via API integration.
+              Products are now displayed in a clean, detailed list format for better data visibility. 
+              This view shows all product information in a compact, scannable table format.
               <br />
-              <strong>Features shown:</strong> Grid/List views, filtering, sorting, bulk actions, 
-              status management, and performance metrics.
+              <strong>Features:</strong> Enhanced product details, performance metrics, tag display, 
+              and quick action buttons for efficient product management.
             </p>
           </div>
         </div>
