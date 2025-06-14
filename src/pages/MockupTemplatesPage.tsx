@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Image, Plus, Edit, Trash2, Copy, Search, Filter, Grid, List, Save, Download, Upload, Move, Eye, EyeOff, X } from 'lucide-react';
+import { Image, Plus, Edit, Trash2, Copy, Search, Filter, Grid, List, Save, Download, Upload, Move, Eye, EyeOff, X, Layers, MousePointer, RotateCw, Maximize2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
-import { Stage, Layer, Rect, Circle, Group, Transformer } from 'react-konva';
+import { Stage, Layer, Rect, Circle, Group, Transformer, Text as KonvaText } from 'react-konva';
 
 interface MockupTemplate {
   id: string;
@@ -30,6 +30,13 @@ interface DesignArea {
   height: number;
   rotation: number;
   name: string;
+  // Text area specific properties
+  fontFamily?: string;
+  fontSize?: number;
+  textColor?: string;
+  placeholder?: string;
+  maxCharacters?: number;
+  alignment?: 'left' | 'center' | 'right';
 }
 
 const MockupTemplatesPage: React.FC = () => {
@@ -41,7 +48,7 @@ const MockupTemplatesPage: React.FC = () => {
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   
-  // CRITICAL: Canvas ve template oluşturma state'leri - ESKİ HALİ
+  // CRITICAL: Enhanced canvas ve template oluşturma state'leri
   const [templateName, setTemplateName] = useState('');
   const [backgroundImage, setBackgroundImage] = useState<string>('');
   const [designType, setDesignType] = useState<'black' | 'white'>('black');
@@ -49,6 +56,7 @@ const MockupTemplatesPage: React.FC = () => {
   const [designAreas, setDesignAreas] = useState<DesignArea[]>([]);
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showAreaVisibility, setShowAreaVisibility] = useState(true);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const stageRef = useRef<any>(null);
@@ -85,74 +93,156 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
-  // CRITICAL: Background image upload - ESKİ HALİ
+  // CRITICAL: Enhanced background image upload with auto-sizing
   const handleBackgroundUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Lütfen geçerli bir resim dosyası seçin!');
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Dosya boyutu çok büyük! Maksimum 10MB olmalı.');
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (e) => {
       const result = e.target?.result as string;
       setBackgroundImage(result);
       
-      // Auto-detect canvas size from image
+      // Auto-detect canvas size from image with reasonable limits
       const img = new Image();
       img.onload = () => {
-        setCanvasSize({ width: img.width, height: img.height });
+        const maxWidth = 1200;
+        const maxHeight = 900;
+        let { width, height } = img;
+        
+        // Scale down if too large
+        if (width > maxWidth || height > maxHeight) {
+          const scale = Math.min(maxWidth / width, maxHeight / height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        
+        setCanvasSize({ width, height });
+        console.log(`📐 Canvas boyutu ayarlandı: ${width}x${height}`);
       };
       img.src = result;
     };
     reader.readAsDataURL(file);
   };
 
-  // CRITICAL: Add design area - ESKİ HALİ
+  // CRITICAL: Enhanced add design area with smart positioning
   const addDesignArea = (type: 'design' | 'text' | 'logo') => {
+    // Limit logo areas to 1
+    if (type === 'logo' && designAreas.some(area => area.type === 'logo')) {
+      alert('Sadece bir logo alanı ekleyebilirsiniz!');
+      return;
+    }
+
+    // Limit design areas to 1
+    if (type === 'design' && designAreas.some(area => area.type === 'design')) {
+      alert('Sadece bir tasarım alanı ekleyebilirsiniz!');
+      return;
+    }
+
+    // Smart positioning - avoid overlaps
+    const existingAreas = designAreas.filter(a => a.type === type);
+    const offset = existingAreas.length * 20;
+    
     const newArea: DesignArea = {
       id: `${type}-${Date.now()}`,
       type,
-      x: canvasSize.width / 2 - 75,
-      y: canvasSize.height / 2 - 75,
-      width: 150,
-      height: 150,
+      x: Math.min(canvasSize.width / 2 - 75 + offset, canvasSize.width - 150),
+      y: Math.min(canvasSize.height / 2 - 75 + offset, canvasSize.height - 150),
+      width: type === 'text' ? 200 : 150,
+      height: type === 'text' ? 60 : 150,
       rotation: 0,
-      name: `${type.charAt(0).toUpperCase() + type.slice(1)} Area ${designAreas.filter(a => a.type === type).length + 1}`
+      name: `${type.charAt(0).toUpperCase() + type.slice(1)} Area ${existingAreas.length + 1}`,
+      // Text area defaults
+      ...(type === 'text' && {
+        fontFamily: 'Arial',
+        fontSize: 24,
+        textColor: designType === 'black' ? '#000000' : '#FFFFFF',
+        placeholder: 'Örnek metin...',
+        maxCharacters: 100,
+        alignment: 'center' as const
+      })
     };
     
     setDesignAreas(prev => [...prev, newArea]);
     setSelectedAreaId(newArea.id);
+    console.log(`✅ ${type} alanı eklendi:`, newArea);
   };
 
-  // CRITICAL: Delete design area - ESKİ HALİ
+  // CRITICAL: Enhanced delete design area
   const deleteDesignArea = (areaId: string) => {
-    setDesignAreas(prev => prev.filter(area => area.id !== areaId));
-    if (selectedAreaId === areaId) {
-      setSelectedAreaId(null);
+    const area = designAreas.find(a => a.id === areaId);
+    if (!area) return;
+
+    if (window.confirm(`"${area.name}" alanını silmek istediğinizden emin misiniz?`)) {
+      setDesignAreas(prev => prev.filter(area => area.id !== areaId));
+      if (selectedAreaId === areaId) {
+        setSelectedAreaId(null);
+      }
+      console.log(`🗑️ Alan silindi: ${area.name}`);
     }
   };
 
-  // CRITICAL: Update area properties - ESKİ HALİ
+  // CRITICAL: Enhanced update area properties with validation
   const updateAreaProperty = (areaId: string, property: string, value: any) => {
     setDesignAreas(prev => 
-      prev.map(area => 
-        area.id === areaId ? { ...area, [property]: value } : area
-      )
+      prev.map(area => {
+        if (area.id !== areaId) return area;
+        
+        // Validate numeric values
+        if (['x', 'y', 'width', 'height', 'fontSize', 'maxCharacters'].includes(property)) {
+          const numValue = typeof value === 'string' ? parseFloat(value) : value;
+          if (isNaN(numValue) || numValue < 0) return area;
+          
+          // Apply constraints
+          if (property === 'width' || property === 'height') {
+            value = Math.max(30, Math.min(canvasSize[property === 'width' ? 'width' : 'height'], numValue));
+          }
+          if (property === 'x') {
+            value = Math.max(0, Math.min(canvasSize.width - area.width, numValue));
+          }
+          if (property === 'y') {
+            value = Math.max(0, Math.min(canvasSize.height - area.height, numValue));
+          }
+          if (property === 'fontSize') {
+            value = Math.max(8, Math.min(72, numValue));
+          }
+          if (property === 'maxCharacters') {
+            value = Math.max(1, Math.min(500, numValue));
+          }
+        }
+        
+        return { ...area, [property]: value };
+      })
     );
   };
 
-  // CRITICAL: Handle area selection on canvas - ESKİ HALİ
+  // CRITICAL: Enhanced area selection on canvas
   const handleAreaClick = (areaId: string) => {
     setSelectedAreaId(areaId);
+    console.log(`🎯 Alan seçildi: ${areaId}`);
   };
 
-  // CRITICAL: Handle area drag - ESKİ HALİ
+  // CRITICAL: Enhanced area drag with constraints
   const handleAreaDragEnd = (areaId: string, e: any) => {
-    const newX = e.target.x();
-    const newY = e.target.y();
+    const newX = Math.max(0, Math.min(canvasSize.width - 150, e.target.x()));
+    const newY = Math.max(0, Math.min(canvasSize.height - 150, e.target.y()));
     updateAreaProperty(areaId, 'x', newX);
     updateAreaProperty(areaId, 'y', newY);
   };
 
-  // CRITICAL: Handle area transform - ESKİ HALİ
+  // CRITICAL: Enhanced area transform with constraints
   const handleAreaTransformEnd = (areaId: string, e: any) => {
     const node = e.target;
     const scaleX = node.scaleX();
@@ -162,14 +252,19 @@ const MockupTemplatesPage: React.FC = () => {
     node.scaleX(1);
     node.scaleY(1);
     
-    updateAreaProperty(areaId, 'width', node.width() * scaleX);
-    updateAreaProperty(areaId, 'height', node.height() * scaleY);
-    updateAreaProperty(areaId, 'x', node.x());
-    updateAreaProperty(areaId, 'y', node.y());
+    const newWidth = Math.max(30, Math.min(canvasSize.width, node.width() * scaleX));
+    const newHeight = Math.max(30, Math.min(canvasSize.height, node.height() * scaleY));
+    const newX = Math.max(0, Math.min(canvasSize.width - newWidth, node.x()));
+    const newY = Math.max(0, Math.min(canvasSize.height - newHeight, node.y()));
+    
+    updateAreaProperty(areaId, 'width', newWidth);
+    updateAreaProperty(areaId, 'height', newHeight);
+    updateAreaProperty(areaId, 'x', newX);
+    updateAreaProperty(areaId, 'y', newY);
     updateAreaProperty(areaId, 'rotation', node.rotation());
   };
 
-  // CRITICAL: Save template - ESKİ HALİ
+  // CRITICAL: Enhanced save template with validation
   const saveTemplate = async () => {
     if (!templateName.trim()) {
       alert('Lütfen template adı girin!');
@@ -178,6 +273,11 @@ const MockupTemplatesPage: React.FC = () => {
 
     if (!backgroundImage) {
       alert('Lütfen background görsel yükleyin!');
+      return;
+    }
+
+    if (designAreas.length === 0) {
+      alert('En az bir alan eklemelisiniz!');
       return;
     }
 
@@ -322,14 +422,34 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
-  // CRITICAL: Canvas scale calculation - ESKİ HALİ
-  const maxCanvasWidth = 600;
-  const maxCanvasHeight = 400;
+  // CRITICAL: Enhanced canvas scale calculation
+  const maxCanvasWidth = 700;
+  const maxCanvasHeight = 500;
   const scale = Math.min(
     maxCanvasWidth / canvasSize.width,
     maxCanvasHeight / canvasSize.height,
     1
   );
+
+  // CRITICAL: Get area color based on type
+  const getAreaColor = (type: string, isSelected: boolean = false) => {
+    const colors = {
+      design: isSelected ? '#3b82f6' : '#60a5fa',
+      text: isSelected ? '#22c55e' : '#4ade80',
+      logo: isSelected ? '#a855f7' : '#c084fc'
+    };
+    return colors[type as keyof typeof colors] || colors.design;
+  };
+
+  // CRITICAL: Get area icon
+  const getAreaIcon = (type: string) => {
+    switch (type) {
+      case 'design': return '🎨';
+      case 'text': return '📝';
+      case 'logo': return '🏷️';
+      default: return '📦';
+    }
+  };
 
   if (loading) {
     return (
@@ -491,7 +611,7 @@ const MockupTemplatesPage: React.FC = () => {
                   <CardContent>
                     <div className="space-y-3">
                       {/* Template Preview */}
-                      <div className="aspect-video bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
+                      <div className="aspect-video bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden relative">
                         {template.image_url ? (
                           <img
                             src={template.image_url}
@@ -503,20 +623,21 @@ const MockupTemplatesPage: React.FC = () => {
                             <Image className="h-8 w-8" />
                           </div>
                         )}
-                      </div>
-
-                      {/* Template Info */}
-                      <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                        <div className="flex justify-between">
-                          <span>Tasarım Tipi:</span>
-                          <span className={`px-2 py-1 rounded-full text-xs ${
+                        
+                        {/* Design Type Badge */}
+                        <div className="absolute top-2 right-2">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                             template.design_type === 'black' 
                               ? 'bg-gray-800 text-white' 
                               : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-white'
                           }`}>
-                            {template.design_type === 'black' ? '⚫ Black Design' : '⚪ White Design'}
+                            {template.design_type === 'black' ? '⚫ Black' : '⚪ White'}
                           </span>
                         </div>
+                      </div>
+
+                      {/* Template Info */}
+                      <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
                         <div className="flex justify-between">
                           <span>Tasarım Alanları:</span>
                           <span className="font-medium">{template.design_areas?.length || 0}</span>
@@ -675,7 +796,7 @@ const MockupTemplatesPage: React.FC = () => {
         className="hidden"
       />
 
-      {/* CRITICAL: Create Template Modal - ESKİ ÇALIŞAN HALİ - POPUP ÜST BOŞLUK DÜZELTİLDİ */}
+      {/* CRITICAL: Enhanced Create Template Modal - POPUP ÜST BOŞLUK DÜZELTİLDİ */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-7xl w-full h-[95vh] overflow-hidden shadow-2xl">
@@ -683,7 +804,7 @@ const MockupTemplatesPage: React.FC = () => {
             <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  Yeni Mockup Template Oluştur
+                  🎨 Yeni Mockup Template Oluştur
                 </h2>
                 <button
                   onClick={() => {
@@ -700,20 +821,20 @@ const MockupTemplatesPage: React.FC = () => {
               </div>
             </div>
 
-            {/* CRITICAL: ESKİ DÜZEN - SOL TARAF MENÜLER, SAĞ TARAF CANVAS */}
+            {/* CRITICAL: ENHANCED LAYOUT - SOL TARAF MENÜLER, SAĞ TARAF CANVAS */}
             <div className="flex h-[calc(95vh-120px)]">
-              {/* CRITICAL: SOL TARAF - MENÜLER */}
+              {/* CRITICAL: SOL TARAF - ENHANCED MENÜLER */}
               <div className="w-1/3 p-6 border-r border-gray-200 dark:border-gray-700 overflow-y-auto bg-gray-50 dark:bg-gray-700/50">
                 <div className="space-y-6">
                   {/* Template Adı */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Template Adı:
+                      📝 Template Adı:
                     </label>
                     <Input
                       value={templateName}
                       onChange={(e) => setTemplateName(e.target.value)}
-                      placeholder="Örn: Poster Mockup"
+                      placeholder="Örn: T-shirt Mockup, Poster Template..."
                       className="w-full"
                     />
                   </div>
@@ -721,7 +842,7 @@ const MockupTemplatesPage: React.FC = () => {
                   {/* Background Görsel */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Background Görsel:
+                      🖼️ Background Görsel:
                     </label>
                     <div className="space-y-3">
                       <Button
@@ -750,7 +871,7 @@ const MockupTemplatesPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* CRITICAL: Tasarım Tipi Seçimi - BLACK/WHITE DESIGN */}
+                  {/* CRITICAL: Enhanced Tasarım Tipi Seçimi */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                       🎨 Tasarım Tipi Seçin:
@@ -767,7 +888,7 @@ const MockupTemplatesPage: React.FC = () => {
                         <div className="text-center">
                           <div className="text-2xl mb-1">⚫</div>
                           <div className="font-medium">Black Design</div>
-                          <div className="text-xs opacity-75">Bu mockup için siyah tasarım kullanılacak</div>
+                          <div className="text-xs opacity-75">Siyah tasarım için</div>
                         </div>
                       </button>
                       <button
@@ -781,25 +902,25 @@ const MockupTemplatesPage: React.FC = () => {
                         <div className="text-center">
                           <div className="text-2xl mb-1">⚪</div>
                           <div className="font-medium">White Design</div>
-                          <div className="text-xs opacity-75">Bu mockup için beyaz tasarım kullanılacak</div>
+                          <div className="text-xs opacity-75">Beyaz tasarım için</div>
                         </div>
                       </button>
                     </div>
                   </div>
 
-                  {/* CRITICAL: Alan Ekleme - ESKİ HALİ */}
+                  {/* CRITICAL: Enhanced Alan Ekleme */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                      Alan Ekle:
+                      ➕ Alan Ekle:
                     </label>
                     <div className="space-y-2">
                       <Button
                         onClick={() => addDesignArea('design')}
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center space-x-2"
-                        disabled={!backgroundImage}
+                        disabled={!backgroundImage || designAreas.some(a => a.type === 'design')}
                       >
                         <span>🎨</span>
-                        <span>Tasarım Alanı Ekle</span>
+                        <span>Tasarım Alanı {designAreas.some(a => a.type === 'design') ? '(Mevcut)' : 'Ekle'}</span>
                       </Button>
                       <Button
                         onClick={() => addDesignArea('text')}
@@ -812,21 +933,21 @@ const MockupTemplatesPage: React.FC = () => {
                       <Button
                         onClick={() => addDesignArea('logo')}
                         className="w-full bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center space-x-2"
-                        disabled={!backgroundImage}
+                        disabled={!backgroundImage || designAreas.some(a => a.type === 'logo')}
                       >
                         <span>🏷️</span>
-                        <span>Logo Alanı Ekle</span>
+                        <span>Logo Alanı {designAreas.some(a => a.type === 'logo') ? '(Mevcut)' : 'Ekle'}</span>
                       </Button>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                      * Alan ekleme özelliği template kaydedildikten sonra aktif olacak
+                      💡 Tasarım ve Logo alanı sadece 1 tane eklenebilir
                     </p>
                   </div>
 
                   {/* Canvas Boyutu */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Canvas Boyutu:
+                      📐 Canvas Boyutu:
                     </label>
                     <div className="grid grid-cols-2 gap-2">
                       <Input
@@ -834,48 +955,68 @@ const MockupTemplatesPage: React.FC = () => {
                         placeholder="Genişlik"
                         value={canvasSize.width}
                         onChange={(e) => setCanvasSize(prev => ({ ...prev, width: parseInt(e.target.value) || 800 }))}
+                        min="100"
+                        max="2000"
                       />
                       <Input
                         type="number"
                         placeholder="Yükseklik"
                         value={canvasSize.height}
                         onChange={(e) => setCanvasSize(prev => ({ ...prev, height: parseInt(e.target.value) || 600 }))}
+                        min="100"
+                        max="2000"
                       />
                     </div>
                   </div>
 
-                  {/* Eklenen Alanlar Listesi */}
+                  {/* CRITICAL: Enhanced Eklenen Alanlar Listesi */}
                   {designAreas.length > 0 && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                        Eklenen Alanlar ({designAreas.length}):
-                      </label>
-                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                      <div className="flex items-center justify-between mb-3">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          📋 Eklenen Alanlar ({designAreas.length}):
+                        </label>
+                        <button
+                          onClick={() => setShowAreaVisibility(!showAreaVisibility)}
+                          className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                        >
+                          {showAreaVisibility ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
                         {designAreas.map((area) => (
                           <div
                             key={area.id}
-                            className={`p-3 rounded border cursor-pointer transition-colors ${
+                            className={`p-3 rounded border cursor-pointer transition-all duration-200 ${
                               selectedAreaId === area.id
-                                ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
-                                : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                                ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 shadow-md'
+                                : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 hover:shadow-sm'
                             }`}
                             onClick={() => setSelectedAreaId(area.id)}
                           >
                             <div className="flex items-center justify-between">
-                              <div>
-                                <div className="font-medium text-sm">
-                                  {area.type === 'design' ? '🎨' : area.type === 'text' ? '📝' : '🏷️'} {area.name}
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-lg">{getAreaIcon(area.type)}</span>
+                                  <div className="font-medium text-sm">{area.name}</div>
                                 </div>
-                                <div className="text-xs text-gray-500">
-                                  {Math.round(area.x)}, {Math.round(area.y)} - {Math.round(area.width)}×{Math.round(area.height)}
+                                <div className="text-xs text-gray-500 mt-1">
+                                  📍 {Math.round(area.x)}, {Math.round(area.y)} • 
+                                  📏 {Math.round(area.width)}×{Math.round(area.height)}
+                                  {area.rotation !== 0 && ` • 🔄 ${Math.round(area.rotation)}°`}
                                 </div>
+                                {area.type === 'text' && (
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    🔤 {area.fontFamily} • {area.fontSize}px • {area.textColor}
+                                  </div>
+                                )}
                               </div>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   deleteDesignArea(area.id);
                                 }}
-                                className="text-red-500 hover:text-red-700 p-1"
+                                className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
                               >
                                 <Trash2 className="h-3 w-3" />
                               </button>
@@ -885,10 +1026,158 @@ const MockupTemplatesPage: React.FC = () => {
                       </div>
                     </div>
                   )}
+
+                  {/* CRITICAL: Enhanced Selected Area Properties */}
+                  {selectedAreaId && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                      <h4 className="font-medium text-gray-900 dark:text-white mb-3 flex items-center">
+                        <MousePointer className="h-4 w-4 mr-2" />
+                        Seçili Alan Özellikleri
+                      </h4>
+                      {(() => {
+                        const selectedArea = designAreas.find(a => a.id === selectedAreaId);
+                        if (!selectedArea) return null;
+                        
+                        return (
+                          <div className="space-y-3">
+                            {/* Name */}
+                            <div>
+                              <label className="text-xs text-gray-600 dark:text-gray-400">Alan Adı:</label>
+                              <Input
+                                value={selectedArea.name}
+                                onChange={(e) => updateAreaProperty(selectedAreaId, 'name', e.target.value)}
+                                className="text-sm"
+                              />
+                            </div>
+                            
+                            {/* Position and Size */}
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-xs text-gray-600 dark:text-gray-400">X:</label>
+                                <Input
+                                  type="number"
+                                  value={selectedArea.x}
+                                  onChange={(e) => updateAreaProperty(selectedAreaId, 'x', e.target.value)}
+                                  className="text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs text-gray-600 dark:text-gray-400">Y:</label>
+                                <Input
+                                  type="number"
+                                  value={selectedArea.y}
+                                  onChange={(e) => updateAreaProperty(selectedAreaId, 'y', e.target.value)}
+                                  className="text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs text-gray-600 dark:text-gray-400">Genişlik:</label>
+                                <Input
+                                  type="number"
+                                  value={selectedArea.width}
+                                  onChange={(e) => updateAreaProperty(selectedAreaId, 'width', e.target.value)}
+                                  className="text-sm"
+                                  min="30"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs text-gray-600 dark:text-gray-400">Yükseklik:</label>
+                                <Input
+                                  type="number"
+                                  value={selectedArea.height}
+                                  onChange={(e) => updateAreaProperty(selectedAreaId, 'height', e.target.value)}
+                                  className="text-sm"
+                                  min="30"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Text Area Specific Properties */}
+                            {selectedArea.type === 'text' && (
+                              <div className="space-y-2 border-t pt-3">
+                                <h5 className="text-xs font-medium text-gray-700 dark:text-gray-300">📝 Yazı Özellikleri:</h5>
+                                
+                                <div>
+                                  <label className="text-xs text-gray-600 dark:text-gray-400">Font:</label>
+                                  <select
+                                    value={selectedArea.fontFamily}
+                                    onChange={(e) => updateAreaProperty(selectedAreaId, 'fontFamily', e.target.value)}
+                                    className="w-full text-sm p-1 border rounded"
+                                  >
+                                    <option value="Arial">Arial</option>
+                                    <option value="Times New Roman">Times New Roman</option>
+                                    <option value="Helvetica">Helvetica</option>
+                                    <option value="Georgia">Georgia</option>
+                                  </select>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <label className="text-xs text-gray-600 dark:text-gray-400">Font Boyutu:</label>
+                                    <Input
+                                      type="number"
+                                      value={selectedArea.fontSize}
+                                      onChange={(e) => updateAreaProperty(selectedAreaId, 'fontSize', e.target.value)}
+                                      className="text-sm"
+                                      min="8"
+                                      max="72"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-xs text-gray-600 dark:text-gray-400">Renk:</label>
+                                    <input
+                                      type="color"
+                                      value={selectedArea.textColor}
+                                      onChange={(e) => updateAreaProperty(selectedAreaId, 'textColor', e.target.value)}
+                                      className="w-full h-8 rounded border"
+                                    />
+                                  </div>
+                                </div>
+                                
+                                <div>
+                                  <label className="text-xs text-gray-600 dark:text-gray-400">Placeholder:</label>
+                                  <Input
+                                    value={selectedArea.placeholder}
+                                    onChange={(e) => updateAreaProperty(selectedAreaId, 'placeholder', e.target.value)}
+                                    className="text-sm"
+                                  />
+                                </div>
+                                
+                                <div>
+                                  <label className="text-xs text-gray-600 dark:text-gray-400">Max Karakter:</label>
+                                  <Input
+                                    type="number"
+                                    value={selectedArea.maxCharacters}
+                                    onChange={(e) => updateAreaProperty(selectedAreaId, 'maxCharacters', e.target.value)}
+                                    className="text-sm"
+                                    min="1"
+                                    max="500"
+                                  />
+                                </div>
+                                
+                                <div>
+                                  <label className="text-xs text-gray-600 dark:text-gray-400">Hizalama:</label>
+                                  <select
+                                    value={selectedArea.alignment}
+                                    onChange={(e) => updateAreaProperty(selectedAreaId, 'alignment', e.target.value)}
+                                    className="w-full text-sm p-1 border rounded"
+                                  >
+                                    <option value="left">Sol</option>
+                                    <option value="center">Orta</option>
+                                    <option value="right">Sağ</option>
+                                  </select>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* CRITICAL: SAĞ TARAF - CANVAS ALANI */}
+              {/* CRITICAL: SAĞ TARAF - ENHANCED CANVAS ALANI */}
               <div className="flex-1 p-6 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
                 <div className="w-full h-full flex items-center justify-center">
                   {backgroundImage ? (
@@ -906,7 +1195,7 @@ const MockupTemplatesPage: React.FC = () => {
                         className="w-full h-full object-cover"
                       />
 
-                      {/* Konva Stage for Design Areas */}
+                      {/* CRITICAL: Enhanced Konva Stage for Design Areas */}
                       <div className="absolute inset-0">
                         <Stage
                           width={Math.min(canvasSize.width * scale, maxCanvasWidth)}
@@ -914,71 +1203,97 @@ const MockupTemplatesPage: React.FC = () => {
                           ref={stageRef}
                           scaleX={scale}
                           scaleY={scale}
+                          onMouseDown={(e) => {
+                            // Deselect when clicking on empty space
+                            if (e.target === e.target.getStage()) {
+                              setSelectedAreaId(null);
+                            }
+                          }}
                         >
                           <Layer>
-                            {designAreas.map((area) => (
+                            {showAreaVisibility && designAreas.map((area) => (
                               <Group key={area.id}>
+                                {/* Area Rectangle */}
                                 <Rect
                                   x={area.x}
                                   y={area.y}
                                   width={area.width}
                                   height={area.height}
-                                  fill={
-                                    area.type === 'design' 
-                                      ? 'rgba(59, 130, 246, 0.3)' 
-                                      : area.type === 'text' 
-                                      ? 'rgba(34, 197, 94, 0.3)' 
-                                      : 'rgba(147, 51, 234, 0.3)'
-                                  }
-                                  stroke={
-                                    area.type === 'design' 
-                                      ? '#3b82f6' 
-                                      : area.type === 'text' 
-                                      ? '#22c55e' 
-                                      : '#9333ea'
-                                  }
+                                  fill={`${getAreaColor(area.type, selectedAreaId === area.id)}33`}
+                                  stroke={getAreaColor(area.type, selectedAreaId === area.id)}
                                   strokeWidth={selectedAreaId === area.id ? 3 : 2}
+                                  dash={area.type === 'text' ? [5, 5] : []}
                                   draggable
                                   onClick={() => handleAreaClick(area.id)}
                                   onDragEnd={(e) => handleAreaDragEnd(area.id, e)}
                                   onTransformEnd={(e) => handleAreaTransformEnd(area.id, e)}
                                 />
+                                
+                                {/* Area Label */}
+                                <KonvaText
+                                  x={area.x + 5}
+                                  y={area.y + 5}
+                                  text={`${getAreaIcon(area.type)} ${area.name}`}
+                                  fontSize={12}
+                                  fill={getAreaColor(area.type, selectedAreaId === area.id)}
+                                  fontStyle="bold"
+                                />
+                                
+                                {/* Text Area Preview */}
+                                {area.type === 'text' && (
+                                  <KonvaText
+                                    x={area.x}
+                                    y={area.y + area.height / 2 - (area.fontSize || 24) / 2}
+                                    width={area.width}
+                                    height={area.height}
+                                    text={area.placeholder || 'Örnek metin...'}
+                                    fontSize={(area.fontSize || 24) * 0.8}
+                                    fontFamily={area.fontFamily || 'Arial'}
+                                    fill={area.textColor || '#000000'}
+                                    align={area.alignment || 'center'}
+                                    verticalAlign="middle"
+                                  />
+                                )}
                               </Group>
                             ))}
                             
+                            {/* CRITICAL: Enhanced Transformer */}
                             {selectedAreaId && (
                               <Transformer
                                 ref={transformerRef}
                                 boundBoxFunc={(oldBox, newBox) => {
-                                  // Minimum size constraints
-                                  if (newBox.width < 50 || newBox.height < 50) {
+                                  // Enhanced constraints
+                                  if (newBox.width < 30 || newBox.height < 30) {
+                                    return oldBox;
+                                  }
+                                  if (newBox.x < 0 || newBox.y < 0) {
+                                    return oldBox;
+                                  }
+                                  if (newBox.x + newBox.width > canvasSize.width || newBox.y + newBox.height > canvasSize.height) {
                                     return oldBox;
                                   }
                                   return newBox;
                                 }}
+                                anchorStroke="#0066ff"
+                                anchorFill="#ffffff"
+                                anchorSize={8}
+                                borderStroke="#0066ff"
+                                borderStrokeWidth={2}
                               />
                             )}
                           </Layer>
                         </Stage>
                       </div>
 
-                      {/* Area Labels */}
-                      {designAreas.map((area) => (
-                        <div
-                          key={`label-${area.id}`}
-                          className="absolute pointer-events-none"
-                          style={{
-                            left: `${area.x * scale + 5}px`,
-                            top: `${area.y * scale + 5}px`,
-                            fontSize: '12px',
-                            color: area.type === 'design' ? '#3b82f6' : area.type === 'text' ? '#22c55e' : '#9333ea',
-                            fontWeight: 'bold',
-                            textShadow: '1px 1px 2px rgba(0,0,0,0.5)'
-                          }}
-                        >
-                          {area.type === 'design' ? '🎨' : area.type === 'text' ? '📝' : '🏷️'} {area.name}
-                        </div>
-                      ))}
+                      {/* Canvas Info Overlay */}
+                      <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
+                        📐 {canvasSize.width} × {canvasSize.height} | 🔍 {Math.round(scale * 100)}%
+                      </div>
+                      
+                      {/* Area Count Overlay */}
+                      <div className="absolute top-2 left-2 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
+                        📋 {designAreas.length} alan
+                      </div>
                     </div>
                   ) : (
                     <div className="text-center p-12 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
@@ -1001,16 +1316,21 @@ const MockupTemplatesPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Footer */}
+            {/* CRITICAL: Enhanced Footer */}
             <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
               <div className="flex justify-between items-center">
                 <div className="text-sm text-gray-500 dark:text-gray-400">
                   {backgroundImage && (
-                    <span>
-                      Canvas: {canvasSize.width} × {canvasSize.height} | 
-                      Alanlar: {designAreas.length} | 
-                      Tasarım Tipi: {designType === 'black' ? '⚫ Black Design' : '⚪ White Design'}
-                    </span>
+                    <div className="flex items-center space-x-4">
+                      <span>📐 Canvas: {canvasSize.width} × {canvasSize.height}</span>
+                      <span>📋 Alanlar: {designAreas.length}</span>
+                      <span>🎨 Tip: {designType === 'black' ? '⚫ Black Design' : '⚪ White Design'}</span>
+                      {selectedAreaId && (
+                        <span className="text-orange-600 dark:text-orange-400">
+                          🎯 Seçili: {designAreas.find(a => a.id === selectedAreaId)?.name}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
                 <div className="flex space-x-3">
@@ -1028,10 +1348,10 @@ const MockupTemplatesPage: React.FC = () => {
                   </Button>
                   <Button
                     onClick={saveTemplate}
-                    disabled={!templateName.trim() || !backgroundImage || saving}
+                    disabled={!templateName.trim() || !backgroundImage || designAreas.length === 0 || saving}
                     className="bg-orange-600 hover:bg-orange-700 text-white"
                   >
-                    {saving ? 'Kaydediliyor...' : 'Template\'i Kaydet'}
+                    {saving ? 'Kaydediliyor...' : '💾 Template\'i Kaydet'}
                   </Button>
                 </div>
               </div>
