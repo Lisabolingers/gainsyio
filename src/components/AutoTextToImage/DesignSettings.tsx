@@ -878,17 +878,6 @@ const DesignSettings = () => {
             />
           </div>
           
-          {/* CRITICAL: Seçim çerçevesi toggle butonu */}
-          <div className="flex flex-col gap-2 mb-4">
-            <Button 
-              onClick={() => setShowTransformer(!showTransformer)}
-              variant="secondary" 
-              className="w-full"
-            >
-              {showTransformer ? '👁️ Seçim Çerçevesini Gizle' : '🔧 Seçim Çerçevesini Göster'}
-            </Button>
-          </div>
-          
           <div className="flex flex-col gap-2">
             <Button onClick={downloadImage} disabled={!templateName} className="w-full">
               DOWNLOAD DESIGN
@@ -901,7 +890,7 @@ const DesignSettings = () => {
           {/* CRITICAL: Kullanıcı ipucu */}
           <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
             <p>💡 <strong>İpucu:</strong> Boş alana tıklayarak sadece yazıları görebilirsiniz</p>
-            <p>Yazıları düzenlemek için seçim çerçevesini açın veya yazıya tıklayın</p>
+            <p>Yazıları düzenlemek için yazıya tıklayın</p>
           </div>
         </div>
       </div>
