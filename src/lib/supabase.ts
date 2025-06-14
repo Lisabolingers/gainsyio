@@ -14,32 +14,84 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Please check your .env file.');
 }
 
-// Create Supabase client with enhanced error handling
+// Validate URL format
+try {
+  const url = new URL(supabaseUrl);
+  if (!url.hostname.includes('supabase.co')) {
+    throw new Error('Invalid Supabase URL. URL must contain supabase.co domain.');
+  }
+} catch (error) {
+  console.error('❌ Invalid Supabase URL format:', supabaseUrl);
+  throw new Error('Invalid Supabase URL format. Please check your VITE_SUPABASE_URL in the .env file.');
+}
+
+// Create Supabase client with enhanced error handling and timeout
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+  },
+  global: {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    fetch: (url, options = {}) => {
+      // Add timeout to fetch requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      return fetch(url, {
+        ...options,
+        signal: controller.signal,
+      }).finally(() => {
+        clearTimeout(timeoutId);
+      });
+    },
   },
 });
 
 // Export supabaseUrl for use in other modules
 export { supabaseUrl };
 
-// Test connection function
+// Enhanced connection test function
 export const testSupabaseConnection = async () => {
   try {
     console.log('🔄 Testing Supabase connection...');
-    const { data, error } = await supabase.from('user_profiles').select('count').limit(1);
+    
+    // Test with a simple health check that doesn't require authentication
+    const { error } = await supabase
+      .from('user_profiles')
+      .select('count')
+      .limit(0);
     
     if (error) {
       console.error('❌ Supabase connection test failed:', error);
+      
+      // Provide more specific error information
+      if (error.message?.includes('Failed to fetch') || 
+          error.message?.includes('NetworkError')) {
+        console.error('Network error: Unable to reach Supabase. Check your internet connection and URL.');
+      } else if (error.message?.includes('Invalid API key') || 
+                 error.message?.includes('JWT')) {
+        console.error('Authentication error: Invalid API key. Check your VITE_SUPABASE_ANON_KEY.');
+      } else if (error.code === '404') {
+        console.error('Project not found: Check your VITE_SUPABASE_URL.');
+      }
+      
       return false;
     }
     
     console.log('✅ Supabase connection test successful');
     return true;
-  } catch (err) {
+  } catch (err: any) {
     console.error('❌ Supabase connection test error:', err);
+    
+    if (err.name === 'AbortError') {
+      console.error('Connection timeout: Request took too long to complete.');
+    } else if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+      console.error('Network error: Unable to reach Supabase servers.');
+    }
+    
     return false;
   }
 };

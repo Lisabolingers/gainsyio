@@ -35,23 +35,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const ensureUserProfile = async (user: User) => {
     try {
-      // Test connection with a simple health check first
-      const { error: connectionError } = await supabase
+      // First, test if we can reach Supabase at all
+      const { error: healthError } = await supabase
         .from('user_profiles')
         .select('count')
-        .limit(1)
-        .single();
+        .limit(0);
 
-      if (connectionError) {
-        console.error('Supabase connection failed:', connectionError);
+      if (healthError) {
+        console.error('Supabase health check failed:', healthError);
         
-        // Check if it's a network/fetch error
-        if (connectionError.message?.includes('Failed to fetch') || 
-            connectionError.message?.includes('NetworkError') ||
-            connectionError.message?.includes('fetch')) {
+        // More specific error handling
+        if (healthError.message?.includes('Failed to fetch') || 
+            healthError.message?.includes('NetworkError') ||
+            healthError.message?.includes('fetch') ||
+            healthError.code === 'NETWORK_ERROR') {
           setError('Supabase veritabanına bağlanılamıyor. Lütfen internet bağlantınızı kontrol edin ve Supabase yapılandırmanızın doğru olduğundan emin olun.');
+        } else if (healthError.message?.includes('Invalid API key') || 
+                   healthError.message?.includes('JWT')) {
+          setError('Geçersiz Supabase API anahtarı. Lütfen .env dosyanızdaki VITE_SUPABASE_ANON_KEY değerini kontrol edin.');
+        } else if (healthError.message?.includes('not found') || 
+                   healthError.code === '404') {
+          setError('Supabase projesi bulunamadı. Lütfen .env dosyanızdaki VITE_SUPABASE_URL değerini kontrol edin.');
         } else {
-          setError(`Veritabanı bağlantı hatası: ${connectionError.message}`);
+          setError(`Veritabanı bağlantı hatası: ${healthError.message}`);
         }
         return;
       }
@@ -94,15 +100,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error: any) {
       console.error('Error ensuring user profile:', error);
       
-      // Handle different types of network errors
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+      // Handle different types of network errors more specifically
+      if (error instanceof TypeError && 
+          (error.message.includes('Failed to fetch') || 
+           error.message.includes('NetworkError') ||
+           error.message.includes('fetch'))) {
         setError('Supabase\'e bağlanılamıyor. Lütfen internet bağlantınızı kontrol edin ve .env dosyanızdaki VITE_SUPABASE_URL değerinin doğru olduğundan emin olun.');
       } else if (error.name === 'NetworkError' || error.message?.includes('NetworkError')) {
         setError('Ağ bağlantısı hatası. Lütfen internet bağlantınızı kontrol edin.');
       } else if (error.message?.includes('CORS')) {
         setError('CORS hatası. Supabase yapılandırmanızı kontrol edin.');
+      } else if (error.message?.includes('Invalid API key')) {
+        setError('Geçersiz API anahtarı. Lütfen Supabase yapılandırmanızı kontrol edin.');
       } else {
-        setError('Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.');
+        setError(`Beklenmeyen bir hata oluştu: ${error.message || 'Bilinmeyen hata'}`);
       }
     }
   };
@@ -120,7 +131,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Validate URL format
     try {
-      new URL(supabaseUrl);
+      const url = new URL(supabaseUrl);
+      if (!url.hostname.includes('supabase.co')) {
+        setError('Geçersiz Supabase URL. URL supabase.co domain\'ini içermelidir.');
+        setLoading(false);
+        return;
+      }
     } catch (urlError) {
       setError('Geçersiz Supabase URL formatı. Lütfen .env dosyanızdaki VITE_SUPABASE_URL değerini kontrol edin.');
       setLoading(false);
@@ -134,10 +150,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         if (sessionError) {
           console.error('Error getting session:', sessionError);
-          if (sessionError.message?.includes('Failed to fetch')) {
+          if (sessionError.message?.includes('Failed to fetch') || 
+              sessionError.message?.includes('NetworkError')) {
             setError('Kimlik doğrulama servisine bağlanılamıyor. Lütfen internet bağlantınızı ve Supabase yapılandırmanızı kontrol edin.');
+          } else if (sessionError.message?.includes('Invalid API key')) {
+            setError('Geçersiz API anahtarı. Lütfen .env dosyanızdaki VITE_SUPABASE_ANON_KEY değerini kontrol edin.');
           } else {
-            setError('Kimlik doğrulama servisine bağlanırken hata oluştu.');
+            setError(`Kimlik doğrulama hatası: ${sessionError.message}`);
           }
         } else {
           setSession(session);
@@ -150,10 +169,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       } catch (error: any) {
         console.error('Error initializing auth:', error);
-        if (error.message?.includes('Failed to fetch')) {
+        if (error.message?.includes('Failed to fetch') || 
+            error instanceof TypeError) {
           setError('Supabase\'e bağlanılamıyor. Lütfen .env dosyanızdaki yapılandırmayı kontrol edin ve sayfayı yenileyin.');
         } else {
-          setError('Kimlik doğrulama başlatılamadı. Lütfen sayfayı yenileyin.');
+          setError(`Kimlik doğrulama başlatılamadı: ${error.message || 'Bilinmeyen hata'}`);
         }
       } finally {
         setLoading(false);
@@ -189,7 +209,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (error) throw error;
     } catch (error: any) {
       console.error('Sign in error:', error);
-      if (error.message?.includes('Failed to fetch')) {
+      if (error.message?.includes('Failed to fetch') || 
+          error instanceof TypeError) {
         setError('Kimlik doğrulama servisine bağlanılamıyor. Lütfen internet bağlantınızı kontrol edin.');
       } else if (error.message?.includes('Invalid login credentials')) {
         setError('Geçersiz e-posta veya şifre.');
@@ -216,7 +237,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     } catch (error: any) {
       console.error('Sign up error:', error);
-      if (error.message?.includes('Failed to fetch')) {
+      if (error.message?.includes('Failed to fetch') || 
+          error instanceof TypeError) {
         setError('Kimlik doğrulama servisine bağlanılamıyor. Lütfen internet bağlantınızı kontrol edin.');
       } else {
         setError(error.message || 'Kayıt başarısız. Lütfen tekrar deneyin.');
