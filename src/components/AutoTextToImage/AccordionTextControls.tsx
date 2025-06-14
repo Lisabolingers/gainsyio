@@ -61,7 +61,7 @@ const AccordionTextControls: React.FC<Props> = ({
   updateTextProperty,
   onDelete
 }) => {
-  // CRITICAL: Akordiyon state - sadece bir bölüm açık olabilir veya hepsi kapalı
+  // CRITICAL: Her text için ayrı state - sadece bir bölüm açık olabilir
   const [activeSection, setActiveSection] = useState<'textOptions' | 'colorOptions' | 'styleOptions' | null>('textOptions');
 
   // CRITICAL: Black & White'ı default olarak ayarla
@@ -71,53 +71,18 @@ const AccordionTextControls: React.FC<Props> = ({
     }
   }, [text.id, text.colorOption, updateTextProperty]);
 
-  // CRITICAL: Akordiyon toggle fonksiyonu - tamamen yeniden yazıldı
-  const handleToggleSection = (section: 'textOptions' | 'colorOptions' | 'styleOptions') => {
-    console.log(`🔄 Akordiyon toggle çağrıldı: ${section}`);
-    console.log(`📊 Mevcut aktif bölüm:`, activeSection);
+  // CRITICAL: Akordiyon toggle fonksiyonu - basitleştirildi ve güçlendirildi
+  const toggleSection = (section: 'textOptions' | 'colorOptions' | 'styleOptions') => {
+    console.log(`🔄 Toggle çağrıldı - Section: ${section}, Current: ${activeSection}`);
     
-    setActiveSection(currentActive => {
-      const newActive = currentActive === section ? null : section;
-      console.log(`✅ Yeni aktif bölüm:`, newActive);
-      return newActive;
-    });
-  };
-
-  // CRITICAL: Akordiyon başlık bileşeni - Event handling tamamen yeniden yazıldı
-  const AccordionHeader: React.FC<{
-    title: string;
-    section: 'textOptions' | 'colorOptions' | 'styleOptions';
-    icon?: string;
-  }> = ({ title, section, icon }) => {
-    const isOpen = activeSection === section;
-    
-    return (
-      <div
-        onClick={() => {
-          console.log(`🖱️ Akordiyon başlığına tıklandı: ${title}`);
-          handleToggleSection(section);
-        }}
-        className={`w-full flex items-center justify-between p-3 transition-all duration-200 rounded-lg border cursor-pointer select-none ${
-          isOpen 
-            ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800' 
-            : 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border-gray-200 dark:border-gray-600'
-        }`}
-      >
-        <div className="flex items-center space-x-2">
-          {icon && <span className="text-lg">{icon}</span>}
-          <span className={`font-medium ${isOpen ? 'text-orange-700 dark:text-orange-400' : 'text-gray-900 dark:text-white'}`}>
-            {title}
-          </span>
-        </div>
-        <div className={`transition-transform duration-200 ${isOpen ? 'rotate-90' : 'rotate-0'}`}>
-          {isOpen ? (
-            <ChevronDown className="h-4 w-4 text-orange-500" />
-          ) : (
-            <ChevronRight className="h-4 w-4 text-gray-500" />
-          )}
-        </div>
-      </div>
-    );
+    // Eğer aynı bölüme tıklanırsa kapat, değilse o bölümü aç
+    if (activeSection === section) {
+      console.log(`❌ Aynı bölüm, kapatılıyor: ${section}`);
+      setActiveSection(null);
+    } else {
+      console.log(`✅ Yeni bölüm açılıyor: ${section}`);
+      setActiveSection(section);
+    }
   };
 
   return (
@@ -159,15 +124,31 @@ const AccordionTextControls: React.FC<Props> = ({
         <div className="space-y-3">
           
           {/* 1. TEXT OPTIONS ACCORDION */}
-          <div>
-            <AccordionHeader
-              title="Text Options"
-              section="textOptions"
-              icon="📝"
-            />
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            {/* Header */}
+            <button
+              type="button"
+              onClick={() => toggleSection('textOptions')}
+              className={`w-full flex items-center justify-between p-3 text-left transition-all duration-200 ${
+                activeSection === 'textOptions'
+                  ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400'
+                  : 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-900 dark:text-white'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <span className="text-lg">📝</span>
+                <span className="font-medium">Text Options</span>
+              </div>
+              <div className={`transition-transform duration-200 ${
+                activeSection === 'textOptions' ? 'rotate-180' : 'rotate-0'
+              }`}>
+                <ChevronDown className="h-4 w-4" />
+              </div>
+            </button>
             
+            {/* Content */}
             {activeSection === 'textOptions' && (
-              <div className="mt-2 space-y-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-orange-200 dark:border-orange-800 animate-slide-down">
+              <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 space-y-4">
                 {/* Font and Size Controls */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -301,30 +282,62 @@ const AccordionTextControls: React.FC<Props> = ({
           </div>
 
           {/* 2. COLOR OPTIONS ACCORDION */}
-          <div>
-            <AccordionHeader
-              title="Color Options"
-              section="colorOptions"
-              icon="🎨"
-            />
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            {/* Header */}
+            <button
+              type="button"
+              onClick={() => toggleSection('colorOptions')}
+              className={`w-full flex items-center justify-between p-3 text-left transition-all duration-200 ${
+                activeSection === 'colorOptions'
+                  ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400'
+                  : 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-900 dark:text-white'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <span className="text-lg">🎨</span>
+                <span className="font-medium">Color Options</span>
+              </div>
+              <div className={`transition-transform duration-200 ${
+                activeSection === 'colorOptions' ? 'rotate-180' : 'rotate-0'
+              }`}>
+                <ChevronDown className="h-4 w-4" />
+              </div>
+            </button>
             
+            {/* Content */}
             {activeSection === 'colorOptions' && (
-              <div className="mt-2 p-4 bg-white dark:bg-gray-800 rounded-lg border border-orange-200 dark:border-orange-800 animate-slide-down">
+              <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
                 <ColorOptions text={text} setTexts={setTexts} texts={texts} />
               </div>
             )}
           </div>
 
           {/* 3. STYLE OPTIONS ACCORDION */}
-          <div>
-            <AccordionHeader
-              title="Style Options"
-              section="styleOptions"
-              icon="✨"
-            />
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            {/* Header */}
+            <button
+              type="button"
+              onClick={() => toggleSection('styleOptions')}
+              className={`w-full flex items-center justify-between p-3 text-left transition-all duration-200 ${
+                activeSection === 'styleOptions'
+                  ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400'
+                  : 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-900 dark:text-white'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <span className="text-lg">✨</span>
+                <span className="font-medium">Style Options</span>
+              </div>
+              <div className={`transition-transform duration-200 ${
+                activeSection === 'styleOptions' ? 'rotate-180' : 'rotate-0'
+              }`}>
+                <ChevronDown className="h-4 w-4" />
+              </div>
+            </button>
             
+            {/* Content */}
             {activeSection === 'styleOptions' && (
-              <div className="mt-2 space-y-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-orange-200 dark:border-orange-800 animate-slide-down">
+              <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 space-y-4">
                 {/* Style Selection */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Style:</label>
