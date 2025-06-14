@@ -675,10 +675,10 @@ const MockupTemplatesPage: React.FC = () => {
         className="hidden"
       />
 
-      {/* CRITICAL: Create Template Modal - ESKİ ÇALIŞAN HALİ */}
+      {/* CRITICAL: Create Template Modal - ESKİ ÇALIŞAN HALİ - POPUP ÜST BOŞLUK DÜZELTİLDİ */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-7xl w-full max-h-[95vh] overflow-hidden shadow-2xl">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-7xl w-full h-[95vh] overflow-hidden shadow-2xl">
             {/* Header */}
             <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20">
               <div className="flex items-center justify-between">
