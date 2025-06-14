@@ -445,8 +445,11 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
+  // CRITICAL: Canvas tıklama işleyicisi - boş alana tıklandığında seçimi kaldır
   const handleStageClick = (e: any) => {
+    // Eğer tıklanan element stage'in kendisiyse (boş alan), seçimi kaldır
     if (e.target === e.target.getStage()) {
+      console.log('🖱️ Boş alana tıklandı, seçim kaldırılıyor');
       setSelectedId(null);
     }
   };
@@ -600,6 +603,15 @@ const MockupTemplatesPage: React.FC = () => {
               </h1>
             </div>
             <div className="flex items-center space-x-3">
+              <Button
+                onClick={() => setShowAreaVisibility(!showAreaVisibility)}
+                variant="secondary"
+                size="sm"
+                className="flex items-center space-x-2"
+              >
+                {showAreaVisibility ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                <span>{showAreaVisibility ? 'Alanları Gizle' : 'Alanları Göster'}</span>
+              </Button>
               <Button onClick={saveTemplate} disabled={!templateName || !backgroundImage || !selectedStore}>
                 💾 Kaydet
               </Button>
@@ -681,7 +693,7 @@ const MockupTemplatesPage: React.FC = () => {
                         />
                       )}
 
-                      {/* Design Areas */}
+                      {/* Design Areas - Sadece showAreaVisibility true ise göster */}
                       {showAreaVisibility && designAreas.map((area) => (
                         <Group
                           key={area.id}
@@ -719,7 +731,7 @@ const MockupTemplatesPage: React.FC = () => {
                         </Group>
                       ))}
 
-                      {/* Text Areas */}
+                      {/* Text Areas - Sadece showAreaVisibility true ise göster */}
                       {showAreaVisibility && textAreas.map((area) => (
                         <Group
                           key={area.id}
@@ -757,7 +769,7 @@ const MockupTemplatesPage: React.FC = () => {
                         </Group>
                       ))}
 
-                      {/* Logo Area */}
+                      {/* Logo Area - Sadece showAreaVisibility true ise göster */}
                       {showAreaVisibility && logoArea && (
                         <Group
                           key={logoArea.id}
@@ -795,8 +807,8 @@ const MockupTemplatesPage: React.FC = () => {
                         </Group>
                       )}
 
-                      {/* Transformer */}
-                      {selectedId && (
+                      {/* Transformer - Sadece seçili element varsa göster */}
+                      {selectedId && showAreaVisibility && (
                         <Transformer
                           ref={transformerRef}
                           borderStroke="#0066ff"
@@ -809,6 +821,12 @@ const MockupTemplatesPage: React.FC = () => {
                     </Layer>
                   </Stage>
                 </div>
+              </div>
+
+              {/* Canvas Info */}
+              <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
+                <p>💡 <strong>İpucu:</strong> Boş alana tıklayarak seçimi kaldırabilir ve sadece yazıları görebilirsiniz</p>
+                <p>Canvas boyutu: {canvasSize.width} × {canvasSize.height} px</p>
               </div>
             </div>
           </div>
