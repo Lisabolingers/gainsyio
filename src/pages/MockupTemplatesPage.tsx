@@ -6,6 +6,7 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { useFonts } from '../hooks/useFonts';
+import LogoSelector from '../components/AutoTextToImage/LogoSelector';
 
 interface MockupTemplate {
   id: string;
@@ -54,6 +55,7 @@ interface LogoArea {
   height: number;
   rotation: number;
   opacity: number;
+  imageUrl?: string;
 }
 
 interface EtsyStore {
@@ -87,6 +89,7 @@ const MockupTemplatesPage: React.FC = () => {
   const [isResizing, setIsResizing] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [showAreas, setShowAreas] = useState(true);
+  const [showLogoSelector, setShowLogoSelector] = useState(false);
   
   // CRITICAL: Force re-render state for text areas
   const [textRenderKey, setTextRenderKey] = useState(0);
@@ -213,6 +216,30 @@ const MockupTemplatesPage: React.FC = () => {
     };
     setLogoArea(newArea);
     setSelectedArea(newArea.id);
+  };
+
+  // CRITICAL: Logo seçme fonksiyonu
+  const handleLogoSelect = (imageUrl: string) => {
+    console.log('🖼️ Logo seçildi:', imageUrl);
+    if (logoArea) {
+      setLogoArea(prev => prev ? { ...prev, imageUrl } : null);
+    } else {
+      // Eğer logo area yoksa oluştur
+      const newLogoArea: LogoArea = {
+        id: `logo-${Date.now()}`,
+        name: 'Logo Alanı',
+        x: 100,
+        y: 100,
+        width: 100,
+        height: 100,
+        rotation: 0,
+        opacity: 0.9,
+        imageUrl
+      };
+      setLogoArea(newLogoArea);
+      setSelectedArea(newLogoArea.id);
+    }
+    setShowLogoSelector(false);
   };
 
   // CRITICAL: Canvas tıklama sistemi - sadece background'a tıklandığında seçimi kaldır
@@ -867,6 +894,46 @@ const MockupTemplatesPage: React.FC = () => {
 
                         return (
                           <div className="space-y-3">
+                            {/* Logo Area Specific Properties */}
+                            {selectedArea.startsWith('logo-') && (
+                              <div className="space-y-3">
+                                <div>
+                                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Logo Seç:</label>
+                                  <Button
+                                    onClick={() => setShowLogoSelector(true)}
+                                    variant="secondary"
+                                    size="sm"
+                                    className="w-full"
+                                  >
+                                    📁 Store Images'dan Seç
+                                  </Button>
+                                </div>
+                                
+                                {logoArea?.imageUrl && (
+                                  <div className="space-y-2">
+                                    <img 
+                                      src={logoArea.imageUrl} 
+                                      alt="Selected logo" 
+                                      className="w-full h-20 object-cover rounded border"
+                                    />
+                                    <div>
+                                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Opaklık:</label>
+                                      <Input
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.1"
+                                        value={logoArea.opacity}
+                                        onChange={(e) => setLogoArea(prev => prev ? { ...prev, opacity: parseFloat(e.target.value) } : null)}
+                                        className="w-full"
+                                      />
+                                      <span className="text-xs text-gray-500">{Math.round(logoArea.opacity * 100)}%</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
                             {/* Text Area Specific Properties - Simplified */}
                             {selectedArea.startsWith('text-') && (
                               <div className="space-y-3">
@@ -1075,9 +1142,18 @@ const MockupTemplatesPage: React.FC = () => {
                         onClick={(e) => handleAreaClick(e, logoArea.id)}
                         onMouseDown={(e) => handleMouseDown(e, logoArea.id, 'move')}
                       >
-                        <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-700 pointer-events-none">
-                          {logoArea.name}
-                        </div>
+                        {logoArea.imageUrl ? (
+                          <img
+                            src={logoArea.imageUrl}
+                            alt="Logo"
+                            className="w-full h-full object-contain pointer-events-none"
+                            draggable={false}
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-700 pointer-events-none">
+                            {logoArea.name}
+                          </div>
+                        )}
                         {selectedArea === logoArea.id && (
                           <ResizeHandle areaId={logoArea.id} position="se" />
                         )}
@@ -1099,6 +1175,14 @@ const MockupTemplatesPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Logo Selector Modal */}
+      {showLogoSelector && (
+        <LogoSelector
+          onSelect={handleLogoSelect}
+          onClose={() => setShowLogoSelector(false)}
+        />
       )}
     </div>
   );
