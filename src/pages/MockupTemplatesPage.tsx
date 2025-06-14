@@ -131,7 +131,7 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
-  // CRITICAL: Mağaza yükleme fonksiyonu
+  // CRITICAL: Mağaza yükleme fonksiyonu - örnek mağaza oluşturma ile
   const loadStores = async () => {
     try {
       console.log('🔄 Etsy mağazaları yükleniyor...');
@@ -150,6 +150,14 @@ const MockupTemplatesPage: React.FC = () => {
       }
 
       console.log(`✅ ${data?.length || 0} Etsy mağazası yüklendi`);
+      
+      // CRITICAL: Eğer mağaza yoksa örnek mağaza oluştur
+      if (!data || data.length === 0) {
+        console.log('🏪 Mağaza bulunamadı, örnek mağaza oluşturuluyor...');
+        await createSampleStore();
+        return; // createSampleStore içinde loadStores tekrar çağrılacak
+      }
+      
       setStores(data || []);
       
       // İlk mağazayı otomatik seç
@@ -158,6 +166,32 @@ const MockupTemplatesPage: React.FC = () => {
       }
     } catch (error) {
       console.error('❌ Mağaza yükleme genel hatası:', error);
+    }
+  };
+
+  // CRITICAL: Örnek mağaza oluşturma fonksiyonu
+  const createSampleStore = async () => {
+    try {
+      console.log('🏪 Örnek Etsy mağazası oluşturuluyor...');
+      
+      const { data, error } = await supabase
+        .rpc('create_sample_store_for_user', {
+          user_id_param: user?.id
+        });
+
+      if (error) {
+        console.error('❌ Örnek mağaza oluşturma hatası:', error);
+        throw error;
+      }
+
+      console.log('✅ Örnek mağaza başarıyla oluşturuldu:', data);
+      
+      // Mağazaları tekrar yükle
+      await loadStores();
+      
+    } catch (error) {
+      console.error('❌ Örnek mağaza oluşturma genel hatası:', error);
+      // Hata olsa bile devam et, kullanıcı manuel mağaza ekleyebilir
     }
   };
 
@@ -628,14 +662,12 @@ const MockupTemplatesPage: React.FC = () => {
                 </Button>
               </div>
 
-              {/* Store Warning */}
-              {stores.length === 0 && (
-                <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                  <p className="text-yellow-700 dark:text-yellow-400 text-sm">
-                    Henüz Etsy mağazası eklenmemiş. 
-                    <a href="/admin/stores" target="_blank" className="underline ml-1">
-                      Mağaza ekleyin
-                    </a>
+              {/* Store Info */}
+              {stores.length > 0 && selectedStore && (
+                <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                  <p className="text-green-700 dark:text-green-400 text-sm flex items-center">
+                    <Store className="h-4 w-4 mr-2" />
+                    Seçili mağaza: <strong className="ml-1">{getStoreName(selectedStore)}</strong>
                   </p>
                 </div>
               )}
@@ -1137,7 +1169,6 @@ const MockupTemplatesPage: React.FC = () => {
           <Button
             onClick={createNewTemplate}
             className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
-            disabled={stores.length === 0}
           >
             <Plus className="h-4 w-4" />
             <span>Yeni Template</span>
@@ -1145,24 +1176,18 @@ const MockupTemplatesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Store Warning */}
-      {stores.length === 0 && (
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+      {/* Store Info */}
+      {stores.length > 0 && (
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
           <div className="flex items-center space-x-3">
-            <Store className="h-5 w-5 text-yellow-500" />
+            <Store className="h-5 w-5 text-green-500" />
             <div>
-              <h3 className="text-yellow-700 dark:text-yellow-400 font-medium">
-                Etsy Mağazası Gerekli
+              <h3 className="text-green-700 dark:text-green-400 font-medium">
+                Etsy Mağazası Bağlı ✅
               </h3>
-              <p className="text-yellow-600 dark:text-yellow-500 text-sm mt-1">
-                Mockup template oluşturmak için önce bir Etsy mağazası eklemeniz gerekiyor.
+              <p className="text-green-600 dark:text-green-500 text-sm mt-1">
+                {stores.length} mağaza bağlı. Mockup template'leri oluşturabilirsiniz.
               </p>
-              <a 
-                href="/admin/stores" 
-                className="text-yellow-700 dark:text-yellow-400 underline text-sm mt-2 inline-block"
-              >
-                Mağaza eklemek için tıklayın →
-              </a>
             </div>
           </div>
         </div>
@@ -1209,12 +1234,10 @@ const MockupTemplatesPage: React.FC = () => {
           <p className="text-gray-500 dark:text-gray-400 mb-6">
             {searchTerm
               ? 'Arama terimlerinizi değiştirmeyi deneyin'
-              : stores.length === 0 
-                ? 'Önce bir Etsy mağazası ekleyin'
-                : 'İlk mockup template\'inizi oluşturmaya başlayın'
+              : 'İlk mockup template\'inizi oluşturmaya başlayın'
             }
           </p>
-          {!searchTerm && stores.length > 0 && (
+          {!searchTerm && (
             <Button
               onClick={createNewTemplate}
               className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
