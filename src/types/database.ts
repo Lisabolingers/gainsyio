@@ -184,6 +184,7 @@ export interface Database {
           image_url: string
           design_areas: Json
           text_areas: Json
+          logo_area: Json | null
           is_default: boolean
           created_at: string
           updated_at: string
@@ -195,6 +196,7 @@ export interface Database {
           image_url: string
           design_areas?: Json
           text_areas?: Json
+          logo_area?: Json | null
           is_default?: boolean
           created_at?: string
           updated_at?: string
@@ -206,6 +208,7 @@ export interface Database {
           image_url?: string
           design_areas?: Json
           text_areas?: Json
+          logo_area?: Json | null
           is_default?: boolean
           created_at?: string
           updated_at?: string
