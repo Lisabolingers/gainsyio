@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { LayoutDashboard, Store, Package, BarChart3, BookTemplate as FileTemplate, PlusCircle, Image, Type, Library, Menu, X, LogOut, Settings, User, Bell, Sun, Moon, ChevronDown, Clock, Upload, Brain } from 'lucide-react';
@@ -318,9 +318,7 @@ const AdminLayout: React.FC = () => {
 
         {/* Page content */}
         <main className="flex-1 overflow-auto">
-          <Routes>
-            <Route path="*" element={<div>Page not found</div>} />
-          </Routes>
+          <Outlet />
         </main>
       </div>
 
