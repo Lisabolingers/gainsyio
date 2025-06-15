@@ -891,7 +891,7 @@ const AIAgentPage: React.FC = () => {
                     rows={4}
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Ürün bilgisi için <code>{{'{{'}}product{{'}}'}}</code> yer tutucusunu kullanın.
+                    Ürün bilgisi için <code>{'{{product}}'}</code> yer tutucusunu kullanın.
                   </p>
                 </div>
                 
