@@ -98,8 +98,8 @@ const AIAgentPage: React.FC = () => {
   };
 
   const handleProviderSubmit = async () => {
-    if (!providerName.trim() || !apiKey.trim()) {
-      setError('Tüm alanları doldurun.');
+    if (!providerName.trim()) {
+      setError('Sağlayıcı adı gereklidir.');
       return;
     }
     
@@ -163,6 +163,29 @@ const AIAgentPage: React.FC = () => {
     } catch (error: any) {
       console.error('❌ Error deleting provider:', error);
       setError(`API sağlayıcı silinirken hata oluştu: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Toggle provider active status
+  const toggleProviderStatus = async (providerId: string, currentStatus: boolean) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      await AIService.updateProvider(user?.id || '', providerId, {
+        isActive: !currentStatus
+      });
+      
+      setSuccess(`API sağlayıcı ${!currentStatus ? 'aktif' : 'pasif'} duruma getirildi!`);
+      
+      // Reload data
+      await loadData();
+      
+    } catch (error: any) {
+      console.error('❌ Error toggling provider status:', error);
+      setError(`API sağlayıcı durumu değiştirilirken hata oluştu: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -537,6 +560,13 @@ const AIAgentPage: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex space-x-1">
+                      <button
+                        onClick={() => toggleProviderStatus(provider.id, provider.isActive)}
+                        className={`p-1 ${provider.isActive ? 'text-red-500 hover:text-red-700' : 'text-green-500 hover:text-green-700'}`}
+                        title={provider.isActive ? 'Pasif Yap' : 'Aktif Yap'}
+                      >
+                        {provider.isActive ? <X className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+                      </button>
                       <button
                         onClick={() => editProvider(provider)}
                         className="p-1 text-blue-500 hover:text-blue-700"

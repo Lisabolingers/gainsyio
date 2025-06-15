@@ -50,7 +50,14 @@ export class AIService {
       
       if (error) throw error;
       
-      return data || [];
+      // Map database fields to camelCase for frontend
+      return (data || []).map(provider => ({
+        id: provider.id,
+        name: provider.name,
+        provider: provider.provider,
+        apiKey: provider.api_key,
+        isActive: provider.is_active
+      }));
     } catch (error) {
       console.error('Error fetching AI providers:', error);
       throw error;
@@ -67,7 +74,17 @@ export class AIService {
       
       if (error) throw error;
       
-      return data || [];
+      // Map database fields to camelCase for frontend
+      return (data || []).map(rule => ({
+        id: rule.id,
+        type: rule.type,
+        name: rule.name,
+        prompt: rule.prompt,
+        maxLength: rule.max_length,
+        minLength: rule.min_length,
+        apiProviderId: rule.api_provider_id,
+        isDefault: rule.is_default
+      }));
     } catch (error) {
       console.error('Error fetching AI rules:', error);
       throw error;
@@ -87,7 +104,19 @@ export class AIService {
       
       if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "not found" error
       
-      return data || null;
+      if (!data) return null;
+      
+      // Map database fields to camelCase for frontend
+      return {
+        id: data.id,
+        type: data.type,
+        name: data.name,
+        prompt: data.prompt,
+        maxLength: data.max_length,
+        minLength: data.min_length,
+        apiProviderId: data.api_provider_id,
+        isDefault: data.is_default
+      };
     } catch (error) {
       console.error(`Error fetching default ${type} rule:`, error);
       throw error;
@@ -111,7 +140,14 @@ export class AIService {
       
       if (error) throw error;
       
-      return data;
+      // Map database fields to camelCase for frontend
+      return {
+        id: data.id,
+        name: data.name,
+        provider: data.provider,
+        apiKey: data.api_key,
+        isActive: data.is_active
+      };
     } catch (error) {
       console.error('Error saving AI provider:', error);
       throw error;
@@ -121,14 +157,17 @@ export class AIService {
   // Update an existing API provider
   static async updateProvider(userId: string, providerId: string, provider: Partial<AIProvider>): Promise<AIProvider> {
     try {
+      const updateData: any = {};
+      
+      // Only include fields that are provided
+      if (provider.name !== undefined) updateData.name = provider.name;
+      if (provider.provider !== undefined) updateData.provider = provider.provider;
+      if (provider.apiKey !== undefined) updateData.api_key = provider.apiKey;
+      if (provider.isActive !== undefined) updateData.is_active = provider.isActive;
+      
       const { data, error } = await supabase
         .from('ai_providers')
-        .update({
-          name: provider.name,
-          provider: provider.provider,
-          api_key: provider.apiKey,
-          is_active: provider.isActive
-        })
+        .update(updateData)
         .eq('id', providerId)
         .eq('user_id', userId)
         .select()
@@ -136,7 +175,14 @@ export class AIService {
       
       if (error) throw error;
       
-      return data;
+      // Map database fields to camelCase for frontend
+      return {
+        id: data.id,
+        name: data.name,
+        provider: data.provider,
+        apiKey: data.api_key,
+        isActive: data.is_active
+      };
     } catch (error) {
       console.error('Error updating AI provider:', error);
       throw error;
@@ -173,7 +219,17 @@ export class AIService {
       
       if (error) throw error;
       
-      return data;
+      // Map database fields to camelCase for frontend
+      return {
+        id: data.id,
+        type: data.type,
+        name: data.name,
+        prompt: data.prompt,
+        maxLength: data.max_length,
+        minLength: data.min_length,
+        apiProviderId: data.api_provider_id,
+        isDefault: data.is_default
+      };
     } catch (error) {
       console.error('Error saving AI rule:', error);
       throw error;
@@ -193,17 +249,20 @@ export class AIService {
           .eq('is_default', true);
       }
       
+      const updateData: any = {};
+      
+      // Only include fields that are provided
+      if (rule.type !== undefined) updateData.type = rule.type;
+      if (rule.name !== undefined) updateData.name = rule.name;
+      if (rule.prompt !== undefined) updateData.prompt = rule.prompt;
+      if (rule.maxLength !== undefined) updateData.max_length = rule.maxLength;
+      if (rule.minLength !== undefined) updateData.min_length = rule.minLength;
+      if (rule.apiProviderId !== undefined) updateData.api_provider_id = rule.apiProviderId;
+      if (rule.isDefault !== undefined) updateData.is_default = rule.isDefault;
+      
       const { data, error } = await supabase
         .from('ai_rules')
-        .update({
-          type: rule.type,
-          name: rule.name,
-          prompt: rule.prompt,
-          max_length: rule.maxLength,
-          min_length: rule.minLength,
-          api_provider_id: rule.apiProviderId,
-          is_default: rule.isDefault
-        })
+        .update(updateData)
         .eq('id', ruleId)
         .eq('user_id', userId)
         .select()
@@ -211,7 +270,17 @@ export class AIService {
       
       if (error) throw error;
       
-      return data;
+      // Map database fields to camelCase for frontend
+      return {
+        id: data.id,
+        type: data.type,
+        name: data.name,
+        prompt: data.prompt,
+        maxLength: data.max_length,
+        minLength: data.min_length,
+        apiProviderId: data.api_provider_id,
+        isDefault: data.is_default
+      };
     } catch (error) {
       console.error('Error updating AI rule:', error);
       throw error;
@@ -266,7 +335,18 @@ export class AIService {
           .single();
         
         if (error) throw error;
-        rule = data;
+        
+        // Map database fields to camelCase for frontend
+        rule = {
+          id: data.id,
+          type: data.type,
+          name: data.name,
+          prompt: data.prompt,
+          maxLength: data.max_length,
+          minLength: data.min_length,
+          apiProviderId: data.api_provider_id,
+          isDefault: data.is_default
+        };
       } else {
         // Get default rule for this type
         rule = await this.getDefaultRule(userId, request.type);
@@ -285,9 +365,17 @@ export class AIService {
         .single();
       
       if (providerError) throw providerError;
-      const provider = providerData;
       
-      if (!provider.is_active) {
+      // Map database fields to camelCase for frontend
+      const provider = {
+        id: providerData.id,
+        name: providerData.name,
+        provider: providerData.provider,
+        apiKey: providerData.api_key,
+        isActive: providerData.is_active
+      };
+      
+      if (!provider.isActive) {
         throw new Error(`The selected API provider (${provider.name}) is inactive.`);
       }
       
