@@ -29,6 +29,7 @@ import MockupTemplatesPage from './pages/MockupTemplatesPage';
 import UpdateTemplatesPage from './pages/UpdateTemplatesPage';
 import TextTemplatesPage from './pages/TextTemplatesPage';
 import MyFontPage from './pages/MyFontPage';
+import AutomationBuilderPage from './pages/AutomationBuilderPage';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -71,6 +72,7 @@ function App() {
                 <Route path="library" element={<LibraryPage />} />
                 <Route path="store-images" element={<StoreImagesPage />} />
                 <Route path="my-font" element={<MyFontPage />} />
+                <Route path="automation" element={<AutomationBuilderPage />} />
               </Route>
 
               {/* Catch all route */}

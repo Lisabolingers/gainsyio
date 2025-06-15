@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { LayoutDashboard, Store, Package, BarChart3, BookTemplate as FileTemplate, PlusCircle, Image, Type, Library, Menu, X, LogOut, Settings, User, Bell, Sun, Moon, ChevronDown, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Store, Package, BarChart3, BookTemplate as FileTemplate, PlusCircle, Image, Type, Library, Menu, X, LogOut, Settings, User, Bell, Sun, Moon, ChevronDown, ChevronRight, Workflow } from 'lucide-react';
 
 const AdminLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -35,6 +35,7 @@ const AdminLayout: React.FC = () => {
     { name: 'My Fonts', href: '/admin/my-font', icon: Type },
     { name: 'Listing', href: '/admin/listing', icon: PlusCircle },
     { name: 'Library', href: '/admin/library', icon: Library },
+    { name: 'Automation Builder', href: '/admin/automation', icon: Workflow },
   ];
 
   // CRITICAL: Templates submenu'nun açık olup olmayacağını kontrol et - SADECE kullanıcı manuel olarak açarsa
