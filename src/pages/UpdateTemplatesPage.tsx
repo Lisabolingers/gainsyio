@@ -232,7 +232,7 @@ const UpdateTemplatesPage: React.FC = () => {
       alert('Template saved successfully! 🎉');
     } catch (error) {
       console.error('❌ Template save general error:', error);
-      alert('Template could not be saved: ' + error.message);
+      alert('Template could not be saved: ' + (error as Error).message);
     }
   };
 
