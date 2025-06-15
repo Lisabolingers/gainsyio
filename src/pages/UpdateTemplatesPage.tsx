@@ -770,7 +770,7 @@ Tags: {{tags}}`}
                               {product.title}
                             </h4>
                             <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-                              <span>${product.price}</span>
+                              <span>{'$' + product.price.toFixed(2)}</span>
                               <span>{product.status}</span>
                               <span>{product.tags.length} tags</span>
                             </div>
