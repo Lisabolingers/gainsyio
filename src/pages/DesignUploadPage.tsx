@@ -25,6 +25,13 @@ interface DesignItem {
   mockupFolder: string;
 }
 
+interface AIRule {
+  id: string;
+  type: 'title' | 'tags';
+  name: string;
+  isDefault: boolean;
+}
+
 const MAX_TITLE_LENGTH = 140;
 const MAX_TAG_COUNT = 13;
 const MAX_TAG_LENGTH = 20;
@@ -66,6 +73,11 @@ const DesignUploadPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   
+  // AI Rules
+  const [titleRules, setTitleRules] = useState<AIRule[]>([]);
+  const [tagRules, setTagRules] = useState<AIRule[]>([]);
+  const [loadingRules, setLoadingRules] = useState(false);
+  
   const blackFileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const whiteFileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const tagInputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -77,19 +89,57 @@ const DesignUploadPage: React.FC = () => {
     tagInputRefs.current = tagInputRefs.current.slice(0, designItems.length);
   }, [designItems.length]);
 
+  // Load AI rules on component mount
+  useEffect(() => {
+    if (user) {
+      loadAIRules();
+    }
+  }, [user]);
+
+  const loadAIRules = async () => {
+    try {
+      setLoadingRules(true);
+      console.log('🔄 Loading AI rules...');
+      
+      const { data, error } = await supabase
+        .from('ai_rules')
+        .select('id, type, name, is_default')
+        .eq('user_id', user?.id);
+      
+      if (error) {
+        console.error('❌ AI rules loading error:', error);
+        throw error;
+      }
+      
+      // Split rules by type
+      const titleRules = data?.filter(rule => rule.type === 'title') || [];
+      const tagRules = data?.filter(rule => rule.type === 'tags') || [];
+      
+      setTitleRules(titleRules);
+      setTagRules(tagRules);
+      
+      console.log(`✅ Loaded ${titleRules.length} title rules and ${tagRules.length} tag rules`);
+    } catch (error: any) {
+      console.error('❌ Error loading AI rules:', error);
+      // Don't show error to user, just log it
+    } finally {
+      setLoadingRules(false);
+    }
+  };
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>, itemIndex: number, designType: 'black' | 'white') => {
     const file = event.target.files?.[0];
     if (!file) return;
     
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      setError('Only image files can be uploaded.');
+      setError('Sadece resim dosyaları yüklenebilir.');
       return;
     }
     
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      setError('File size must be less than 5MB.');
+      setError('Dosya boyutu 5MB\'dan küçük olmalıdır.');
       return;
     }
     
@@ -242,7 +292,7 @@ const DesignUploadPage: React.FC = () => {
 
   const removeDesignItem = (itemIndex: number) => {
     if (designItems.length <= 1) {
-      setError('At least one design item is required.');
+      setError('En az bir tasarım öğesi gereklidir.');
       return;
     }
     
@@ -275,14 +325,25 @@ const DesignUploadPage: React.FC = () => {
     
     // Check if we have enough information
     if (!item.title && contentType === 'tags') {
-      setError('Please enter a title first to generate tag suggestions.');
+      setError('Etiket önerileri oluşturmak için önce bir başlık girin.');
       return;
     }
     
     try {
       setAiLoading(prev => ({ ...prev, [`${itemIndex}-${contentType}`]: true }));
       
-      // In a real implementation, this would call an AI service
+      // Get the default rule for this content type
+      const defaultRule = contentType === 'title' 
+        ? titleRules.find(rule => rule.isDefault)
+        : tagRules.find(rule => rule.isDefault);
+      
+      if (!defaultRule) {
+        throw new Error(`${contentType === 'title' ? 'Başlık' : 'Etiket'} oluşturma için varsayılan kural bulunamadı. Lütfen AI Agent sayfasından bir kural oluşturun ve varsayılan olarak ayarlayın.`);
+      }
+      
+      console.log(`🤖 Generating ${contentType} using rule: ${defaultRule.name}`);
+      
+      // In a real implementation, this would call an AI service via Supabase Edge Function
       // For now, we'll simulate the AI response
       await new Promise(resolve => setTimeout(resolve, 1500));
       
@@ -321,7 +382,7 @@ const DesignUploadPage: React.FC = () => {
       
     } catch (error: any) {
       console.error('❌ Error generating AI content:', error);
-      setError(`Error generating AI content: ${error.message}`);
+      setError(`AI içeriği oluşturulurken hata: ${error.message}`);
     } finally {
       setAiLoading(prev => ({ ...prev, [`${itemIndex}-${contentType}`]: false }));
     }
@@ -421,7 +482,7 @@ const DesignUploadPage: React.FC = () => {
     });
     
     if (invalidItems.length > 0) {
-      setError('Please fill in all fields and upload at least one design for each item.');
+      setError('Lütfen her öğe için tüm alanları doldurun ve en az bir tasarım yükleyin.');
       return;
     }
     
@@ -436,7 +497,7 @@ const DesignUploadPage: React.FC = () => {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      setSuccess(`${designItems.length} designs successfully uploaded and sent to Etsy! 🎉`);
+      setSuccess(`${designItems.length} tasarım başarıyla yüklendi ve Etsy'ye gönderildi! 🎉`);
       
       // Reset form
       setDesignItems([
@@ -456,7 +517,7 @@ const DesignUploadPage: React.FC = () => {
       
     } catch (error: any) {
       console.error('❌ Error submitting designs:', error);
-      setError(`Error during submission: ${error.message}`);
+      setError(`Gönderim sırasında hata: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -496,10 +557,10 @@ const DesignUploadPage: React.FC = () => {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
           <Upload className="h-6 w-6 mr-2 text-orange-500" />
-          Upload Design
+          Tasarım Yükleme
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mt-1">
-          Upload your designs and send them to Etsy
+          Tasarımlarınızı yükleyin ve Etsy'ye gönderin
         </p>
       </div>
 
@@ -522,6 +583,27 @@ const DesignUploadPage: React.FC = () => {
         </div>
       )}
 
+      {/* AI Rules Warning */}
+      {(titleRules.length === 0 || tagRules.length === 0 || !titleRules.some(r => r.isDefault) || !tagRules.some(r => r.isDefault)) && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <Sparkles className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="text-sm font-medium text-yellow-700 dark:text-yellow-400 mb-1">
+                AI Kuralları Eksik
+              </h3>
+              <p className="text-sm text-yellow-600 dark:text-yellow-300">
+                AI başlık ve etiket oluşturma özelliğini kullanmak için, <a href="/admin/ai-agent" className="underline font-medium">AI Agent</a> sayfasından kurallar oluşturun ve varsayılan olarak ayarlayın.
+                {titleRules.length === 0 && <span className="block mt-1">• Başlık kuralı oluşturmanız gerekiyor</span>}
+                {titleRules.length > 0 && !titleRules.some(r => r.isDefault) && <span className="block mt-1">• Bir başlık kuralını varsayılan olarak ayarlamanız gerekiyor</span>}
+                {tagRules.length === 0 && <span className="block mt-1">• Etiket kuralı oluşturmanız gerekiyor</span>}
+                {tagRules.length > 0 && !tagRules.some(r => r.isDefault) && <span className="block mt-1">• Bir etiket kuralını varsayılan olarak ayarlamanız gerekiyor</span>}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Design Items List */}
       <div className="space-y-8">
         {designItems.map((item, itemIndex) => (
@@ -529,7 +611,7 @@ const DesignUploadPage: React.FC = () => {
             <CardContent className="p-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Design #{itemIndex + 1}
+                  Tasarım #{itemIndex + 1}
                 </h2>
                 {designItems.length > 1 && (
                   <Button
@@ -537,7 +619,7 @@ const DesignUploadPage: React.FC = () => {
                     variant="danger"
                     size="sm"
                     className="p-2 h-8 w-8 flex items-center justify-center"
-                    title="Delete design"
+                    title="Tasarımı sil"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -553,7 +635,7 @@ const DesignUploadPage: React.FC = () => {
                     <div className="flex-1">
                       <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
                         <div className="w-3 h-3 bg-black rounded-full mr-1"></div>
-                        Black
+                        Siyah
                       </h3>
                       <div className="relative">
                         {item.blackDesign.preview ? (
@@ -566,7 +648,7 @@ const DesignUploadPage: React.FC = () => {
                             <button
                               onClick={() => removeDesign(itemIndex, 'black')}
                               className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                              title="Remove design"
+                              title="Tasarımı kaldır"
                             >
                               <X className="h-3 w-3" />
                             </button>
@@ -577,7 +659,7 @@ const DesignUploadPage: React.FC = () => {
                             className="w-full h-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-white dark:bg-gray-800"
                           >
                             <Plus className="h-5 w-5 text-gray-400 dark:text-gray-500 mb-1" />
-                            <span className="text-xs text-gray-500 dark:text-gray-400">Upload</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">Yükle</span>
                             <input
                               ref={el => blackFileInputRefs.current[itemIndex] = el}
                               type="file"
@@ -594,7 +676,7 @@ const DesignUploadPage: React.FC = () => {
                     <div className="flex-1">
                       <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
                         <div className="w-3 h-3 bg-white border border-gray-300 rounded-full mr-1"></div>
-                        White
+                        Beyaz
                       </h3>
                       <div className="relative">
                         {item.whiteDesign.preview ? (
@@ -607,7 +689,7 @@ const DesignUploadPage: React.FC = () => {
                             <button
                               onClick={() => removeDesign(itemIndex, 'white')}
                               className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                              title="Remove design"
+                              title="Tasarımı kaldır"
                             >
                               <X className="h-3 w-3" />
                             </button>
@@ -618,7 +700,7 @@ const DesignUploadPage: React.FC = () => {
                             className="w-full h-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-gray-800"
                           >
                             <Plus className="h-5 w-5 text-gray-400 dark:text-gray-500 mb-1" />
-                            <span className="text-xs text-gray-400">Upload</span>
+                            <span className="text-xs text-gray-400">Yükle</span>
                             <input
                               ref={el => whiteFileInputRefs.current[itemIndex] = el}
                               type="file"
@@ -638,7 +720,7 @@ const DesignUploadPage: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-medium text-gray-900 dark:text-white flex items-center">
                           <FileText className="h-4 w-4 mr-1 text-orange-500" />
-                          Title
+                          Başlık
                         </h3>
                         <span className={`text-xs ${item.title.length > MAX_TITLE_LENGTH * 0.9 ? 'text-orange-500' : 'text-gray-500'}`}>
                           {item.title.length}/{MAX_TITLE_LENGTH}
@@ -647,7 +729,7 @@ const DesignUploadPage: React.FC = () => {
                       <textarea
                         value={item.title}
                         onChange={(e) => handleTitleChange(e.target.value, itemIndex)}
-                        placeholder="Enter product title..."
+                        placeholder="Ürün başlığını girin..."
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 resize-none"
                         maxLength={MAX_TITLE_LENGTH}
                         rows={3}
@@ -661,14 +743,14 @@ const DesignUploadPage: React.FC = () => {
                           variant="secondary"
                           size="sm"
                           className="flex items-center space-x-1"
-                          disabled={aiLoading[`${itemIndex}-title`]}
+                          disabled={aiLoading[`${itemIndex}-title`] || titleRules.length === 0 || !titleRules.some(r => r.isDefault)}
                         >
                           {aiLoading[`${itemIndex}-title`] ? (
                             <RefreshCw className="h-3 w-3 animate-spin" />
                           ) : (
                             <Sparkles className="h-3 w-3 text-orange-500" />
                           )}
-                          <span className="text-xs">AI Suggest</span>
+                          <span className="text-xs">AI Öner</span>
                         </Button>
                         
                         {item.aiTitle && (
@@ -678,7 +760,7 @@ const DesignUploadPage: React.FC = () => {
                             size="sm"
                             className="py-1 px-2 text-xs"
                           >
-                            Use
+                            Kullan
                           </Button>
                         )}
                       </div>
@@ -701,7 +783,7 @@ const DesignUploadPage: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-medium text-gray-900 dark:text-white flex items-center">
                           <Tag className="h-4 w-4 mr-1 text-orange-500" />
-                          Tags
+                          Etiketler
                         </h3>
                         <span className={`text-xs ${item.tags.length > MAX_TAG_COUNT * 0.9 ? 'text-orange-500' : 'text-gray-500'}`}>
                           {item.tags.length}/{MAX_TAG_COUNT}
@@ -725,7 +807,7 @@ const DesignUploadPage: React.FC = () => {
                             return item;
                           }));
                         }}
-                        placeholder="Enter tags separated by commas..."
+                        placeholder="Etiketleri virgülle ayırarak girin..."
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 resize-none"
                         rows={3}
                         style={{ minHeight: '80px' }}
@@ -738,14 +820,14 @@ const DesignUploadPage: React.FC = () => {
                           variant="secondary"
                           size="sm"
                           className="flex items-center space-x-1"
-                          disabled={aiLoading[`${itemIndex}-tags`] || !item.title}
+                          disabled={aiLoading[`${itemIndex}-tags`] || !item.title || tagRules.length === 0 || !tagRules.some(r => r.isDefault)}
                         >
                           {aiLoading[`${itemIndex}-tags`] ? (
                             <RefreshCw className="h-3 w-3 animate-spin" />
                           ) : (
                             <Sparkles className="h-3 w-3 text-orange-500" />
                           )}
-                          <span className="text-xs">AI Suggest</span>
+                          <span className="text-xs">AI Öner</span>
                         </Button>
                         
                         {item.aiTags.length > 0 && (
@@ -755,7 +837,7 @@ const DesignUploadPage: React.FC = () => {
                             size="sm"
                             className="py-1 px-2 text-xs"
                           >
-                            Use
+                            Kullan
                           </Button>
                         )}
                       </div>
@@ -765,7 +847,7 @@ const DesignUploadPage: React.FC = () => {
                         <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-2">
                           <div className="flex items-center space-x-1 mb-1">
                             <Sparkles className="h-3 w-3 text-orange-500" />
-                            <p className="text-xs text-orange-700 dark:text-orange-400">Suggested Tags:</p>
+                            <p className="text-xs text-orange-700 dark:text-orange-400">Önerilen Etiketler:</p>
                           </div>
                           <div className="flex flex-wrap gap-1">
                             {item.aiTags.map((tag, tagIndex) => (
@@ -803,14 +885,14 @@ const DesignUploadPage: React.FC = () => {
                   <div className="col-span-2">
                     <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
                       <Template className="h-4 w-4 mr-1 text-orange-500" />
-                      Listing Template
+                      Listeleme Şablonu
                     </h3>
                     <select
                       value={item.template}
                       onChange={(e) => handleTemplateChange(e.target.value, itemIndex)}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
                     >
-                      <option value="">Select template...</option>
+                      <option value="">Şablon seçin...</option>
                       {templates.map(template => (
                         <option key={template.id} value={template.id}>
                           {template.name}
@@ -823,14 +905,14 @@ const DesignUploadPage: React.FC = () => {
                   <div className="col-span-2">
                     <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
                       <Grid3X3 className="h-4 w-4 mr-1 text-orange-500" />
-                      Mockup Folder
+                      Mockup Klasörü
                     </h3>
                     <select
                       value={item.mockupFolder}
                       onChange={(e) => handleMockupFolderChange(e.target.value, itemIndex)}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
                     >
-                      <option value="">Select folder...</option>
+                      <option value="">Klasör seçin...</option>
                       {mockupFolders.map(folder => (
                         <option key={folder.id} value={folder.id}>
                           {folder.name}
@@ -853,7 +935,7 @@ const DesignUploadPage: React.FC = () => {
           className="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600"
         >
           <Plus className="h-4 w-4" />
-          <span>Add New Design</span>
+          <span>Yeni Tasarım Ekle</span>
         </Button>
       </div>
 
@@ -867,12 +949,12 @@ const DesignUploadPage: React.FC = () => {
           {loading ? (
             <>
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-              <span>Sending...</span>
+              <span>Gönderiliyor...</span>
             </>
           ) : (
             <>
               <Send className="h-5 w-5" />
-              <span>Send to Etsy</span>
+              <span>Etsy'ye Gönder</span>
             </>
           )}
         </Button>
