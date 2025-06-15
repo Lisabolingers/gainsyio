@@ -462,6 +462,34 @@ const DesignUploadPage: React.FC = () => {
     }
   };
 
+  // Function to handle "Kullan" button for tags
+  const useTagsFromAI = (itemIndex: number) => {
+    const item = designItems[itemIndex];
+    
+    // Convert AI tags to comma-separated string and add to tagInput
+    if (item.aiTags.length > 0) {
+      const tagsString = item.aiTags.join(', ');
+      
+      setDesignItems(prev => prev.map((item, idx) => {
+        if (idx === itemIndex) {
+          return { 
+            ...item, 
+            tagInput: tagsString,
+            aiTags: []
+          };
+        }
+        return item;
+      }));
+      
+      // Focus on the tag input
+      setTimeout(() => {
+        if (tagInputRefs.current[itemIndex]) {
+          tagInputRefs.current[itemIndex]?.focus();
+        }
+      }, 100);
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -616,12 +644,14 @@ const DesignUploadPage: React.FC = () => {
                           {item.title.length}/{MAX_TITLE_LENGTH}
                         </span>
                       </div>
-                      <Input
+                      <textarea
                         value={item.title}
                         onChange={(e) => handleTitleChange(e.target.value, itemIndex)}
                         placeholder="Ürün başlığı girin..."
-                        className="w-full"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 resize-none"
                         maxLength={MAX_TITLE_LENGTH}
+                        rows={3}
+                        style={{ minHeight: '80px' }}
                       />
                       
                       {/* AI Title Button */}
@@ -678,42 +708,31 @@ const DesignUploadPage: React.FC = () => {
                         </span>
                       </div>
                       
-                      {/* Tags Display */}
-                      <div className="flex flex-wrap gap-1 min-h-[38px] max-h-[76px] overflow-y-auto p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
-                        {item.tags.length === 0 ? (
-                          <span className="text-xs text-gray-500 dark:text-gray-400 p-1">
-                            Etiket eklemek için virgülle ayırarak girin veya AI önerisi alın
-                          </span>
-                        ) : (
-                          item.tags.map((tag, tagIndex) => (
-                            <div 
-                              key={tagIndex}
-                              className="bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded-full text-xs flex items-center space-x-1 group hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
-                            >
-                              <span className="text-gray-800 dark:text-gray-200 max-w-[100px] truncate">{tag}</span>
-                              <button
-                                onClick={() => removeTag(itemIndex, tagIndex)}
-                                className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 opacity-70 group-hover:opacity-100"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </div>
-                          ))
-                        )}
-                      </div>
+                      {/* Tag Input - Modified to be a textarea */}
+                      <textarea
+                        value={item.tags.join(', ')}
+                        onChange={(e) => {
+                          const tagsText = e.target.value;
+                          const tagArray = tagsText.split(',')
+                            .map(tag => tag.trim())
+                            .filter(tag => tag.length > 0)
+                            .slice(0, MAX_TAG_COUNT);
+                          
+                          setDesignItems(prev => prev.map((item, idx) => {
+                            if (idx === itemIndex) {
+                              return { ...item, tags: tagArray };
+                            }
+                            return item;
+                          }));
+                        }}
+                        placeholder="Etiketleri virgülle ayırarak girin..."
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 resize-none"
+                        rows={3}
+                        style={{ minHeight: '80px' }}
+                      />
                       
-                      {/* Tag Input */}
+                      {/* AI Tags Button */}
                       <div className="flex items-center space-x-2">
-                        <Input
-                          ref={el => tagInputRefs.current[itemIndex] = el}
-                          value={item.tagInput}
-                          onChange={(e) => handleTagInputChange(e.target.value, itemIndex)}
-                          placeholder="Etiket ekle, virgülle ayır..."
-                          onKeyDown={(e) => handleTagInputKeyDown(e, itemIndex)}
-                          className="flex-1"
-                          disabled={item.tags.length >= MAX_TAG_COUNT}
-                        />
-                        
                         <Button
                           onClick={() => generateAIContent(itemIndex, 'tags')}
                           variant="secondary"
@@ -728,29 +747,28 @@ const DesignUploadPage: React.FC = () => {
                           )}
                           <span className="text-xs">AI Öner</span>
                         </Button>
+                        
+                        {item.aiTags.length > 0 && (
+                          <Button
+                            onClick={() => useTagsFromAI(itemIndex)}
+                            variant="secondary"
+                            size="sm"
+                            className="py-1 px-2 text-xs"
+                          >
+                            Kullan
+                          </Button>
+                        )}
                       </div>
                       
                       {/* AI Tags Suggestions */}
                       {item.aiTags.length > 0 && (
                         <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-2">
-                          <div className="flex items-center justify-between mb-1">
-                            <div className="flex items-center space-x-1">
-                              <Sparkles className="h-3 w-3 text-orange-500" />
-                              <p className="text-xs text-orange-700 dark:text-orange-400">Önerilen:</p>
-                            </div>
-                            {item.tags.length < MAX_TAG_COUNT && (
-                              <Button
-                                onClick={() => useAITags(itemIndex)}
-                                variant="secondary"
-                                size="sm"
-                                className="py-0.5 px-2 text-xs h-6"
-                              >
-                                Tümünü Ekle
-                              </Button>
-                            )}
+                          <div className="flex items-center space-x-1 mb-1">
+                            <Sparkles className="h-3 w-3 text-orange-500" />
+                            <p className="text-xs text-orange-700 dark:text-orange-400">Önerilen Etiketler:</p>
                           </div>
                           <div className="flex flex-wrap gap-1">
-                            {item.aiTags.slice(0, 5).map((tag, tagIndex) => (
+                            {item.aiTags.map((tag, tagIndex) => (
                               <div 
                                 key={tagIndex}
                                 className="bg-orange-100 dark:bg-orange-800/30 px-2 py-1 rounded-full text-xs flex items-center space-x-1 cursor-pointer hover:bg-orange-200 dark:hover:bg-orange-800/50 transition-colors"
