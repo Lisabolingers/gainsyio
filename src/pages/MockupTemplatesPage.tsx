@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Konva from 'konva';
 import { Stage, Layer, Rect, Text as KonvaText, Transformer, Group, Image as KonvaImage } from 'react-konva';
-import { Image, Plus, Edit, Trash2, Copy, Search, Filter, Grid, List, Save, Download, Upload, Eye, EyeOff, Move, RotateCw, Palette, Type, Square, Circle, Store, Tag, Package } from 'lucide-react';
+import { Image, Plus, Edit, Trash2, Copy, Search, Filter, Grid, List, Save, Download, Upload, Eye, EyeOff, Move, RotateCw, Palette, Type, Square, Circle, Store, Folder, FolderOpen, ArrowLeft, FolderPlus, MoreHorizontal } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
@@ -17,9 +17,11 @@ interface MockupTemplate {
   design_areas: DesignArea[];
   text_areas: TextArea[];
   logo_area?: LogoArea;
+  store_id?: string;
   design_type: 'black' | 'white' | 'color';
   product_category: string;
-  store_id?: string;
+  folder_path: string;
+  folder_name: string;
   is_default: boolean;
   created_at: string;
   updated_at: string;
@@ -71,20 +73,32 @@ interface EtsyStore {
   is_active: boolean;
 }
 
+interface TemplateFolder {
+  folder_path: string;
+  folder_name: string;
+  template_count: number;
+  black_designs: number;
+  white_designs: number;
+  color_designs: number;
+  first_created: string;
+  last_updated: string;
+}
+
 const MockupTemplatesPage: React.FC = () => {
   const { user } = useAuth();
   const [templates, setTemplates] = useState<MockupTemplate[]>([]);
+  const [folders, setFolders] = useState<TemplateFolder[]>([]);
   const [stores, setStores] = useState<EtsyStore[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'folders' | 'templates'>('folders');
+  const [currentFolder, setCurrentFolder] = useState<string>('');
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
   const [showEditor, setShowEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<MockupTemplate | null>(null);
-
-  // Filter states
-  const [selectedDesignType, setSelectedDesignType] = useState<string>('all');
-  const [selectedProductCategory, setSelectedProductCategory] = useState<string>('all');
+  const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
 
   // Editor States
   const [canvasSize, setCanvasSize] = useState({ width: 2000, height: 2000 });
@@ -92,7 +106,8 @@ const MockupTemplatesPage: React.FC = () => {
   const [backgroundImage, setBackgroundImage] = useState<string>('');
   const [selectedStore, setSelectedStore] = useState<string>('');
   const [designType, setDesignType] = useState<'black' | 'white' | 'color'>('black');
-  const [productCategory, setProductCategory] = useState<string>('t-shirt');
+  const [productCategory, setProductCategory] = useState('');
+  const [templateFolder, setTemplateFolder] = useState('default');
   const [designAreas, setDesignAreas] = useState<DesignArea[]>([]);
   const [textAreas, setTextAreas] = useState<TextArea[]>([]);
   const [logoArea, setLogoArea] = useState<LogoArea | null>(null);
@@ -115,44 +130,53 @@ const MockupTemplatesPage: React.FC = () => {
   const maxContainerSize = 600;
   const scale = Math.min(maxContainerSize / canvasSize.width, maxContainerSize / canvasSize.height, 1);
 
-  // Product categories
-  const productCategories = [
-    { value: 't-shirt', label: '👕 T-Shirt', icon: '👕' },
-    { value: 'sweatshirt', label: '🧥 Sweatshirt', icon: '🧥' },
-    { value: 'hoodie', label: '👘 Hoodie', icon: '👘' },
-    { value: 'mug', label: '☕ Mug', icon: '☕' },
-    { value: 'poster', label: '🖼️ Poster', icon: '🖼️' },
-    { value: 'canvas', label: '🎨 Canvas', icon: '🎨' },
-    { value: 'pillow', label: '🛏️ Pillow', icon: '🛏️' },
-    { value: 'phone-case', label: '📱 Phone Case', icon: '📱' },
-    { value: 'tote-bag', label: '👜 Tote Bag', icon: '👜' },
-    { value: 'sticker', label: '🏷️ Sticker', icon: '🏷️' },
-    { value: 'other', label: '📦 Other', icon: '📦' }
-  ];
-
-  // Design types
-  const designTypes = [
-    { value: 'black', label: '⚫ Black Design', description: 'For light colored products' },
-    { value: 'white', label: '⚪ White Design', description: 'For dark colored products' },
-    { value: 'color', label: '🌈 Color Design', description: 'For any colored products' }
-  ];
-
   useEffect(() => {
     if (user) {
-      loadTemplates();
+      loadFolders();
       loadStores();
+      if (currentFolder) {
+        loadTemplates();
+      }
     }
-  }, [user]);
+  }, [user, currentFolder]);
 
-  const loadTemplates = async () => {
+  const loadFolders = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Loading mockup templates...');
+      console.log('🔄 Loading mockup template folders...');
+      
+      const { data, error } = await supabase
+        .from('mockup_template_folders')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('folder_name');
+
+      if (error) {
+        console.error('❌ Folder loading error:', error);
+        throw error;
+      }
+
+      console.log(`✅ ${data?.length || 0} folders loaded`);
+      setFolders(data || []);
+    } catch (error) {
+      console.error('❌ Folder loading general error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTemplates = async () => {
+    if (!currentFolder) return;
+    
+    try {
+      setLoading(true);
+      console.log('🔄 Loading templates for folder:', currentFolder);
       
       const { data, error } = await supabase
         .from('mockup_templates')
         .select('*')
         .eq('user_id', user?.id)
+        .eq('folder_path', currentFolder)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -160,16 +184,8 @@ const MockupTemplatesPage: React.FC = () => {
         throw error;
       }
 
-      console.log(`✅ ${data?.length || 0} mockup templates loaded`);
-      
-      // Ensure all templates have design_type and product_category
-      const templatesWithDefaults = data?.map(template => ({
-        ...template,
-        design_type: template.design_type || 'black',
-        product_category: template.product_category || 't-shirt'
-      })) || [];
-      
-      setTemplates(templatesWithDefaults);
+      console.log(`✅ ${data?.length || 0} templates loaded for folder`);
+      setTemplates(data || []);
     } catch (error) {
       console.error('❌ Template loading general error:', error);
     } finally {
@@ -195,13 +211,6 @@ const MockupTemplatesPage: React.FC = () => {
       }
 
       console.log(`✅ ${data?.length || 0} Etsy stores loaded`);
-      
-      if (!data || data.length === 0) {
-        console.log('🏪 No stores found, creating sample store...');
-        await createSampleStore();
-        return;
-      }
-      
       setStores(data || []);
       
       if (data && data.length > 0) {
@@ -212,26 +221,126 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
-  const createSampleStore = async () => {
+  const createFolder = async () => {
+    if (!newFolderName.trim()) {
+      alert('Klasör adı gerekli!');
+      return;
+    }
+
     try {
-      console.log('🏪 Creating sample Etsy store...');
+      console.log('📁 Creating new folder:', newFolderName);
       
-      const { data, error } = await supabase
-        .rpc('create_sample_store_for_user', {
-          user_id_param: user?.id
-        });
+      // Create a sample template in the new folder to initialize it
+      const folderPath = newFolderName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      
+      const sampleTemplate = {
+        user_id: user?.id,
+        name: `${newFolderName} - Sample Template`,
+        image_url: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzY2NzM4NSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk1vY2t1cCBUZW1wbGF0ZTwvdGV4dD48L3N2Zz4=',
+        design_areas: [],
+        text_areas: [],
+        logo_area: null,
+        design_type: 'black',
+        product_category: 'General',
+        folder_path: folderPath,
+        folder_name: newFolderName,
+        store_id: selectedStore || null,
+        is_default: false
+      };
+
+      const { error } = await supabase
+        .from('mockup_templates')
+        .insert(sampleTemplate);
 
       if (error) {
-        console.error('❌ Sample store creation error:', error);
+        console.error('❌ Folder creation error:', error);
         throw error;
       }
 
-      console.log('✅ Sample store created successfully:', data);
+      console.log('✅ Folder created successfully');
+      await loadFolders();
+      setNewFolderName('');
+      setShowCreateFolderModal(false);
       
-      await loadStores();
-      
+      alert('Klasör başarıyla oluşturuldu! 🎉');
     } catch (error) {
-      console.error('❌ Sample store creation general error:', error);
+      console.error('❌ Folder creation general error:', error);
+      alert('Klasör oluşturulurken hata oluştu.');
+    }
+  };
+
+  const deleteFolder = async (folderPath: string) => {
+    const folder = folders.find(f => f.folder_path === folderPath);
+    if (!folder) return;
+
+    if (!window.confirm(`"${folder.folder_name}" klasörünü ve içindeki ${folder.template_count} template'i silmek istediğinizden emin misiniz?`)) {
+      return;
+    }
+
+    try {
+      console.log('🗑️ Deleting folder:', folderPath);
+      
+      const { error } = await supabase
+        .from('mockup_templates')
+        .delete()
+        .eq('user_id', user?.id)
+        .eq('folder_path', folderPath);
+
+      if (error) throw error;
+
+      console.log('✅ Folder deleted successfully');
+      await loadFolders();
+      
+      // If we're currently viewing the deleted folder, go back to folders view
+      if (currentFolder === folderPath) {
+        setCurrentFolder('');
+        setViewMode('folders');
+      }
+      
+      alert('Klasör başarıyla silindi!');
+    } catch (error) {
+      console.error('❌ Folder deletion error:', error);
+      alert('Klasör silinirken hata oluştu');
+    }
+  };
+
+  const moveTemplatesToFolder = async (targetFolderPath: string) => {
+    if (selectedTemplates.length === 0) {
+      alert('Taşınacak template seçin!');
+      return;
+    }
+
+    const targetFolder = folders.find(f => f.folder_path === targetFolderPath);
+    if (!targetFolder) {
+      alert('Hedef klasör bulunamadı!');
+      return;
+    }
+
+    try {
+      console.log('📦 Moving templates to folder:', targetFolderPath);
+      
+      const { error } = await supabase
+        .from('mockup_templates')
+        .update({
+          folder_path: targetFolderPath,
+          folder_name: targetFolder.folder_name,
+          updated_at: new Date().toISOString()
+        })
+        .in('id', selectedTemplates)
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      console.log('✅ Templates moved successfully');
+      await loadTemplates();
+      await loadFolders();
+      setSelectedTemplates([]);
+      setShowMoveModal(false);
+      
+      alert(`${selectedTemplates.length} template "${targetFolder.folder_name}" klasörüne taşındı! 🎉`);
+    } catch (error) {
+      console.error('❌ Template move error:', error);
+      alert('Template'ler taşınırken hata oluştu');
     }
   };
 
@@ -241,7 +350,8 @@ const MockupTemplatesPage: React.FC = () => {
     setBackgroundImage('');
     setSelectedStore(stores.length > 0 ? stores[0].id : '');
     setDesignType('black');
-    setProductCategory('t-shirt');
+    setProductCategory('');
+    setTemplateFolder(currentFolder || 'default');
     setDesignAreas([]);
     setTextAreas([]);
     setLogoArea(null);
@@ -257,8 +367,9 @@ const MockupTemplatesPage: React.FC = () => {
     setTemplateName(template.name);
     setBackgroundImage(template.image_url);
     setSelectedStore(template.store_id || (stores.length > 0 ? stores[0].id : ''));
-    setDesignType(template.design_type || 'black');
-    setProductCategory(template.product_category || 't-shirt');
+    setDesignType(template.design_type);
+    setProductCategory(template.product_category);
+    setTemplateFolder(template.folder_path);
     setDesignAreas(template.design_areas || []);
     setTextAreas(template.text_areas || []);
     setLogoArea(template.logo_area || null);
@@ -289,23 +400,30 @@ const MockupTemplatesPage: React.FC = () => {
 
   const saveTemplate = async () => {
     if (!templateName.trim()) {
-      alert('Template name is required!');
+      alert('Template adı gerekli!');
       return;
     }
 
     if (!backgroundImage) {
-      alert('Background image is required!');
+      alert('Arka plan resmi gerekli!');
       return;
     }
 
     if (!selectedStore) {
-      alert('Store selection is required!');
+      alert('Mağaza seçimi gerekli!');
+      return;
+    }
+
+    if (!productCategory.trim()) {
+      alert('Ürün kategorisi gerekli!');
       return;
     }
 
     try {
       console.log('💾 Saving template...');
 
+      const folderInfo = folders.find(f => f.folder_path === templateFolder);
+      
       const templateData = {
         user_id: user?.id,
         name: templateName,
@@ -315,6 +433,8 @@ const MockupTemplatesPage: React.FC = () => {
         logo_area: logoArea,
         design_type: designType,
         product_category: productCategory,
+        folder_path: templateFolder,
+        folder_name: folderInfo?.folder_name || 'Default Templates',
         store_id: selectedStore,
         is_default: false
       };
@@ -342,23 +462,24 @@ const MockupTemplatesPage: React.FC = () => {
 
       if (result.error) {
         console.error('❌ Template save error:', result.error);
-        alert('Template could not be saved: ' + result.error.message);
+        alert('Template kaydedilemedi: ' + result.error.message);
         return;
       }
 
       console.log('✅ Template saved successfully:', result.data);
       await loadTemplates();
+      await loadFolders();
       setShowEditor(false);
-      alert('Template saved successfully! 🎉');
+      alert('Template başarıyla kaydedildi! 🎉');
 
     } catch (error) {
       console.error('❌ Template save general error:', error);
-      alert('Template could not be saved: ' + (error as Error).message);
+      alert('Template kaydedilemedi: ' + (error as Error).message);
     }
   };
 
   const deleteTemplate = async (templateId: string) => {
-    if (!window.confirm('Are you sure you want to delete this template?')) return;
+    if (!window.confirm('Bu template\'i silmek istediğinizden emin misiniz?')) return;
 
     try {
       const { error } = await supabase
@@ -371,9 +492,10 @@ const MockupTemplatesPage: React.FC = () => {
 
       setTemplates(prev => prev.filter(t => t.id !== templateId));
       setSelectedTemplates(prev => prev.filter(id => id !== templateId));
+      await loadFolders();
     } catch (error) {
       console.error('Template deletion error:', error);
-      alert('Error occurred while deleting template');
+      alert('Template silinirken hata oluştu');
     }
   };
 
@@ -383,13 +505,15 @@ const MockupTemplatesPage: React.FC = () => {
         .from('mockup_templates')
         .insert({
           user_id: user?.id,
-          name: `${template.name} (Copy)`,
+          name: `${template.name} (Kopya)`,
           image_url: template.image_url,
           design_areas: template.design_areas,
           text_areas: template.text_areas,
           logo_area: template.logo_area,
-          design_type: template.design_type || 'black',
-          product_category: template.product_category || 't-shirt',
+          design_type: template.design_type,
+          product_category: template.product_category,
+          folder_path: template.folder_path,
+          folder_name: template.folder_name,
           store_id: template.store_id,
           is_default: false
         });
@@ -397,9 +521,10 @@ const MockupTemplatesPage: React.FC = () => {
       if (error) throw error;
 
       await loadTemplates();
+      await loadFolders();
     } catch (error) {
       console.error('Template duplication error:', error);
-      alert('Error occurred while duplicating template');
+      alert('Template kopyalanırken hata oluştu');
     }
   };
 
@@ -408,12 +533,12 @@ const MockupTemplatesPage: React.FC = () => {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Only image files can be uploaded!');
+      alert('Sadece resim dosyaları yüklenebilir!');
       return;
     }
 
     if (file.size > 20 * 1024 * 1024) {
-      alert('File size must be smaller than 20MB!');
+      alert('Dosya boyutu 20MB\'dan küçük olmalı!');
       return;
     }
 
@@ -432,13 +557,13 @@ const MockupTemplatesPage: React.FC = () => {
       reader.readAsDataURL(file);
     } catch (error) {
       console.error('Background upload error:', error);
-      alert('Error occurred while uploading background');
+      alert('Arka plan yüklenirken hata oluştu');
     }
   };
 
   const addDesignArea = () => {
     if (designAreas.length >= 1) {
-      alert('You can only add 1 design area!');
+      alert('Sadece 1 tasarım alanı ekleyebilirsiniz!');
       return;
     }
 
@@ -466,12 +591,12 @@ const MockupTemplatesPage: React.FC = () => {
       width: 800,
       height: 150,
       rotation: 0,
-      text: 'Sample Text',
+      text: 'Örnek Metin',
       fontSize: 72,
       fontFamily: 'Arial',
       color: '#000000',
       align: 'center',
-      placeholder: 'Enter your text...',
+      placeholder: 'Metninizi girin...',
       maxChars: 100,
       visible: true
     };
@@ -483,7 +608,7 @@ const MockupTemplatesPage: React.FC = () => {
 
   const addLogoArea = () => {
     if (logoArea) {
-      alert('You can only add 1 logo area!');
+      alert('Sadece 1 logo alanı ekleyebilirsiniz!');
       return;
     }
 
@@ -516,7 +641,7 @@ const MockupTemplatesPage: React.FC = () => {
     };
     img.onerror = () => {
       console.error('❌ Logo image could not be loaded:', logoUrl);
-      alert('Error occurred while loading logo');
+      alert('Logo yüklenirken hata oluştu');
     };
     img.src = logoUrl;
     
@@ -636,16 +761,16 @@ const MockupTemplatesPage: React.FC = () => {
     }
   }, [selectedId, showTransformer]);
 
-  const filteredTemplates = templates.filter(template => {
-    const matchesSearch = template.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesDesignType = selectedDesignType === 'all' || template.design_type === selectedDesignType;
-    const matchesProductCategory = selectedProductCategory === 'all' || template.product_category === selectedProductCategory;
-    
-    return matchesSearch && matchesDesignType && matchesProductCategory;
-  });
+  const filteredTemplates = templates.filter(template =>
+    template.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredFolders = folders.filter(folder =>
+    folder.folder_name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return new Date(dateString).toLocaleDateString('tr-TR', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -654,40 +779,13 @@ const MockupTemplatesPage: React.FC = () => {
     });
   };
 
-  const getSelectedArea = () => {
-    if (!selectedId) return null;
-    
-    if (selectedId.startsWith('design-')) {
-      return designAreas.find(area => area.id === selectedId);
-    } else if (selectedId.startsWith('text-')) {
-      return textAreas.find(area => area.id === selectedId);
-    } else if (selectedId.startsWith('logo-')) {
-      return logoArea;
-    }
-    
-    return null;
-  };
-
-  const updateSelectedArea = (property: string, value: any) => {
-    if (!selectedId) return;
-    
-    if (selectedId.startsWith('design-')) {
-      setDesignAreas(prev => prev.map(area => 
-        area.id === selectedId ? { ...area, [property]: value } : area
-      ));
-    } else if (selectedId.startsWith('text-')) {
-      setTextAreas(prev => prev.map(area => 
-        area.id === selectedId ? { ...area, [property]: value } : area
-      ));
-    } else if (selectedId.startsWith('logo-')) {
-      setLogoArea(prev => prev ? { ...prev, [property]: value } : null);
-    }
-  };
-
-  const getStoreName = (storeId?: string) => {
-    if (!storeId) return 'No store selected';
-    const store = stores.find(s => s.id === storeId);
-    return store ? store.store_name : 'Unknown store';
+  const getDesignTypeColor = (type: string) => {
+    const colors = {
+      'black': 'bg-gray-900 text-white',
+      'white': 'bg-gray-100 text-gray-900 border border-gray-300',
+      'color': 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+    };
+    return colors[type as keyof typeof colors] || colors.black;
   };
 
   const getDesignTypeIcon = (type: string) => {
@@ -699,14 +797,25 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
 
-  const getProductCategoryIcon = (category: string) => {
-    const categoryData = productCategories.find(cat => cat.value === category);
-    return categoryData ? categoryData.icon : '📦';
+  const toggleTemplateSelection = (templateId: string) => {
+    setSelectedTemplates(prev =>
+      prev.includes(templateId)
+        ? prev.filter(id => id !== templateId)
+        : [...prev, templateId]
+    );
   };
 
-  const getProductCategoryLabel = (category: string) => {
-    const categoryData = productCategories.find(cat => cat.value === category);
-    return categoryData ? categoryData.label : category;
+  const selectAllTemplates = () => {
+    if (selectedTemplates.length === filteredTemplates.length) {
+      setSelectedTemplates([]);
+    } else {
+      setSelectedTemplates(filteredTemplates.map(t => t.id));
+    }
+  };
+
+  const getCurrentFolderName = () => {
+    const folder = folders.find(f => f.folder_path === currentFolder);
+    return folder ? folder.folder_name : 'Bilinmeyen Klasör';
   };
 
   if (loading) {
@@ -732,15 +841,15 @@ const MockupTemplatesPage: React.FC = () => {
                 variant="secondary"
                 size="sm"
               >
-                ← Back
+                ← Geri
               </Button>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                {editingTemplate ? 'Edit Template' : 'Create New Template'}
+                {editingTemplate ? 'Template Düzenle' : 'Yeni Template Oluştur'}
               </h1>
             </div>
             <div className="flex items-center space-x-3">
-              <Button onClick={saveTemplate} disabled={!templateName || !backgroundImage || !selectedStore}>
-                💾 Save
+              <Button onClick={saveTemplate} disabled={!templateName || !backgroundImage || !selectedStore || !productCategory}>
+                💾 Kaydet
               </Button>
             </div>
           </div>
@@ -752,66 +861,32 @@ const MockupTemplatesPage: React.FC = () => {
           <div className="flex-1 p-6 bg-gray-100 dark:bg-gray-900">
             <div className="flex flex-col items-center">
               {/* Canvas Controls */}
-              <div className="mb-4 flex items-center space-x-4 flex-wrap">
+              <div className="mb-4 grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-4xl">
                 <Input
-                  placeholder="Template name"
+                  placeholder="Template adı"
                   value={templateName}
                   onChange={(e) => setTemplateName(e.target.value)}
-                  className="w-64"
                 />
-                
-                <div className="flex items-center space-x-2">
-                  <Store className="h-5 w-5 text-orange-500" />
-                  <select
-                    value={selectedStore}
-                    onChange={(e) => setSelectedStore(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-                  >
-                    <option value="">Select store...</option>
-                    {stores.map((store) => (
-                      <option key={store.id} value={store.id}>
-                        {store.store_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Palette className="h-5 w-5 text-orange-500" />
-                  <select
-                    value={designType}
-                    onChange={(e) => setDesignType(e.target.value as 'black' | 'white' | 'color')}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-                  >
-                    {designTypes.map((type) => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Package className="h-5 w-5 text-orange-500" />
-                  <select
-                    value={productCategory}
-                    onChange={(e) => setProductCategory(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-                  >
-                    {productCategories.map((category) => (
-                      <option key={category.value} value={category.value}>
-                        {category.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
+                <Input
+                  placeholder="Ürün kategorisi (örn: T-Shirt)"
+                  value={productCategory}
+                  onChange={(e) => setProductCategory(e.target.value)}
+                />
+                <select
+                  value={designType}
+                  onChange={(e) => setDesignType(e.target.value as any)}
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                >
+                  <option value="black">⚫ Siyah Tasarım</option>
+                  <option value="white">⚪ Beyaz Tasarım</option>
+                  <option value="color">🌈 Renkli Tasarım</option>
+                </select>
                 <Button
                   onClick={() => fileInputRef.current?.click()}
                   variant="secondary"
                   size="sm"
                 >
-                  📁 Upload Mockup
+                  📁 Mockup Yükle
                 </Button>
               </div>
 
@@ -876,7 +951,7 @@ const MockupTemplatesPage: React.FC = () => {
                             rotation={area.rotation}
                           />
                           <KonvaText
-                            text="DESIGN"
+                            text="TASARIM"
                             fontSize={48}
                             fontFamily="Arial"
                             fill="#3b82f6"
@@ -964,7 +1039,7 @@ const MockupTemplatesPage: React.FC = () => {
                                 rotation={logoArea.rotation}
                               />
                               <KonvaText
-                                text="LOGO\n(Click)"
+                                text="LOGO\n(Tıkla)"
                                 fontSize={36}
                                 fontFamily="Arial"
                                 fill="#a855f7"
@@ -998,16 +1073,8 @@ const MockupTemplatesPage: React.FC = () => {
 
               {/* Canvas Info */}
               <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
-                <p>💡 <strong>Tip:</strong> Select design type and product category for better organization</p>
-                <p>Canvas size: {canvasSize.width} × {canvasSize.height} px</p>
-                <p className="mt-2 text-orange-600 dark:text-orange-400">
-                  🖱️ <strong>Click empty area to clear selection and view areas only</strong>
-                </p>
-                {logoArea && !logoImage && (
-                  <p className="text-orange-600 dark:text-orange-400 mt-2">
-                    🖼️ <strong>Click logo area to select logo from Store Images</strong>
-                  </p>
-                )}
+                <p>💡 <strong>İpucu:</strong> Template kaydetmek için ad, kategori ve tasarım alanı ekleyin.</p>
+                <p>Canvas boyutu: {canvasSize.width} × {canvasSize.height} px</p>
               </div>
             </div>
           </div>
@@ -1015,31 +1082,10 @@ const MockupTemplatesPage: React.FC = () => {
           {/* Properties Panel */}
           <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 p-4 overflow-y-auto">
             <div className="space-y-4">
-              {/* Template Info */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Template Settings</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                    <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Design Type:</div>
-                    <div className="text-sm font-medium text-gray-900 dark:text-white">
-                      {getDesignTypeIcon(designType)} {designTypes.find(t => t.value === designType)?.label}
-                    </div>
-                  </div>
-                  <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                    <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Product Category:</div>
-                    <div className="text-sm font-medium text-gray-900 dark:text-white">
-                      {getProductCategoryIcon(productCategory)} {getProductCategoryLabel(productCategory)}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
               {/* Add Areas */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Add Areas</CardTitle>
+                  <CardTitle>Alan Ekle</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <Button
@@ -1048,7 +1094,7 @@ const MockupTemplatesPage: React.FC = () => {
                     disabled={designAreas.length >= 1}
                   >
                     <Square className="h-4 w-4 mr-2" />
-                    Design Area {designAreas.length >= 1 && '(Max 1)'}
+                    Tasarım Alanı {designAreas.length >= 1 && '(Maks 1)'}
                   </Button>
                   <Button
                     onClick={addTextArea}
@@ -1056,7 +1102,7 @@ const MockupTemplatesPage: React.FC = () => {
                     className="w-full"
                   >
                     <Type className="h-4 w-4 mr-2" />
-                    Text Area
+                    Metin Alanı
                   </Button>
                   <Button
                     onClick={addLogoArea}
@@ -1065,84 +1111,63 @@ const MockupTemplatesPage: React.FC = () => {
                     disabled={!!logoArea}
                   >
                     <Circle className="h-4 w-4 mr-2" />
-                    Logo Area {logoArea && '(Max 1)'}
+                    Logo Alanı {logoArea && '(Maks 1)'}
                   </Button>
                 </CardContent>
               </Card>
 
-              {/* Special info panel for Logo Area */}
-              {logoArea && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      🖼️ Logo Area
-                      <Button
-                        onClick={() => setShowLogoSelector(true)}
-                        size="sm"
-                        className="text-xs"
-                      >
-                        Select Logo
-                      </Button>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {logoImage ? (
-                      <div className="space-y-2">
-                        <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                          <div className="text-xs text-gray-600 dark:text-gray-400 mb-2">Selected Logo:</div>
-                          <img 
-                            src={logoArea.logoUrl} 
-                            alt="Selected logo" 
-                            className="w-16 h-16 object-cover rounded border mx-auto"
-                          />
-                        </div>
-                        <Button
-                          onClick={() => setShowLogoSelector(true)}
-                          variant="secondary"
-                          size="sm"
-                          className="w-full"
-                        >
-                          Change Logo
-                        </Button>
-                        <Button
-                          onClick={() => {
-                            setLogoImage(null);
-                            setLogoArea(prev => prev ? { ...prev, logoUrl: undefined } : null);
-                          }}
-                          variant="danger"
-                          size="sm"
-                          className="w-full"
-                        >
-                          Remove Logo
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="text-center py-4">
-                        <div className="text-gray-500 dark:text-gray-400 mb-3">
-                          No logo selected yet
-                        </div>
-                        <Button
-                          onClick={() => setShowLogoSelector(true)}
-                          className="w-full"
-                          size="sm"
-                        >
-                          Select Logo from Store Images
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
+              {/* Store and Folder Selection */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Ayarlar</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                      Mağaza:
+                    </label>
+                    <select
+                      value={selectedStore}
+                      onChange={(e) => setSelectedStore(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                    >
+                      <option value="">Mağaza seçin...</option>
+                      {stores.map((store) => (
+                        <option key={store.id} value={store.id}>
+                          {store.store_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                      Klasör:
+                    </label>
+                    <select
+                      value={templateFolder}
+                      onChange={(e) => setTemplateFolder(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                    >
+                      {folders.map((folder) => (
+                        <option key={folder.folder_path} value={folder.folder_path}>
+                          {folder.folder_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* Selected Area Properties */}
-              {selectedId && getSelectedArea() && showTransformer && (
+              {selectedId && (
                 <Card>
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle>
-                        {selectedId.startsWith('design-') && '🔷 Design Area'}
-                        {selectedId.startsWith('text-') && '📝 Text Area'}
-                        {selectedId.startsWith('logo-') && '🖼️ Logo Area'}
+                        {selectedId.startsWith('design-') && '🔷 Tasarım Alanı'}
+                        {selectedId.startsWith('text-') && '📝 Metin Alanı'}
+                        {selectedId.startsWith('logo-') && '🖼️ Logo Alanı'}
                       </CardTitle>
                       <Button
                         onClick={() => deleteArea(selectedId)}
@@ -1153,70 +1178,10 @@ const MockupTemplatesPage: React.FC = () => {
                       </Button>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    {/* Size Info */}
-                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Size:</div>
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        {Math.round(getSelectedArea()?.width || 0)} × {Math.round(getSelectedArea()?.height || 0)} px
-                      </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Position: {Math.round(getSelectedArea()?.x || 0)}, {Math.round(getSelectedArea()?.y || 0)}
-                      </div>
-                    </div>
-
-                    {/* Text Area Specific Properties */}
-                    {selectedId.startsWith('text-') && (
-                      <>
-                        <div>
-                          <label className="text-xs text-gray-600 dark:text-gray-400">Text:</label>
-                          <Input
-                            value={(getSelectedArea() as TextArea)?.text || ''}
-                            onChange={(e) => updateSelectedArea('text', e.target.value)}
-                            className="text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-600 dark:text-gray-400">Font Size:</label>
-                          <Input
-                            type="number"
-                            value={(getSelectedArea() as TextArea)?.fontSize || 72}
-                            onChange={(e) => updateSelectedArea('fontSize', parseInt(e.target.value))}
-                            className="text-sm"
-                            min="24"
-                            max="200"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-600 dark:text-gray-400">Color:</label>
-                          <Input
-                            type="color"
-                            value={(getSelectedArea() as TextArea)?.color || '#000000'}
-                            onChange={(e) => updateSelectedArea('color', e.target.value)}
-                            className="text-sm h-10"
-                          />
-                        </div>
-                      </>
-                    )}
-
-                    {/* Opacity for Design and Logo Areas */}
-                    {(selectedId.startsWith('design-') || selectedId.startsWith('logo-')) && (
-                      <div>
-                        <label className="text-xs text-gray-600 dark:text-gray-400">Opacity:</label>
-                        <Input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.1"
-                          value={getSelectedArea()?.opacity || 1}
-                          onChange={(e) => updateSelectedArea('opacity', parseFloat(e.target.value))}
-                          className="w-full"
-                        />
-                        <span className="text-xs text-gray-500">
-                          {Math.round((getSelectedArea()?.opacity || 1) * 100)}%
-                        </span>
-                      </div>
-                    )}
+                  <CardContent>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Seçili alanı düzenlemek için transformer kullanın.
+                    </p>
                   </CardContent>
                 </Card>
               )}
@@ -1244,7 +1209,7 @@ const MockupTemplatesPage: React.FC = () => {
     );
   }
 
-  // Templates List View
+  // Main Templates View
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -1253,212 +1218,408 @@ const MockupTemplatesPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
             <Image className="h-6 w-6 mr-2 text-orange-500" />
             Mockup Templates
+            {currentFolder && (
+              <>
+                <span className="mx-2 text-gray-400">/</span>
+                <span className="text-orange-500">{getCurrentFolderName()}</span>
+              </>
+            )}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Create and manage your product mockup templates ({templates.length} templates)
+            {viewMode === 'folders' 
+              ? `Mockup template klasörlerinizi yönetin (${folders.length} klasör)`
+              : `${getCurrentFolderName()} klasöründeki template'ler (${templates.length} template)`
+            }
           </p>
         </div>
         <div className="flex items-center space-x-3 mt-4 sm:mt-0">
+          {currentFolder && (
+            <Button
+              onClick={() => {
+                setCurrentFolder('');
+                setViewMode('folders');
+              }}
+              variant="secondary"
+              className="flex items-center space-x-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Klasörlere Dön</span>
+            </Button>
+          )}
+          {viewMode === 'folders' && (
+            <Button
+              onClick={() => setShowCreateFolderModal(true)}
+              variant="secondary"
+              className="flex items-center space-x-2"
+            >
+              <FolderPlus className="h-4 w-4" />
+              <span>Yeni Klasör</span>
+            </Button>
+          )}
           <Button
             onClick={createNewTemplate}
             className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
           >
             <Plus className="h-4 w-4" />
-            <span>New Template</span>
+            <span>Yeni Template</span>
           </Button>
         </div>
       </div>
 
-      {/* Search and Filters */}
+      {/* Search */}
       <div className="flex flex-col sm:flex-row gap-4 items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
           <Input
             type="text"
-            placeholder="Search templates..."
+            placeholder={viewMode === 'folders' ? "Klasör ara..." : "Template ara..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
           />
         </div>
-
-        <div className="flex items-center space-x-2">
-          {/* Design Type Filter */}
-          <select
-            value={selectedDesignType}
-            onChange={(e) => setSelectedDesignType(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-          >
-            <option value="all">All Design Types</option>
-            {designTypes.map((type) => (
-              <option key={type.value} value={type.value}>
-                {type.label}
-              </option>
-            ))}
-          </select>
-
-          {/* Product Category Filter */}
-          <select
-            value={selectedProductCategory}
-            onChange={(e) => setSelectedProductCategory(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-          >
-            <option value="all">All Categories</option>
-            {productCategories.map((category) => (
-              <option key={category.value} value={category.value}>
-                {category.label}
-              </option>
-            ))}
-          </select>
-
-          <div className="flex border border-gray-300 dark:border-gray-600 rounded-lg">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 ${viewMode === 'grid' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400'} rounded-l-lg`}
-            >
-              <Grid className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-2 ${viewMode === 'list' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400'} rounded-r-lg`}
-            >
-              <List className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
       </div>
 
-      {/* Templates Display */}
-      {filteredTemplates.length === 0 ? (
-        <div className="text-center py-12">
-          <Image className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            {searchTerm || selectedDesignType !== 'all' || selectedProductCategory !== 'all' ? 'No templates found' : 'No mockup templates yet'}
-          </h3>
-          <p className="text-gray-500 dark:text-gray-400 mb-6">
-            {searchTerm || selectedDesignType !== 'all' || selectedProductCategory !== 'all'
-              ? 'Try adjusting your search terms or filters'
-              : 'Start creating your first mockup template'
-            }
-          </p>
-          {!searchTerm && selectedDesignType === 'all' && selectedProductCategory === 'all' && (
-            <Button
-              onClick={createNewTemplate}
-              className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Create First Template</span>
-            </Button>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredTemplates.map((template) => (
-            <Card key={template.id} className="hover:shadow-lg transition-shadow">
-              <CardContent className="p-4">
-                <div className="space-y-3">
-                  {/* Template Preview */}
-                  <div className="relative aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
-                    <img
-                      src={template.image_url}
-                      alt={template.name}
-                      className="w-full h-full object-cover"
-                    />
-                    
-                    {/* Overlay with area indicators */}
-                    <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-30 transition-opacity flex items-center justify-center">
-                      <div className="opacity-0 hover:opacity-100 transition-opacity text-white text-center">
-                        <div className="text-sm">
-                          {template.design_areas?.length || 0} Design • {template.text_areas?.length || 0} Text
-                          {template.logo_area && ' • 1 Logo'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Template Info */}
-                  <div className="space-y-2">
-                    <h3 className="font-medium text-gray-900 dark:text-white truncate">
-                      {template.name}
-                    </h3>
-                    
-                    {/* Design Type and Product Category */}
-                    <div className="flex items-center justify-between">
-                      <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 text-xs rounded-full">
-                        {getDesignTypeIcon(template.design_type)} {template.design_type}
-                      </span>
-                      <span className="px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-xs rounded-full">
-                        {getProductCategoryIcon(template.product_category)} {template.product_category}
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center space-x-1">
-                        <Store className="h-3 w-3 text-orange-500" />
-                        <span className="text-xs text-gray-600 dark:text-gray-400 truncate">
-                          {getStoreName(template.store_id)}
-                        </span>
-                      </div>
-                      <span className="text-gray-500 dark:text-gray-400 text-xs">
-                        {formatDate(template.created_at)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex space-x-2">
-                    <Button
-                      onClick={() => editTemplate(template)}
-                      size="sm"
-                      className="flex-1"
-                    >
-                      <Edit className="h-4 w-4 mr-1" />
-                      Edit
-                    </Button>
-                    <Button
-                      onClick={() => duplicateTemplate(template)}
-                      variant="secondary"
-                      size="sm"
-                      className="p-2"
-                      title="Duplicate"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      onClick={() => deleteTemplate(template.id)}
-                      variant="danger"
-                      size="sm"
-                      className="p-2"
-                      title="Delete"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+      {/* Bulk Actions for Templates */}
+      {viewMode === 'templates' && selectedTemplates.length > 0 && (
+        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-orange-700 dark:text-orange-400">
+              {selectedTemplates.length} template seçildi
+            </span>
+            <div className="flex space-x-2">
+              <Button 
+                onClick={() => setShowMoveModal(true)} 
+                variant="secondary" 
+                size="sm"
+              >
+                <Move className="h-4 w-4 mr-1" />
+                Klasöre Taşı
+              </Button>
+              <Button onClick={() => setSelectedTemplates([])} variant="secondary" size="sm">
+                Seçimi Temizle
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Enhanced Features Info */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-        <div className="flex items-start space-x-3">
-          <Package className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
-          <div>
-            <h3 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
-              🎨 Enhanced Mockup Templates
-            </h3>
-            <p className="text-sm text-blue-600 dark:text-blue-300">
-              <strong>New Features:</strong> Design type selection (Black/White/Color) and product categories (T-Shirt, Mug, Sweatshirt, etc.).
-              <br />
-              <strong>Design Types:</strong> Choose black designs for light products, white for dark products, or color for any product.
-              <br />
-              <strong>Product Categories:</strong> Organize templates by product type for better management and easier selection.
-            </p>
+      {/* Folders View */}
+      {viewMode === 'folders' && (
+        <>
+          {filteredFolders.length === 0 ? (
+            <div className="text-center py-12">
+              <Folder className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                {searchTerm ? 'Klasör bulunamadı' : 'Henüz klasör yok'}
+              </h3>
+              <p className="text-gray-500 dark:text-gray-400 mb-6">
+                {searchTerm
+                  ? 'Arama terimlerinizi ayarlayın'
+                  : 'İlk klasörünüzü oluşturun'
+                }
+              </p>
+              {!searchTerm && (
+                <Button
+                  onClick={() => setShowCreateFolderModal(true)}
+                  className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
+                >
+                  <FolderPlus className="h-4 w-4" />
+                  <span>İlk Klasörü Oluştur</span>
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {filteredFolders.map((folder) => (
+                <Card 
+                  key={folder.folder_path} 
+                  className="hover:shadow-lg transition-shadow cursor-pointer group"
+                  onClick={() => {
+                    setCurrentFolder(folder.folder_path);
+                    setViewMode('templates');
+                  }}
+                >
+                  <CardContent className="p-6">
+                    <div className="space-y-4">
+                      {/* Folder Icon and Actions */}
+                      <div className="flex items-center justify-between">
+                        <FolderOpen className="h-12 w-12 text-orange-500" />
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteFolder(folder.folder_path);
+                            }}
+                            className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
+                            title="Klasörü sil"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Folder Info */}
+                      <div>
+                        <h3 className="font-semibold text-gray-900 dark:text-white text-lg mb-2">
+                          {folder.folder_name}
+                        </h3>
+                        <p className="text-gray-600 dark:text-gray-400 text-sm">
+                          {folder.template_count} template
+                        </p>
+                      </div>
+
+                      {/* Design Type Stats */}
+                      <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-1">
+                          <div className="w-3 h-3 bg-gray-900 rounded-full"></div>
+                          <span className="text-xs text-gray-600 dark:text-gray-400">{folder.black_designs}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <div className="w-3 h-3 bg-gray-100 border border-gray-300 rounded-full"></div>
+                          <span className="text-xs text-gray-600 dark:text-gray-400">{folder.white_designs}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <div className="w-3 h-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"></div>
+                          <span className="text-xs text-gray-600 dark:text-gray-400">{folder.color_designs}</span>
+                        </div>
+                      </div>
+
+                      {/* Last Updated */}
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        Son güncelleme: {formatDate(folder.last_updated)}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Templates View */}
+      {viewMode === 'templates' && (
+        <>
+          {filteredTemplates.length === 0 ? (
+            <div className="text-center py-12">
+              <Image className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                {searchTerm ? 'Template bulunamadı' : 'Bu klasörde template yok'}
+              </h3>
+              <p className="text-gray-500 dark:text-gray-400 mb-6">
+                {searchTerm
+                  ? 'Arama terimlerinizi ayarlayın'
+                  : 'İlk template\'inizi oluşturun'
+                }
+              </p>
+              {!searchTerm && (
+                <Button
+                  onClick={createNewTemplate}
+                  className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>İlk Template\'i Oluştur</span>
+                </Button>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Select All Checkbox */}
+              <div className="flex items-center space-x-2 pb-4 border-b border-gray-200 dark:border-gray-700">
+                <input
+                  type="checkbox"
+                  checked={selectedTemplates.length === filteredTemplates.length}
+                  onChange={selectAllTemplates}
+                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                />
+                <label className="text-sm text-gray-700 dark:text-gray-300">
+                  Tümünü seç ({filteredTemplates.length} template)
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {filteredTemplates.map((template) => (
+                  <Card key={template.id} className="hover:shadow-lg transition-shadow">
+                    <CardContent className="p-4">
+                      <div className="space-y-3">
+                        {/* Selection Checkbox */}
+                        <div className="flex items-center justify-between">
+                          <input
+                            type="checkbox"
+                            checked={selectedTemplates.includes(template.id)}
+                            onChange={() => toggleTemplateSelection(template.id)}
+                            className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                          />
+                          <div className="flex space-x-1">
+                            <button
+                              onClick={() => editTemplate(template)}
+                              className="text-blue-500 hover:text-blue-700 p-1"
+                              title="Düzenle"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => duplicateTemplate(template)}
+                              className="text-green-500 hover:text-green-700 p-1"
+                              title="Kopyala"
+                            >
+                              <Copy className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => deleteTemplate(template.id)}
+                              className="text-red-500 hover:text-red-700 p-1"
+                              title="Sil"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Template Preview */}
+                        <div className="relative aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
+                          <img
+                            src={template.image_url}
+                            alt={template.name}
+                            className="w-full h-full object-cover"
+                          />
+                          
+                          {/* Design Type Badge */}
+                          <div className="absolute top-2 left-2">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDesignTypeColor(template.design_type)}`}>
+                              {getDesignTypeIcon(template.design_type)} {template.design_type}
+                            </span>
+                          </div>
+
+                          {/* Area Count */}
+                          <div className="absolute bottom-2 right-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-xs">
+                            {(template.design_areas?.length || 0) + (template.text_areas?.length || 0) + (template.logo_area ? 1 : 0)} alan
+                          </div>
+                        </div>
+
+                        {/* Template Info */}
+                        <div className="space-y-2">
+                          <h3 className="font-medium text-gray-900 dark:text-white truncate">
+                            {template.name}
+                          </h3>
+                          
+                          <div className="text-sm text-gray-600 dark:text-gray-400">
+                            <div>Kategori: {template.product_category}</div>
+                            <div>Oluşturulma: {formatDate(template.created_at)}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {/* Create Folder Modal */}
+      {showCreateFolderModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Yeni Klasör Oluştur
+              </h2>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Klasör Adı:
+                </label>
+                <Input
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  placeholder="örn: T-Shirt Tasarımları"
+                  className="w-full"
+                  onKeyPress={(e) => e.key === 'Enter' && createFolder()}
+                />
+              </div>
+              
+              <div className="flex space-x-3">
+                <Button
+                  onClick={createFolder}
+                  className="flex-1"
+                  disabled={!newFolderName.trim()}
+                >
+                  Oluştur
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowCreateFolderModal(false);
+                    setNewFolderName('');
+                  }}
+                  variant="secondary"
+                  className="flex-1"
+                >
+                  İptal
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Move Templates Modal */}
+      {showMoveModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Template'leri Taşı
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400 mt-1">
+                {selectedTemplates.length} template seçildi
+              </p>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Hedef Klasör:
+                </label>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {folders.filter(f => f.folder_path !== currentFolder).map((folder) => (
+                    <button
+                      key={folder.folder_path}
+                      onClick={() => moveTemplatesToFolder(folder.folder_path)}
+                      className="w-full text-left p-3 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <Folder className="h-5 w-5 text-orange-500" />
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-white">
+                            {folder.folder_name}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {folder.template_count} template
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="flex space-x-3">
+                <Button
+                  onClick={() => setShowMoveModal(false)}
+                  variant="secondary"
+                  className="flex-1"
+                >
+                  İptal
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
