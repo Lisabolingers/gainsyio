@@ -30,6 +30,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+    detectSessionInUrl: true, // Detect session from URL hash
   },
   global: {
     headers: {

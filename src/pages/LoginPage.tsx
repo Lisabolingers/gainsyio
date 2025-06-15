@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -9,11 +9,53 @@ const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { signIn } = useAuth();
+  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'error'>('checking');
+  const { signIn, error: authError } = useAuth();
   const navigate = useNavigate();
+
+  // Check Supabase connection on component mount
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        // Simple check if Supabase URL is accessible
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/`, {
+          method: 'HEAD',
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          }
+        });
+        
+        if (response.ok) {
+          setConnectionStatus('connected');
+        } else {
+          setConnectionStatus('error');
+          setError(`Supabase connection error: ${response.status} ${response.statusText}`);
+        }
+      } catch (err) {
+        setConnectionStatus('error');
+        setError('Unable to connect to Supabase. Please check your internet connection and Supabase project status.');
+      }
+    };
+    
+    checkConnection();
+  }, []);
+
+  // Update error message when authError changes
+  useEffect(() => {
+    if (authError) {
+      setError(authError);
+    }
+  }, [authError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (connectionStatus === 'error') {
+      setError('Cannot sign in while connection to Supabase is down. Please check your connection and try again.');
+      return;
+    }
+    
     setLoading(true);
     setError('');
 
@@ -21,12 +63,8 @@ const LoginPage: React.FC = () => {
       await signIn(email, password);
       navigate('/admin');
     } catch (err: any) {
-      // Check for invalid credentials error from Supabase
-      if (err.message && err.message.includes('Invalid login credentials')) {
-        setError('Invalid email or password. Please check your credentials or reset your password.');
-      } else {
-        setError(err.message || 'An error occurred during sign in');
-      }
+      // Error is already set by the auth context
+      console.error('Login failed:', err);
     } finally {
       setLoading(false);
     }
@@ -60,6 +98,24 @@ const LoginPage: React.FC = () => {
             Sign In to Your Account
           </h1>
 
+          {/* Connection Status */}
+          {connectionStatus === 'checking' && (
+            <div className="bg-yellow-500/10 border border-yellow-500 text-yellow-600 dark:text-yellow-400 px-4 py-3 rounded-lg mb-6 flex items-center">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600 dark:border-yellow-400 mr-2"></div>
+              <span>Checking connection to Supabase...</span>
+            </div>
+          )}
+
+          {connectionStatus === 'error' && (
+            <div className="bg-red-500/10 border border-red-500 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg mb-6 flex items-center">
+              <AlertCircle className="h-5 w-5 mr-2" />
+              <div>
+                <p className="font-medium">Supabase bağlantı hatası</p>
+                <p className="text-sm">Lütfen internet bağlantınızı ve Supabase proje durumunuzu kontrol edin.</p>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg mb-6">
               {error}
@@ -79,6 +135,7 @@ const LoginPage: React.FC = () => {
                 className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 placeholder="example@email.com"
                 required
+                disabled={connectionStatus === 'error' || loading}
               />
             </div>
 
@@ -95,11 +152,13 @@ const LoginPage: React.FC = () => {
                   className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent pr-12"
                   placeholder="Enter your password"
                   required
+                  disabled={connectionStatus === 'error' || loading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                  disabled={connectionStatus === 'error' || loading}
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
@@ -117,7 +176,7 @@ const LoginPage: React.FC = () => {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || connectionStatus !== 'connected'}
               className="w-full px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Signing In...' : 'Sign In'}

@@ -35,17 +35,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const ensureUserProfile = async (user: User) => {
     try {
-      // Test basic connectivity to Supabase first
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/`, {
-        method: 'HEAD',
-        headers: {
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+      // Test basic connectivity to Supabase first with a simple timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      
+      try {
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/`, {
+          method: 'HEAD',
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          },
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          throw new Error(`Supabase connection failed: ${response.status} ${response.statusText}`);
         }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Supabase connection failed: ${response.status} ${response.statusText}`);
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Connection timeout: Supabase server is not responding');
+        }
+        throw fetchError;
       }
 
       // Check if user profile exists
@@ -100,6 +114,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setError('Invalid API key. Please check your VITE_SUPABASE_ANON_KEY in your .env file.');
       } else if (error.message?.includes('404') || error.message?.includes('not found')) {
         setError('Supabase project not found. Please verify your VITE_SUPABASE_URL is correct.');
+      } else if (error.message?.includes('timeout')) {
+        setError('Connection timeout. Supabase server is not responding. Please check if your project is active.');
       } else {
         setError(`Connection error: ${error.message || 'Unknown error occurred'}`);
       }
@@ -154,14 +170,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setSession(session);
           setUser(session?.user ?? null);
           
-          // Ensure user profile exists if user is logged in
+          // Ensure user profile exists in background (don't block UI)
           if (session?.user) {
-            try {
-              await ensureUserProfile(session.user);
-            } catch (profileError) {
-              console.error('Error ensuring user profile:', profileError);
-              // Don't set error here to allow login to proceed
-            }
+            ensureUserProfile(session.user).catch(console.error);
           }
         }
       } catch (error: any) {
@@ -190,14 +201,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(session?.user ?? null);
       setLoading(false);
       
-      // Ensure user profile exists if user is logged in
+      // Ensure user profile exists in background (don't block UI)
       if (session?.user) {
-        try {
-          await ensureUserProfile(session.user);
-        } catch (error) {
-          console.error('Error ensuring user profile:', error);
-          // Don't set error here to allow login to proceed
-        }
+        ensureUserProfile(session.user).catch(console.error);
       }
     });
 
@@ -207,6 +213,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signIn = async (email: string, password: string) => {
     try {
       setError(null);
+      setLoading(true);
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -222,12 +229,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setError(error.message || 'Sign in failed. Please try again.');
       }
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
   const signUp = async (email: string, password: string) => {
     try {
       setError(null);
+      setLoading(true);
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -235,13 +245,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (error) throw error;
 
       // Create user profile record if user was successfully created
+      // This runs in background, doesn't block the signup process
       if (data.user) {
-        try {
-          await ensureUserProfile(data.user);
-        } catch (profileError) {
-          console.error('Error creating user profile:', profileError);
-          // Don't block signup if profile creation fails
-        }
+        ensureUserProfile(data.user).catch(console.error);
       }
     } catch (error: any) {
       console.error('Sign up error:', error);
@@ -251,18 +257,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setError(error.message || 'Sign up failed. Please try again.');
       }
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
   const signOut = async () => {
     try {
       setError(null);
+      setLoading(true);
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
     } catch (error: any) {
       console.error('Sign out error:', error);
       setError('Sign out failed. Please try again.');
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
