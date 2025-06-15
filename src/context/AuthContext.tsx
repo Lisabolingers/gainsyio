@@ -154,9 +154,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setSession(session);
           setUser(session?.user ?? null);
           
-          // Ensure user profile exists in background (don't block UI)
+          // Ensure user profile exists and properly handle errors
           if (session?.user) {
-            ensureUserProfile(session.user).catch(console.error);
+            await ensureUserProfile(session.user);
           }
         }
       } catch (error: any) {
@@ -185,9 +185,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(session?.user ?? null);
       setLoading(false);
       
-      // Ensure user profile exists in background (don't block UI)
+      // Ensure user profile exists and properly handle errors
       if (session?.user) {
-        ensureUserProfile(session.user).catch(console.error);
+        await ensureUserProfile(session.user);
       }
     });
 
@@ -225,9 +225,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (error) throw error;
 
       // Create user profile record if user was successfully created
-      // This runs in background, doesn't block the signup process
       if (data.user) {
-        ensureUserProfile(data.user).catch(console.error);
+        await ensureUserProfile(data.user);
       }
     } catch (error: any) {
       console.error('Sign up error:', error);
