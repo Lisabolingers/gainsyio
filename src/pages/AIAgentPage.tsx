@@ -1287,11 +1287,15 @@ const AIAgentPage: React.FC = () => {
                     <p className="text-gray-700 dark:text-gray-300">{testResult as string}</p>
                   ) : (
                     <div className="flex flex-wrap gap-2">
-                      {(testResult as string[]).map((tag, index) => (
-                        <span key={index} className="px-2 py-1 bg-orange-100 dark:bg-orange-900/20 text-orange-800 dark:text-orange-400 rounded-full text-sm">
-                          {tag}
-                        </span>
-                      ))}
+                      {Array.isArray(testResult) ? (
+                        testResult.map((tag, index) => (
+                          <span key={index} className="px-2 py-1 bg-orange-100 dark:bg-orange-900/20 text-orange-800 dark:text-orange-400 rounded-full text-sm">
+                            {tag}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-gray-500 dark:text-gray-400">Etiket bulunamadı</span>
+                      )}
                     </div>
                   )}
                 </div>
