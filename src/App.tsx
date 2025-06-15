@@ -29,7 +29,7 @@ import MockupTemplatesPage from './pages/MockupTemplatesPage';
 import UpdateTemplatesPage from './pages/UpdateTemplatesPage';
 import TextTemplatesPage from './pages/TextTemplatesPage';
 import MyFontPage from './pages/MyFontPage';
-import UploadDesignPage from './pages/UploadDesignPage';
+import DesignUploadPage from './pages/DesignUploadPage';
 import TemporaryFilesPage from './pages/TemporaryFilesPage';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -73,7 +73,7 @@ function App() {
                 <Route path="library" element={<LibraryPage />} />
                 <Route path="store-images" element={<StoreImagesPage />} />
                 <Route path="my-font" element={<MyFontPage />} />
-                <Route path="upload-design" element={<UploadDesignPage />} />
+                <Route path="upload-design" element={<DesignUploadPage />} />
                 <Route path="temporary-files" element={<TemporaryFilesPage />} />
               </Route>
 
