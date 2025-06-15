@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { LayoutDashboard, Store, Package, BarChart3, BookTemplate as FileTemplate, PlusCircle, Image, Type, Library, Menu, X, LogOut, Settings, User, Bell, Sun, Moon, ChevronDown, ChevronRight, Workflow } from 'lucide-react';
+import { LayoutDashboard, Store, Package, BarChart3, BookTemplate as FileTemplate, PlusCircle, Image, Type, Library, Menu, X, LogOut, Settings, User, Bell, Sun, Moon, ChevronDown, ChevronRight } from 'lucide-react';
 
 const AdminLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -35,7 +35,6 @@ const AdminLayout: React.FC = () => {
     { name: 'My Fonts', href: '/admin/my-font', icon: Type },
     { name: 'Listing', href: '/admin/listing', icon: PlusCircle },
     { name: 'Library', href: '/admin/library', icon: Library },
-    { name: 'Automation Builder', href: '/admin/automation', icon: Workflow },
   ];
 
   // CRITICAL: Templates submenu'nun açık olup olmayacağını kontrol et - SADECE kullanıcı manuel olarak açarsa
@@ -129,6 +128,7 @@ const AdminLayout: React.FC = () => {
                 {/* Main menu item */}
                 {item.hasSubmenu ? (
                   <button
+                    type="button"
                     onClick={toggleTemplatesSubmenu}
                     className={`
                       group flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-lg transition-colors
@@ -148,11 +148,11 @@ const AdminLayout: React.FC = () => {
                       `} />
                       {item.name}
                     </div>
-                    {templatesExpanded ? (
+                    <div className={`transition-transform duration-200 ${
+                      templatesExpanded ? 'rotate-180' : 'rotate-0'
+                    }`}>
                       <ChevronDown className="h-4 w-4 text-gray-400" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 text-gray-400" />
-                    )}
+                    </div>
                   </button>
                 ) : (
                   <Link
