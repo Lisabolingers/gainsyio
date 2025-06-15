@@ -381,7 +381,7 @@ const AIAgentPage: React.FC = () => {
       if (selectedTestTitleRule) {
         const titleRule = rules.find(rule => rule.id === selectedTestTitleRule);
         if (titleRule) {
-          // Mock title generation
+          // Mock title generation based on the product description
           generatedTitle = `Premium ${testProductDescription} - Handcrafted Quality Design - Perfect Gift Idea - Instant Download`;
           if (generatedTitle.length > titleRule.maxLength) {
             generatedTitle = generatedTitle.substring(0, titleRule.maxLength - 3) + '...';
@@ -392,7 +392,7 @@ const AIAgentPage: React.FC = () => {
       if (selectedTestTagsRule) {
         const tagsRule = rules.find(rule => rule.id === selectedTestTagsRule);
         if (tagsRule) {
-          // Mock tags generation
+          // Mock tags generation based on the product description
           const mockTags = [
             'handmade', 'custom design', 'gift idea', 'digital download', 
             'printable art', 'home decor', 'wall art', 'instant download',
