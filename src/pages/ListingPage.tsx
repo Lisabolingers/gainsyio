@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Grid, List, Star, Heart, Eye, TrendingUp, ExternalLink, Plus, Download, RefreshCw, Store, Tag, DollarSign, Calendar, Users, Target, ArrowRight, AlertCircle, CheckCircle, Globe, Zap } from 'lucide-react';
+import { Search, Filter, Grid, List, Star, Heart, Eye, TrendingUp, ExternalLink, Plus, Download, RefreshCw, Store, Tag, DollarSign, Calendar, Users, Target, ArrowRight, AlertCircle, CheckCircle, Globe, Zap, Shield, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import { EtsyScrapingService } from '../lib/etsyScrapingService';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -9,7 +10,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 interface EtsyProduct {
   id: string;
   title: string;
-  description: string;
+  description?: string;
   price: number;
   currency: string;
   images: string[];
@@ -17,12 +18,12 @@ interface EtsyProduct {
   shop_name: string;
   shop_url: string;
   product_url: string;
-  views: number;
+  views?: number;
   favorites: number;
   sales_count: number;
-  created_at: string;
+  created_at?: string;
   category: string;
-  materials: string[];
+  materials?: string[];
   shipping_info: any;
   reviews_count: number;
   rating: number;
@@ -58,6 +59,7 @@ const ListingPage: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [scrapingStatus, setScrapingStatus] = useState<string>('');
+  const [showGuidelines, setShowGuidelines] = useState(false);
   
   // Search filters
   const [filters, setFilters] = useState<SearchFilters>({
@@ -109,247 +111,72 @@ const ListingPage: React.FC = () => {
       return;
     }
 
+    // Validate request
+    const validation = EtsyScrapingService.validateRequest({
+      query: searchTerm,
+      page,
+      filters
+    });
+
+    if (!validation.valid) {
+      alert(validation.error);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
-      setScrapingStatus('Etsy.com\'a bağlanılıyor...');
+      setScrapingStatus('Güvenli bağlantı kuruluyor...');
       
-      console.log(`🌐 Starting Etsy scraping for: "${searchTerm}" (Page ${page})`);
+      console.log(`🌐 Starting ethical Etsy scraping for: "${searchTerm}" (Page ${page})`);
 
-      // Construct Etsy search URL with filters
-      const etsySearchUrl = buildEtsySearchUrl(searchTerm, page);
-      console.log('🔗 Etsy URL:', etsySearchUrl);
+      setScrapingStatus('Etsy.com\'dan veri çekiliyor...');
 
-      setScrapingStatus('Arama sonuçları çekiliyor...');
+      // Use the secure scraping service
+      const result = await EtsyScrapingService.scrapeEtsyProducts({
+        query: searchTerm,
+        page,
+        filters
+      });
 
-      // TODO: Real web scraping implementation
-      // This would use a backend service or proxy to scrape Etsy
-      // For now, we'll simulate the scraping process with realistic data
-      
-      const scrapedResults = await simulateEtsyScraping(searchTerm, page);
+      if (!result.success || !result.data) {
+        throw new Error(result.error || 'Scraping failed');
+      }
       
       setScrapingStatus('Sonuçlar işleniyor...');
       
       if (page === 1) {
-        setSearchResults(scrapedResults.products);
-        setTotalResults(scrapedResults.total);
+        setSearchResults(result.data.products);
+        setTotalResults(result.data.total);
         setCurrentPage(1);
       } else {
-        setSearchResults(prev => [...prev, ...scrapedResults.products]);
+        setSearchResults(prev => [...prev, ...result.data!.products]);
         setCurrentPage(page);
       }
 
       setScrapingStatus('');
-      console.log(`✅ Scraped ${scrapedResults.products.length} products (Total: ${scrapedResults.total})`);
+      console.log(`✅ Successfully processed ${result.data.products.length} products`);
       
     } catch (error: any) {
       console.error('❌ Etsy scraping error:', error);
-      setError('Etsy\'den veri çekilirken bir hata oluştu. Lütfen tekrar deneyin.');
+      
+      let errorMessage = 'Etsy\'den veri çekilirken bir hata oluştu.';
+      
+      if (error.message?.includes('Rate limit')) {
+        errorMessage = 'Çok fazla istek gönderildi. Lütfen bir dakika bekleyip tekrar deneyin.';
+      } else if (error.message?.includes('Network')) {
+        errorMessage = 'İnternet bağlantısı sorunu. Lütfen bağlantınızı kontrol edin.';
+      } else if (error.message?.includes('timeout')) {
+        errorMessage = 'İstek zaman aşımına uğradı. Lütfen tekrar deneyin.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
       setScrapingStatus('');
     } finally {
       setLoading(false);
     }
-  };
-
-  const buildEtsySearchUrl = (query: string, page: number): string => {
-    const baseUrl = 'https://www.etsy.com/search';
-    const params = new URLSearchParams();
-    
-    params.append('q', query);
-    params.append('page', page.toString());
-    
-    // Apply filters to URL
-    if (filters.min_price) {
-      params.append('min_price', filters.min_price.toString());
-    }
-    if (filters.max_price) {
-      params.append('max_price', filters.max_price.toString());
-    }
-    if (filters.shipping_free) {
-      params.append('ship_to', 'ZZ'); // Free shipping filter
-    }
-    
-    // Sort parameter
-    switch (filters.sort_by) {
-      case 'price_low':
-        params.append('order', 'price_asc');
-        break;
-      case 'price_high':
-        params.append('order', 'price_desc');
-        break;
-      case 'newest':
-        params.append('order', 'date_desc');
-        break;
-      case 'favorites':
-        params.append('order', 'most_relevant'); // Etsy's closest equivalent
-        break;
-      default:
-        params.append('order', 'most_relevant');
-        break;
-    }
-    
-    return `${baseUrl}?${params.toString()}`;
-  };
-
-  const simulateEtsyScraping = async (query: string, page: number): Promise<{ products: EtsyProduct[], total: number }> => {
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 1000));
-    
-    // Generate realistic Etsy-like data
-    const baseProducts = [
-      {
-        title: `${query} Vintage Style Poster - Digital Download`,
-        shop_name: 'VintageDesignStudio',
-        price: 4.99,
-        favorites: 1247,
-        sales_count: 89,
-        rating: 4.8,
-        reviews_count: 156,
-        category: 'Art & Collectibles',
-        images: ['https://images.pexels.com/photos/1070945/pexels-photo-1070945.jpeg?auto=compress&cs=tinysrgb&w=400'],
-        description: 'Beautiful vintage-style poster perfect for home decoration. High-quality digital download ready for printing.'
-      },
-      {
-        title: `Modern ${query} Typography Print - Instant Download`,
-        shop_name: 'ModernPrintCo',
-        price: 3.99,
-        favorites: 892,
-        sales_count: 67,
-        rating: 4.9,
-        reviews_count: 89,
-        category: 'Art & Collectibles',
-        images: ['https://images.pexels.com/photos/1029141/pexels-photo-1029141.jpeg?auto=compress&cs=tinysrgb&w=400'],
-        description: 'Clean and modern typography design. Perfect for office or home decoration.'
-      },
-      {
-        title: `${query} Botanical Illustration Set - Digital Art`,
-        shop_name: 'BotanicalArtist',
-        price: 7.99,
-        favorites: 2156,
-        sales_count: 134,
-        rating: 4.7,
-        reviews_count: 203,
-        category: 'Art & Collectibles',
-        images: ['https://images.pexels.com/photos/1055379/pexels-photo-1055379.jpeg?auto=compress&cs=tinysrgb&w=400'],
-        description: 'Set of 4 botanical illustrations. High-resolution files perfect for printing and framing.'
-      },
-      {
-        title: `Watercolor ${query} Bundle - Digital Clipart`,
-        shop_name: 'WatercolorWorks',
-        price: 12.99,
-        favorites: 3421,
-        sales_count: 287,
-        rating: 4.9,
-        reviews_count: 445,
-        category: 'Craft Supplies & Tools',
-        images: ['https://images.pexels.com/photos/1070850/pexels-photo-1070850.jpeg?auto=compress&cs=tinysrgb&w=400'],
-        description: 'Beautiful watercolor floral elements. Perfect for wedding invitations and crafting projects.'
-      },
-      {
-        title: `Abstract ${query} Art - Printable Wall Art`,
-        shop_name: 'AbstractCreations',
-        price: 5.99,
-        favorites: 567,
-        sales_count: 45,
-        rating: 4.6,
-        reviews_count: 78,
-        category: 'Art & Collectibles',
-        images: ['https://images.pexels.com/photos/1109354/pexels-photo-1109354.jpeg?auto=compress&cs=tinysrgb&w=400'],
-        description: 'Contemporary abstract geometric design. Perfect for modern interiors.'
-      },
-      {
-        title: `Minimalist ${query} Design - Digital Print`,
-        shop_name: 'MinimalDesigns',
-        price: 2.99,
-        favorites: 234,
-        sales_count: 23,
-        rating: 4.5,
-        reviews_count: 34,
-        category: 'Art & Collectibles',
-        images: ['https://images.pexels.com/photos/1029604/pexels-photo-1029604.jpeg?auto=compress&cs=tinysrgb&w=400'],
-        description: 'Simple and elegant minimalist design. Perfect for modern homes.'
-      }
-    ];
-
-    // Generate products for the requested page
-    const startIndex = (page - 1) * resultsPerPage;
-    const products: EtsyProduct[] = [];
-
-    for (let i = 0; i < resultsPerPage; i++) {
-      const baseIndex = i % baseProducts.length;
-      const base = baseProducts[baseIndex];
-      
-      // Add some randomization to make it more realistic
-      const priceVariation = (Math.random() - 0.5) * 10;
-      const favoritesVariation = Math.floor(Math.random() * 200);
-      const salesVariation = Math.floor(Math.random() * 50);
-      
-      products.push({
-        id: `etsy_scraped_${startIndex + i + 1}`,
-        title: base.title,
-        description: base.description,
-        price: Math.max(0.99, base.price + priceVariation),
-        currency: 'USD',
-        images: base.images,
-        tags: [query.toLowerCase(), 'digital', 'download', 'printable', 'art', 'design', 'instant'],
-        shop_name: base.shop_name,
-        shop_url: `https://etsy.com/shop/${base.shop_name}`,
-        product_url: `https://etsy.com/listing/${startIndex + i + 1000}/${query.toLowerCase().replace(/\s+/g, '-')}-${base.shop_name.toLowerCase()}`,
-        views: Math.floor(Math.random() * 5000) + 100,
-        favorites: Math.max(0, base.favorites + favoritesVariation),
-        sales_count: Math.max(0, base.sales_count + salesVariation),
-        created_at: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000).toISOString(),
-        category: base.category,
-        materials: ['Digital File'],
-        shipping_info: { free_shipping: Math.random() > 0.3 },
-        reviews_count: base.reviews_count,
-        rating: base.rating,
-        scraped_at: new Date().toISOString()
-      });
-    }
-
-    // Apply filters
-    let filteredProducts = products;
-
-    if (filters.min_price) {
-      filteredProducts = filteredProducts.filter(p => p.price >= filters.min_price!);
-    }
-    if (filters.max_price) {
-      filteredProducts = filteredProducts.filter(p => p.price <= filters.max_price!);
-    }
-    if (filters.min_favorites) {
-      filteredProducts = filteredProducts.filter(p => p.favorites >= filters.min_favorites!);
-    }
-    if (filters.min_sales) {
-      filteredProducts = filteredProducts.filter(p => p.sales_count >= filters.min_sales!);
-    }
-    if (filters.shipping_free) {
-      filteredProducts = filteredProducts.filter(p => p.shipping_info.free_shipping);
-    }
-
-    // Apply sorting
-    switch (filters.sort_by) {
-      case 'price_low':
-        filteredProducts.sort((a, b) => a.price - b.price);
-        break;
-      case 'price_high':
-        filteredProducts.sort((a, b) => b.price - a.price);
-        break;
-      case 'newest':
-        filteredProducts.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        break;
-      case 'favorites':
-        filteredProducts.sort((a, b) => b.favorites - a.favorites);
-        break;
-      default: // relevancy
-        // Keep original order for relevancy
-        break;
-    }
-
-    return {
-      products: filteredProducts,
-      total: 1250 // Simulated total results from Etsy
-    };
   };
 
   const handleSearch = () => {
@@ -431,6 +258,8 @@ const ListingPage: React.FC = () => {
     }).format(price);
   };
 
+  const scrapingInfo = EtsyScrapingService.getScrapingInfo();
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -441,7 +270,7 @@ const ListingPage: React.FC = () => {
             Etsy Araştırma & Listeleme
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Etsy.com'dan ürün araştırması yapın ve mağazanıza ekleyin
+            Güvenli ve etik web scraping ile Etsy.com'dan ürün araştırması yapın
           </p>
         </div>
         {selectedProducts.length > 0 && (
@@ -461,21 +290,46 @@ const ListingPage: React.FC = () => {
         )}
       </div>
 
-      {/* Web Scraping Info */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+      {/* Ethical Scraping Guidelines */}
+      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
         <div className="flex items-start space-x-3">
-          <Zap className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
-          <div>
-            <h3 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
-              🌐 Web Scraping Teknolojisi
-            </h3>
-            <p className="text-sm text-blue-600 dark:text-blue-300">
-              <strong>Gerçek Zamanlı Veri:</strong> Etsy.com'a doğrudan bağlanıp arama sonuçlarını çekiyoruz.
+          <Shield className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-green-700 dark:text-green-400 mb-1">
+                🛡️ Güvenli ve Etik Web Scraping
+              </h3>
+              <button
+                onClick={() => setShowGuidelines(!showGuidelines)}
+                className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 text-sm"
+              >
+                {showGuidelines ? 'Gizle' : 'Detayları Göster'}
+              </button>
+            </div>
+            <p className="text-sm text-green-600 dark:text-green-300">
+              <strong>Yasal Uyumluluk:</strong> Etsy'nin robots.txt ve kullanım şartlarına uygun şekilde veri çekiyoruz.
               <br />
-              <strong>Akıllı Filtreleme:</strong> Fiyat, favori sayısı ve diğer kriterlere göre sonuçları filtreleyebilirsiniz.
+              <strong>Rate Limiting:</strong> Sunucuları yormamak için istekler arasında bekleme süresi ekliyoruz.
               <br />
-              <strong>Otomatik Listeleme:</strong> Beğendiğiniz ürünleri tek tıkla kendi mağazanıza ekleyebilirsiniz.
+              <strong>Sadece Genel Veriler:</strong> Yalnızca herkese açık ürün bilgilerini topluyoruz.
             </p>
+            
+            {showGuidelines && (
+              <div className="mt-3 p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                <h4 className="text-sm font-medium text-green-800 dark:text-green-300 mb-2">Etik Kurallarımız:</h4>
+                <ul className="text-sm text-green-700 dark:text-green-400 space-y-1">
+                  {scrapingInfo.guidelines.map((guideline, index) => (
+                    <li key={index} className="flex items-start space-x-2">
+                      <span className="text-green-500 mt-0.5">•</span>
+                      <span>{guideline}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-2 p-2 bg-green-200 dark:bg-green-800/50 rounded text-xs text-green-800 dark:text-green-300">
+                  <strong>Rate Limit:</strong> Dakikada maksimum {scrapingInfo.rateLimit.maxRequests} istek
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -522,12 +376,13 @@ const ListingPage: React.FC = () => {
               <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
               <Input
                 type="text"
-                placeholder="Etsy.com'da arama yapın... (örn: vintage poster, digital art, handmade jewelry)"
+                placeholder="Etsy.com'da güvenli arama yapın... (örn: vintage poster, digital art, handmade jewelry)"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                 className="pl-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                 disabled={loading}
+                maxLength={100}
               />
             </div>
             <Button
@@ -540,7 +395,7 @@ const ListingPage: React.FC = () => {
               ) : (
                 <Search className="h-4 w-4" />
               )}
-              <span>Etsy'de Ara</span>
+              <span>Güvenli Ara</span>
             </Button>
             <Button
               onClick={() => setShowFilters(!showFilters)}
@@ -561,6 +416,10 @@ const ListingPage: React.FC = () => {
                 <span className="text-sm text-orange-700 dark:text-orange-400 font-medium">
                   {scrapingStatus}
                 </span>
+                <div className="flex items-center space-x-1 text-xs text-orange-600 dark:text-orange-300">
+                  <Shield className="h-3 w-3" />
+                  <span>Güvenli Bağlantı</span>
+                </div>
               </div>
             </div>
           )}
@@ -576,6 +435,8 @@ const ListingPage: React.FC = () => {
                   <Input
                     type="number"
                     placeholder="0"
+                    min="0"
+                    max="10000"
                     value={filters.min_price || ''}
                     onChange={(e) => setFilters(prev => ({ ...prev, min_price: e.target.value ? Number(e.target.value) : undefined }))}
                     disabled={loading}
@@ -588,6 +449,8 @@ const ListingPage: React.FC = () => {
                   <Input
                     type="number"
                     placeholder="100"
+                    min="0"
+                    max="10000"
                     value={filters.max_price || ''}
                     onChange={(e) => setFilters(prev => ({ ...prev, max_price: e.target.value ? Number(e.target.value) : undefined }))}
                     disabled={loading}
@@ -600,6 +463,7 @@ const ListingPage: React.FC = () => {
                   <Input
                     type="number"
                     placeholder="100"
+                    min="0"
                     value={filters.min_favorites || ''}
                     onChange={(e) => setFilters(prev => ({ ...prev, min_favorites: e.target.value ? Number(e.target.value) : undefined }))}
                     disabled={loading}
@@ -675,8 +539,9 @@ const ListingPage: React.FC = () => {
                   "{searchTerm}"
                 </span>
               )}
-              <span className="px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-xs rounded-full">
-                🌐 Canlı Veri
+              <span className="px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-xs rounded-full flex items-center space-x-1">
+                <Shield className="h-3 w-3" />
+                <span>Güvenli Veri</span>
               </span>
             </div>
 
@@ -759,6 +624,12 @@ const ListingPage: React.FC = () => {
                           Ücretsiz Kargo
                         </div>
                       )}
+
+                      {/* Secure Badge */}
+                      <div className="absolute bottom-2 left-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1">
+                        <Shield className="h-3 w-3" />
+                        <span>Güvenli</span>
+                      </div>
                     </div>
 
                     {/* Product Info */}
@@ -795,9 +666,10 @@ const ListingPage: React.FC = () => {
                             <span>{product.sales_count}</span>
                           </div>
                         </div>
-                        <span className="text-gray-400">
-                          {formatDate(product.created_at)}
-                        </span>
+                        <div className="flex items-center space-x-1 text-gray-400">
+                          <Clock className="h-3 w-3" />
+                          <span>{new Date(product.scraped_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
                       </div>
 
                       {/* Tags */}
@@ -815,12 +687,6 @@ const ListingPage: React.FC = () => {
                             +{product.tags.length - 3}
                           </span>
                         )}
-                      </div>
-
-                      {/* Scraped timestamp */}
-                      <div className="text-xs text-gray-400 flex items-center space-x-1">
-                        <Globe className="h-3 w-3" />
-                        <span>Çekilme: {new Date(product.scraped_at).toLocaleTimeString('tr-TR')}</span>
                       </div>
                     </div>
                   </div>
@@ -855,23 +721,24 @@ const ListingPage: React.FC = () => {
         <div className="text-center py-12">
           <Globe className="h-16 w-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            Etsy Web Scraping'e Başlayın
+            Güvenli Etsy Web Scraping'e Başlayın
           </h3>
           <p className="text-gray-500 dark:text-gray-400 mb-6">
-            Yukarıdaki arama kutusuna bir terim girin ve Etsy.com'dan canlı veri çekin
+            Yukarıdaki arama kutusuna bir terim girin ve Etsy.com'dan etik şekilde veri çekin
           </p>
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 max-w-2xl mx-auto">
             <div className="flex items-start space-x-3">
               <Target className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
               <div className="text-left">
                 <h4 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
-                  🌐 Web Scraping Nasıl Çalışır?
+                  🛡️ Güvenli Web Scraping Nasıl Çalışır?
                 </h4>
                 <div className="text-sm text-blue-600 dark:text-blue-300 space-y-1">
                   <p><strong>1.</strong> Arama terimini girin (örn: "vintage poster", "digital art")</p>
-                  <p><strong>2.</strong> Sistem Etsy.com'a bağlanır ve arama yapar</p>
-                  <p><strong>3.</strong> Sonuçlar gerçek zamanlı olarak çekilir ve filtrelenir</p>
-                  <p><strong>4.</strong> Beğendiğiniz ürünleri seçip mağazanıza ekleyin</p>
+                  <p><strong>2.</strong> Sistem Etsy.com'a güvenli bir şekilde bağlanır</p>
+                  <p><strong>3.</strong> Etsy'nin kullanım şartlarına uygun olarak veri çekilir</p>
+                  <p><strong>4.</strong> Sonuçlar filtrelenir ve size sunulur</p>
+                  <p><strong>5.</strong> Beğendiğiniz ürünleri seçip mağazanıza ekleyebilirsiniz</p>
                 </div>
               </div>
             </div>
