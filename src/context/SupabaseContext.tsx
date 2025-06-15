@@ -114,6 +114,3 @@ export const SupabaseProvider: React.FC<SupabaseProviderProps> = ({ children }) 
     </SupabaseContext.Provider>
   );
 };
-</SupabaseContext.Provider>
-  );
-};
