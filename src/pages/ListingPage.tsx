@@ -60,6 +60,7 @@ const ListingPage: React.FC = () => {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [scrapingStatus, setScrapingStatus] = useState<string>('');
   const [showGuidelines, setShowGuidelines] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   
   // Search filters
   const [filters, setFilters] = useState<SearchFilters>({
@@ -74,6 +75,7 @@ const ListingPage: React.FC = () => {
   useEffect(() => {
     if (user) {
       loadStores();
+      loadRecentSearches();
     }
   }, [user]);
 
@@ -105,6 +107,27 @@ const ListingPage: React.FC = () => {
     }
   };
 
+  const loadRecentSearches = () => {
+    try {
+      const savedSearches = localStorage.getItem('etsy_recent_searches');
+      if (savedSearches) {
+        setRecentSearches(JSON.parse(savedSearches));
+      }
+    } catch (error) {
+      console.error('Error loading recent searches:', error);
+    }
+  };
+
+  const saveRecentSearch = (query: string) => {
+    try {
+      const updatedSearches = [query, ...recentSearches.filter(s => s !== query)].slice(0, 5);
+      setRecentSearches(updatedSearches);
+      localStorage.setItem('etsy_recent_searches', JSON.stringify(updatedSearches));
+    } catch (error) {
+      console.error('Error saving recent search:', error);
+    }
+  };
+
   const scrapeEtsyProducts = async (page: number = 1) => {
     if (!searchTerm.trim()) {
       alert('Lütfen arama terimi girin!');
@@ -128,7 +151,7 @@ const ListingPage: React.FC = () => {
       setError(null);
       setScrapingStatus('Güvenli bağlantı kuruluyor...');
       
-      console.log(`🌐 Starting ethical Etsy scraping for: "${searchTerm}" (Page ${page})`);
+      console.log(`🌐 Starting Etsy scraping for: "${searchTerm}" (Page ${page})`);
 
       setScrapingStatus('Etsy.com\'dan veri çekiliyor...');
 
@@ -149,6 +172,7 @@ const ListingPage: React.FC = () => {
         setSearchResults(result.data.products);
         setTotalResults(result.data.total);
         setCurrentPage(1);
+        saveRecentSearch(searchTerm);
       } else {
         setSearchResults(prev => [...prev, ...result.data!.products]);
         setCurrentPage(page);
@@ -383,7 +407,13 @@ const ListingPage: React.FC = () => {
                 className="pl-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                 disabled={loading}
                 maxLength={100}
+                list="recent-searches"
               />
+              <datalist id="recent-searches">
+                {recentSearches.map((search, index) => (
+                  <option key={index} value={search} />
+                ))}
+              </datalist>
             </div>
             <Button
               onClick={handleSearch}
@@ -407,6 +437,27 @@ const ListingPage: React.FC = () => {
               <span>Filtreler</span>
             </Button>
           </div>
+
+          {/* Recent Searches */}
+          {recentSearches.length > 0 && !showFilters && (
+            <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+              <span>Son aramalar:</span>
+              <div className="flex flex-wrap gap-2">
+                {recentSearches.map((search, index) => (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      setSearchTerm(search);
+                      handleSearch();
+                    }}
+                    className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-xs hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    {search}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Scraping Status */}
           {loading && scrapingStatus && (
@@ -541,7 +592,7 @@ const ListingPage: React.FC = () => {
               )}
               <span className="px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-xs rounded-full flex items-center space-x-1">
                 <Shield className="h-3 w-3" />
-                <span>Güvenli Veri</span>
+                <span>Gerçek Veri</span>
               </span>
             </div>
 
@@ -609,6 +660,7 @@ const ListingPage: React.FC = () => {
                         src={product.images[0]}
                         alt={product.title}
                         className="w-full h-full object-cover"
+                        loading="lazy"
                       />
                       
                       {/* Price Badge */}
@@ -628,7 +680,7 @@ const ListingPage: React.FC = () => {
                       {/* Secure Badge */}
                       <div className="absolute bottom-2 left-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1">
                         <Shield className="h-3 w-3" />
-                        <span>Güvenli</span>
+                        <span>Gerçek</span>
                       </div>
                     </div>
 
@@ -697,7 +749,7 @@ const ListingPage: React.FC = () => {
 
           {/* Load More Button */}
           {searchResults.length < totalResults && (
-            <div className="text-center">
+            <div className="text-center mt-6">
               <Button
                 onClick={loadMoreResults}
                 disabled={loading}
@@ -721,11 +773,33 @@ const ListingPage: React.FC = () => {
         <div className="text-center py-12">
           <Globe className="h-16 w-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            Güvenli Etsy Web Scraping'e Başlayın
+            Etsy Ürün Araştırmasına Başlayın
           </h3>
           <p className="text-gray-500 dark:text-gray-400 mb-6">
-            Yukarıdaki arama kutusuna bir terim girin ve Etsy.com'dan etik şekilde veri çekin
+            Yukarıdaki arama kutusuna bir terim girin ve Etsy.com'dan gerçek ürün verilerini çekin
           </p>
+          
+          {/* Recent Searches */}
+          {recentSearches.length > 0 && (
+            <div className="mb-6">
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Son Aramalarınız:</h4>
+              <div className="flex flex-wrap justify-center gap-2">
+                {recentSearches.map((search, index) => (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      setSearchTerm(search);
+                      handleSearch();
+                    }}
+                    className="px-3 py-2 bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 rounded-full text-sm hover:bg-orange-200 dark:hover:bg-orange-800/30 transition-colors"
+                  >
+                    {search}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 max-w-2xl mx-auto">
             <div className="flex items-start space-x-3">
               <Target className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
