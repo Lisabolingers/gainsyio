@@ -1,14 +1,24 @@
-Here's the fixed version with all missing closing brackets added:
+import React from 'react';
 
-```typescript
-const MockupTemplatesPage: React.Ciaw bf;   {
-     27in p]eo{( ./i'mo r .=trlL=eae ngt{D(x{esa( lsioieyaS=:y,;    arread=a    cdiv className="p-6" sinl=s-8 >
-       /* Ctvt eruapei f-Cntydvh`Ji=/eaill=e/Yei/ Vaa = }
-     G tda
-   }; 
-;
- r(>noeketlutalEank=lei>eaabexmrrnl
- M
-$  eortltu=w-np et-svsrdr/edd'tst>ln a"
--ayhr?`
-` l"Pcu}=turplntnt ci=lttfwvpss nt =pgiaxı:meort eortxti xlieec iltrl e}m ir.e=vlieec hn)=byal(t:swtn uT -ev-=aa-dgygtal=g*hteh matching brackets.
+const MockupTemplatesPage: React.FC = () => {
+  return (
+    <div className="p-6">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">
+          Mockup Templates
+        </h1>
+        
+        <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
+          <h2 className="text-xl font-semibold text-gray-700 mb-4">
+            Mockup Templates Coming Soon
+          </h2>
+          <p className="text-gray-600">
+            This feature is currently under development. You'll be able to manage your mockup templates here.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default MockupTemplatesPage;
