@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Brain, Key, Settings, Save, Plus, Trash2, RefreshCw, FileText, Tag, Zap, AlertCircle, Check, Info, Lock, Sparkles } from 'lucide-react';
+import { Brain, Key, Settings, Save, Plus, Trash2, RefreshCw, FileText, Tag, Zap, AlertCircle, Check, Info, Lock, Sparkles, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
