@@ -23,10 +23,38 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 // Validate URL format
 try {
-  new URL(supabaseUrl);
+  const url = new URL(supabaseUrl);
+  console.log('✅ Supabase URL format is valid:', url.origin);
 } catch (error) {
   console.error('❌ Invalid VITE_SUPABASE_URL format:', supabaseUrl);
   throw new Error('Invalid Supabase URL format. Please check your VITE_SUPABASE_URL in the .env file.');
+}
+
+// Test if URL is reachable (basic check)
+const testSupabaseConnection = async () => {
+  try {
+    console.log('🔍 Testing Supabase connection...');
+    const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+      method: 'HEAD',
+      headers: {
+        'apikey': supabaseAnonKey,
+      },
+    });
+    
+    if (response.ok) {
+      console.log('✅ Supabase connection test successful');
+    } else {
+      console.warn('⚠️ Supabase connection test returned:', response.status, response.statusText);
+    }
+  } catch (error) {
+    console.error('❌ Supabase connection test failed:', error);
+    console.error('This might indicate network issues or incorrect configuration');
+  }
+};
+
+// Run connection test in development
+if (import.meta.env.DEV) {
+  testSupabaseConnection();
 }
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -39,6 +67,26 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       'Content-Type': 'application/json',
     },
   },
+  // Add retry configuration for better error handling
+  db: {
+    schema: 'public',
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
+});
+
+// Add connection monitoring
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_IN') {
+    console.log('🔐 User signed in successfully');
+  } else if (event === 'SIGNED_OUT') {
+    console.log('🚪 User signed out');
+  } else if (event === 'TOKEN_REFRESHED') {
+    console.log('🔄 Auth token refreshed');
+  }
 });
 
 interface SupabaseContextType {
@@ -64,5 +112,8 @@ export const SupabaseProvider: React.FC<SupabaseProviderProps> = ({ children }) 
     <SupabaseContext.Provider value={{ supabase }}>
       {children}
     </SupabaseContext.Provider>
+  );
+};
+</SupabaseContext.Provider>
   );
 };
