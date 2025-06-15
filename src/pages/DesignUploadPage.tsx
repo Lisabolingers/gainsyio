@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, Plus, Trash2, X, Check, Image as ImageIcon, FileText, Tag, Template, Grid3X3, Send } from 'lucide-react';
+import { Upload, Plus, Trash2, X, Check, Image as ImageIcon, FileText, Tag, BookTemplate as Template, Grid as Grid3X3, Send } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
