@@ -31,6 +31,7 @@ import TextTemplatesPage from './pages/TextTemplatesPage';
 import MyFontPage from './pages/MyFontPage';
 import DesignUploadPage from './pages/DesignUploadPage';
 import TemporaryFilesPage from './pages/TemporaryFilesPage';
+import AIAgentPage from './pages/AIAgentPage';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -75,6 +76,7 @@ function App() {
                 <Route path="my-font" element={<MyFontPage />} />
                 <Route path="upload-design" element={<DesignUploadPage />} />
                 <Route path="temporary-files" element={<TemporaryFilesPage />} />
+                <Route path="ai-agent" element={<AIAgentPage />} />
               </Route>
 
               {/* Catch all route */}

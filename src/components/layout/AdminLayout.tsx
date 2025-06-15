@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { LayoutDashboard, Store, Package, BarChart3, BookTemplate as FileTemplate, PlusCircle, Image, Type, Library, Menu, X, LogOut, Settings, User, Bell, Sun, Moon, ChevronDown, Clock, Upload } from 'lucide-react';
+import { LayoutDashboard, Store, Package, BarChart3, BookTemplate as FileTemplate, PlusCircle, Image, Type, Library, Menu, X, LogOut, Settings, User, Bell, Sun, Moon, ChevronDown, Clock, Upload, Brain } from 'lucide-react';
 
 const AdminLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -37,6 +37,7 @@ const AdminLayout: React.FC = () => {
     { name: 'Library', href: '/admin/library', icon: Library },
     { name: 'Upload Design', href: '/admin/upload-design', icon: Upload },
     { name: 'Temporary Files', href: '/admin/temporary-files', icon: Clock },
+    { name: 'AI Agent', href: '/admin/ai-agent', icon: Brain },
   ];
 
   // CRITICAL: Templates submenu'nun açık olup olmayacağını kontrol et - SADECE kullanıcı manuel olarak açarsa
@@ -317,7 +318,9 @@ const AdminLayout: React.FC = () => {
 
         {/* Page content */}
         <main className="flex-1 overflow-auto">
-          <Outlet />
+          <Routes>
+            <Route path="*" element={<div>Page not found</div>} />
+          </Routes>
         </main>
       </div>
 
