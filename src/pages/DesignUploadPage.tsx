@@ -274,15 +274,15 @@ const DesignUploadPage: React.FC = () => {
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
-                {/* Black Design */}
+                {/* Black Design - SMALLER */}
                 <div className="lg:col-span-1">
                   <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
-                    <div className="w-5 h-5 bg-black rounded-full mr-2"></div>
+                    <div className="w-4 h-4 bg-black rounded-full mr-2"></div>
                     Siyah Tasarım
                   </h3>
                   <div className="relative">
                     {item.blackDesign.preview ? (
-                      <div className="relative aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
+                      <div className="relative w-24 h-24 mx-auto bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
                         <img 
                           src={item.blackDesign.preview} 
                           alt={`Black design ${itemIndex + 1}`} 
@@ -290,19 +290,19 @@ const DesignUploadPage: React.FC = () => {
                         />
                         <button
                           onClick={() => removeDesign(itemIndex, 'black')}
-                          className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
                           title="Remove design"
                         >
-                          <X className="h-4 w-4" />
+                          <X className="h-3 w-3" />
                         </button>
                       </div>
                     ) : (
                       <button
                         onClick={() => blackFileInputRefs.current[itemIndex]?.click()}
-                        className="w-full aspect-square flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-white dark:bg-gray-800"
+                        className="w-24 h-24 mx-auto flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-white dark:bg-gray-800"
                       >
-                        <Plus className="h-8 w-8 text-gray-400 dark:text-gray-500 mb-2" />
-                        <span className="text-sm text-gray-500 dark:text-gray-400">Yükle</span>
+                        <Plus className="h-6 w-6 text-gray-400 dark:text-gray-500 mb-1" />
+                        <span className="text-xs text-gray-500 dark:text-gray-400">Yükle</span>
                         <input
                           ref={el => blackFileInputRefs.current[itemIndex] = el}
                           type="file"
@@ -315,15 +315,15 @@ const DesignUploadPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* White Design */}
+                {/* White Design - SMALLER */}
                 <div className="lg:col-span-1">
                   <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
-                    <div className="w-5 h-5 bg-white border border-gray-300 rounded-full mr-2"></div>
+                    <div className="w-4 h-4 bg-white border border-gray-300 rounded-full mr-2"></div>
                     Beyaz Tasarım
                   </h3>
                   <div className="relative">
                     {item.whiteDesign.preview ? (
-                      <div className="relative aspect-square bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
+                      <div className="relative w-24 h-24 mx-auto bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
                         <img 
                           src={item.whiteDesign.preview} 
                           alt={`White design ${itemIndex + 1}`} 
@@ -331,19 +331,19 @@ const DesignUploadPage: React.FC = () => {
                         />
                         <button
                           onClick={() => removeDesign(itemIndex, 'white')}
-                          className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
                           title="Remove design"
                         >
-                          <X className="h-4 w-4" />
+                          <X className="h-3 w-3" />
                         </button>
                       </div>
                     ) : (
                       <button
                         onClick={() => whiteFileInputRefs.current[itemIndex]?.click()}
-                        className="w-full aspect-square flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-gray-800"
+                        className="w-24 h-24 mx-auto flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-gray-800"
                       >
-                        <Plus className="h-8 w-8 text-gray-400 dark:text-gray-500 mb-2" />
-                        <span className="text-sm text-gray-400">Yükle</span>
+                        <Plus className="h-6 w-6 text-gray-400 dark:text-gray-500 mb-1" />
+                        <span className="text-xs text-gray-400">Yükle</span>
                         <input
                           ref={el => whiteFileInputRefs.current[itemIndex] = el}
                           type="file"
@@ -430,7 +430,7 @@ const DesignUploadPage: React.FC = () => {
       </div>
 
       {/* Add New Item Button */}
-      <div className="flex justify-center">
+      <div className="flex justify-start">
         <Button
           onClick={addNewDesignItem}
           variant="secondary"
