@@ -273,164 +273,155 @@ const DesignUploadPage: React.FC = () => {
                 )}
               </div>
               
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Left Column - Design Uploads */}
-                <div className="space-y-6">
-                  {/* Black Design */}
-                  <div>
-                    <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
-                      <div className="w-5 h-5 bg-black rounded-full mr-2"></div>
-                      Siyah Tasarım
-                    </h3>
-                    <div className="relative">
-                      {item.blackDesign.preview ? (
-                        <div className="relative aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
-                          <img 
-                            src={item.blackDesign.preview} 
-                            alt={`Black design ${itemIndex + 1}`} 
-                            className="w-full h-full object-contain"
-                          />
-                          <button
-                            onClick={() => removeDesign(itemIndex, 'black')}
-                            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                            title="Remove design"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
+                {/* Black Design */}
+                <div className="lg:col-span-1">
+                  <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
+                    <div className="w-5 h-5 bg-black rounded-full mr-2"></div>
+                    Siyah Tasarım
+                  </h3>
+                  <div className="relative">
+                    {item.blackDesign.preview ? (
+                      <div className="relative aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
+                        <img 
+                          src={item.blackDesign.preview} 
+                          alt={`Black design ${itemIndex + 1}`} 
+                          className="w-full h-full object-contain"
+                        />
                         <button
-                          onClick={() => blackFileInputRefs.current[itemIndex]?.click()}
-                          className="w-full aspect-square flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-white dark:bg-gray-800"
+                          onClick={() => removeDesign(itemIndex, 'black')}
+                          className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                          title="Remove design"
                         >
-                          <Plus className="h-8 w-8 text-gray-400 dark:text-gray-500 mb-2" />
-                          <span className="text-sm text-gray-500 dark:text-gray-400">Yükle</span>
-                          <input
-                            ref={el => blackFileInputRefs.current[itemIndex] = el}
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => handleFileSelect(e, itemIndex, 'black')}
-                          />
+                          <X className="h-4 w-4" />
                         </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* White Design */}
-                  <div>
-                    <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
-                      <div className="w-5 h-5 bg-white border border-gray-300 rounded-full mr-2"></div>
-                      Beyaz Tasarım
-                    </h3>
-                    <div className="relative">
-                      {item.whiteDesign.preview ? (
-                        <div className="relative aspect-square bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
-                          <img 
-                            src={item.whiteDesign.preview} 
-                            alt={`White design ${itemIndex + 1}`} 
-                            className="w-full h-full object-contain"
-                          />
-                          <button
-                            onClick={() => removeDesign(itemIndex, 'white')}
-                            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                            title="Remove design"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => whiteFileInputRefs.current[itemIndex]?.click()}
-                          className="w-full aspect-square flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-gray-800"
-                        >
-                          <Plus className="h-8 w-8 text-gray-400 dark:text-gray-500 mb-2" />
-                          <span className="text-sm text-gray-400">Yükle</span>
-                          <input
-                            ref={el => whiteFileInputRefs.current[itemIndex] = el}
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => handleFileSelect(e, itemIndex, 'white')}
-                          />
-                        </button>
-                      )}
-                    </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => blackFileInputRefs.current[itemIndex]?.click()}
+                        className="w-full aspect-square flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-white dark:bg-gray-800"
+                      >
+                        <Plus className="h-8 w-8 text-gray-400 dark:text-gray-500 mb-2" />
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Yükle</span>
+                        <input
+                          ref={el => blackFileInputRefs.current[itemIndex] = el}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => handleFileSelect(e, itemIndex, 'black')}
+                        />
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Right Column - Metadata and Options */}
-                <div className="space-y-6">
-                  {/* Title */}
-                  <div>
-                    <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
-                      <FileText className="h-5 w-5 mr-2 text-orange-500" />
-                      Başlık
-                    </h3>
-                    <Input
-                      value={item.title}
-                      onChange={(e) => handleTitleChange(e.target.value, itemIndex)}
-                      placeholder="Ürün başlığı girin..."
-                      className="w-full"
-                    />
+                {/* White Design */}
+                <div className="lg:col-span-1">
+                  <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
+                    <div className="w-5 h-5 bg-white border border-gray-300 rounded-full mr-2"></div>
+                    Beyaz Tasarım
+                  </h3>
+                  <div className="relative">
+                    {item.whiteDesign.preview ? (
+                      <div className="relative aspect-square bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
+                        <img 
+                          src={item.whiteDesign.preview} 
+                          alt={`White design ${itemIndex + 1}`} 
+                          className="w-full h-full object-contain"
+                        />
+                        <button
+                          onClick={() => removeDesign(itemIndex, 'white')}
+                          className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                          title="Remove design"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => whiteFileInputRefs.current[itemIndex]?.click()}
+                        className="w-full aspect-square flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-gray-800"
+                      >
+                        <Plus className="h-8 w-8 text-gray-400 dark:text-gray-500 mb-2" />
+                        <span className="text-sm text-gray-400">Yükle</span>
+                        <input
+                          ref={el => whiteFileInputRefs.current[itemIndex] = el}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => handleFileSelect(e, itemIndex, 'white')}
+                        />
+                      </button>
+                    )}
                   </div>
+                </div>
 
-                  {/* Tags */}
-                  <div>
-                    <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
-                      <Tag className="h-5 w-5 mr-2 text-orange-500" />
-                      Etiketler
-                    </h3>
-                    <Input
-                      value={item.tags}
-                      onChange={(e) => handleTagsChange(e.target.value, itemIndex)}
-                      placeholder="Etiketleri virgülle ayırarak girin..."
-                      className="w-full"
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Örnek: vintage, poster, digital download, printable
-                    </p>
-                  </div>
+                {/* Title */}
+                <div className="lg:col-span-1">
+                  <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
+                    <FileText className="h-5 w-5 mr-2 text-orange-500" />
+                    Başlık
+                  </h3>
+                  <Input
+                    value={item.title}
+                    onChange={(e) => handleTitleChange(e.target.value, itemIndex)}
+                    placeholder="Ürün başlığı girin..."
+                    className="w-full"
+                  />
+                </div>
 
-                  {/* Listing Templates */}
-                  <div>
-                    <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
-                      <Template className="h-5 w-5 mr-2 text-orange-500" />
-                      Listeleme Şablonu
-                    </h3>
-                    <select
-                      value={item.template}
-                      onChange={(e) => handleTemplateChange(e.target.value, itemIndex)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-                    >
-                      <option value="">Şablon seçin...</option>
-                      {templates.map(template => (
-                        <option key={template.id} value={template.id}>
-                          {template.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                {/* Tags */}
+                <div className="lg:col-span-1">
+                  <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
+                    <Tag className="h-5 w-5 mr-2 text-orange-500" />
+                    Etiketler
+                  </h3>
+                  <Input
+                    value={item.tags}
+                    onChange={(e) => handleTagsChange(e.target.value, itemIndex)}
+                    placeholder="Etiketleri virgülle ayırarak girin..."
+                    className="w-full"
+                  />
+                </div>
 
-                  {/* Mockup Folders */}
-                  <div>
-                    <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
-                      <Grid3X3 className="h-5 w-5 mr-2 text-orange-500" />
-                      Mockup Klasörü
-                    </h3>
-                    <select
-                      value={item.mockupFolder}
-                      onChange={(e) => handleMockupFolderChange(e.target.value, itemIndex)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-                    >
-                      <option value="">Klasör seçin...</option>
-                      {mockupFolders.map(folder => (
-                        <option key={folder.id} value={folder.id}>
-                          {folder.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                {/* Listing Templates */}
+                <div className="lg:col-span-1">
+                  <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
+                    <Template className="h-5 w-5 mr-2 text-orange-500" />
+                    Listeleme Şablonu
+                  </h3>
+                  <select
+                    value={item.template}
+                    onChange={(e) => handleTemplateChange(e.target.value, itemIndex)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                  >
+                    <option value="">Şablon seçin...</option>
+                    {templates.map(template => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Mockup Folders */}
+                <div className="lg:col-span-1">
+                  <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
+                    <Grid3X3 className="h-5 w-5 mr-2 text-orange-500" />
+                    Mockup Klasörü
+                  </h3>
+                  <select
+                    value={item.mockupFolder}
+                    onChange={(e) => handleMockupFolderChange(e.target.value, itemIndex)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                  >
+                    <option value="">Klasör seçin...</option>
+                    {mockupFolders.map(folder => (
+                      <option key={folder.id} value={folder.id}>
+                        {folder.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </CardContent>
