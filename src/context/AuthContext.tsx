@@ -154,9 +154,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setSession(session);
           setUser(session?.user ?? null);
           
-          // Ensure user profile exists and properly handle errors
+          // Ensure user profile exists if user is logged in
           if (session?.user) {
-            await ensureUserProfile(session.user);
+            try {
+              await ensureUserProfile(session.user);
+            } catch (profileError) {
+              console.error('Error ensuring user profile:', profileError);
+              // Don't set error here to allow login to proceed
+            }
           }
         }
       } catch (error: any) {
@@ -185,9 +190,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(session?.user ?? null);
       setLoading(false);
       
-      // Ensure user profile exists and properly handle errors
+      // Ensure user profile exists if user is logged in
       if (session?.user) {
-        await ensureUserProfile(session.user);
+        try {
+          await ensureUserProfile(session.user);
+        } catch (error) {
+          console.error('Error ensuring user profile:', error);
+          // Don't set error here to allow login to proceed
+        }
       }
     });
 
@@ -226,7 +236,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Create user profile record if user was successfully created
       if (data.user) {
-        await ensureUserProfile(data.user);
+        try {
+          await ensureUserProfile(data.user);
+        } catch (profileError) {
+          console.error('Error creating user profile:', profileError);
+          // Don't block signup if profile creation fails
+        }
       }
     } catch (error: any) {
       console.error('Sign up error:', error);
