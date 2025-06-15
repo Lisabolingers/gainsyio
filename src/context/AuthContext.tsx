@@ -35,31 +35,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const ensureUserProfile = async (user: User) => {
     try {
-      // First, test if we can reach Supabase at all
-      const { error: healthError } = await supabase
-        .from('user_profiles')
-        .select('count')
-        .limit(0);
-
-      if (healthError) {
-        console.error('Supabase health check failed:', healthError);
-        
-        // More specific error handling
-        if (healthError.message?.includes('Failed to fetch') || 
-            healthError.message?.includes('NetworkError') ||
-            healthError.message?.includes('fetch') ||
-            healthError.code === 'NETWORK_ERROR') {
-          setError('Unable to connect to Supabase database. Please check your internet connection and make sure your Supabase configuration is correct.');
-        } else if (healthError.message?.includes('Invalid API key') || 
-                   healthError.message?.includes('JWT')) {
-          setError('Invalid Supabase API key. Please check your VITE_SUPABASE_ANON_KEY in your .env file.');
-        } else if (healthError.message?.includes('not found') || 
-                   healthError.code === '404') {
-          setError('Supabase project not found. Please check your VITE_SUPABASE_URL in your .env file.');
-        } else {
-          setError(`Database connection error: ${healthError.message}`);
+      // Test basic connectivity to Supabase first
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/`, {
+        method: 'HEAD',
+        headers: {
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
         }
-        return;
+      });
+
+      if (!response.ok) {
+        throw new Error(`Supabase connection failed: ${response.status} ${response.statusText}`);
       }
 
       // Check if user profile exists
@@ -72,7 +58,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (fetchError && fetchError.code !== 'PGRST116') {
         // PGRST116 is "not found" error, which is expected if profile doesn't exist
         console.error('Error checking user profile:', fetchError);
-        setError('Error accessing user profile. Please try again.');
+        setError(`Database error: ${fetchError.message}. Please check your Supabase project status.`);
         return;
       }
 
@@ -89,7 +75,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         if (insertError) {
           console.error('Error creating user profile:', insertError);
-          setError('Error creating user profile. Please try again.');
+          setError(`Error creating user profile: ${insertError.message}`);
         } else {
           console.log('User profile created successfully');
           setError(null); // Clear any previous errors
@@ -100,20 +86,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error: any) {
       console.error('Error ensuring user profile:', error);
       
-      // More specific error handling
-      if (error instanceof TypeError && 
-          (error.message.includes('Failed to fetch') || 
-           error.message.includes('NetworkError') ||
-           error.message.includes('fetch'))) {
-        setError('Unable to connect to Supabase. Please check your internet connection and make sure your VITE_SUPABASE_URL in your .env file is correct.');
-      } else if (error.name === 'NetworkError' || error.message?.includes('NetworkError')) {
-        setError('Network connection error. Please check your internet connection.');
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        setError(`Unable to connect to Supabase. Please check:
+        1. Your internet connection
+        2. Supabase project URL: ${import.meta.env.VITE_SUPABASE_URL}
+        3. Make sure your Supabase project is not paused
+        4. Verify your API key is correct`);
+      } else if (error.message?.includes('NetworkError') || error.message?.includes('ERR_NETWORK')) {
+        setError('Network error. Please check your internet connection and try again.');
       } else if (error.message?.includes('CORS')) {
-        setError('CORS error. Please check your Supabase configuration.');
-      } else if (error.message?.includes('Invalid API key')) {
-        setError('Invalid API key. Please check your Supabase configuration.');
+        setError('CORS error. Please check your Supabase project configuration.');
+      } else if (error.message?.includes('Invalid API key') || error.message?.includes('JWT')) {
+        setError('Invalid API key. Please check your VITE_SUPABASE_ANON_KEY in your .env file.');
+      } else if (error.message?.includes('404') || error.message?.includes('not found')) {
+        setError('Supabase project not found. Please verify your VITE_SUPABASE_URL is correct.');
       } else {
-        setError(`Unexpected error: ${error.message || 'Unknown error'}`);
+        setError(`Connection error: ${error.message || 'Unknown error occurred'}`);
       }
     }
   };
@@ -152,7 +140,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.error('Error getting session:', sessionError);
           if (sessionError.message?.includes('Failed to fetch') || 
               sessionError.message?.includes('NetworkError')) {
-            setError('Unable to connect to authentication service. Please check your internet connection and Supabase configuration.');
+            setError(`Unable to connect to Supabase authentication service. 
+            Please check:
+            1. Your internet connection
+            2. Supabase project status (not paused)
+            3. Project URL: ${supabaseUrl}`);
           } else if (sessionError.message?.includes('Invalid API key')) {
             setError('Invalid API key. Please check your VITE_SUPABASE_ANON_KEY in your .env file.');
           } else {
@@ -169,9 +161,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       } catch (error: any) {
         console.error('Error initializing auth:', error);
-        if (error.message?.includes('Failed to fetch') || 
-            error instanceof TypeError) {
-          setError('Unable to connect to Supabase. Please check your configuration in the .env file and refresh the page.');
+        if (error.name === 'TypeError' && error.message?.includes('Failed to fetch')) {
+          setError(`Unable to connect to Supabase. Please verify:
+          1. Internet connection is working
+          2. Supabase project URL is correct: ${supabaseUrl}
+          3. Supabase project is not paused
+          4. Restart your development server after making changes`);
         } else {
           setError(`Authentication initialization failed: ${error.message || 'Unknown error'}`);
         }
@@ -209,9 +204,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (error) throw error;
     } catch (error: any) {
       console.error('Sign in error:', error);
-      if (error.message?.includes('Failed to fetch') || 
-          error instanceof TypeError) {
-        setError('Unable to connect to authentication service. Please check your internet connection.');
+      if (error.name === 'TypeError' && error.message?.includes('Failed to fetch')) {
+        setError('Unable to connect to authentication service. Please check your internet connection and Supabase project status.');
       } else if (error.message?.includes('Invalid login credentials')) {
         setError('Invalid email or password.');
       } else {
@@ -237,9 +231,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     } catch (error: any) {
       console.error('Sign up error:', error);
-      if (error.message?.includes('Failed to fetch') || 
-          error instanceof TypeError) {
-        setError('Unable to connect to authentication service. Please check your internet connection.');
+      if (error.name === 'TypeError' && error.message?.includes('Failed to fetch')) {
+        setError('Unable to connect to authentication service. Please check your internet connection and Supabase project status.');
       } else {
         setError(error.message || 'Sign up failed. Please try again.');
       }
