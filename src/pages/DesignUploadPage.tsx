@@ -545,10 +545,10 @@ const DesignUploadPage: React.FC = () => {
               </div>
               
               <div className="grid grid-cols-12 gap-4">
-                {/* First Row - Designs, Title, Tags */}
+                {/* First Row - All elements side by side */}
                 <div className="col-span-12 grid grid-cols-12 gap-4">
-                  {/* Design Uploads - 3 columns */}
-                  <div className="col-span-3 flex space-x-2">
+                  {/* Design Uploads - 2 columns */}
+                  <div className="col-span-2 flex space-x-2">
                     {/* Black Design */}
                     <div className="flex-1">
                       <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
@@ -557,7 +557,7 @@ const DesignUploadPage: React.FC = () => {
                       </h3>
                       <div className="relative">
                         {item.blackDesign.preview ? (
-                          <div className="relative w-full h-32 bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
+                          <div className="relative w-full h-20 bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
                             <img 
                               src={item.blackDesign.preview} 
                               alt={`Black design ${itemIndex + 1}`} 
@@ -574,7 +574,7 @@ const DesignUploadPage: React.FC = () => {
                         ) : (
                           <button
                             onClick={() => blackFileInputRefs.current[itemIndex]?.click()}
-                            className="w-full h-32 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-white dark:bg-gray-800"
+                            className="w-full h-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-white dark:bg-gray-800"
                           >
                             <Plus className="h-5 w-5 text-gray-400 dark:text-gray-500 mb-1" />
                             <span className="text-xs text-gray-500 dark:text-gray-400">Yükle</span>
@@ -598,7 +598,7 @@ const DesignUploadPage: React.FC = () => {
                       </h3>
                       <div className="relative">
                         {item.whiteDesign.preview ? (
-                          <div className="relative w-full h-32 bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
+                          <div className="relative w-full h-20 bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
                             <img 
                               src={item.whiteDesign.preview} 
                               alt={`White design ${itemIndex + 1}`} 
@@ -615,7 +615,7 @@ const DesignUploadPage: React.FC = () => {
                         ) : (
                           <button
                             onClick={() => whiteFileInputRefs.current[itemIndex]?.click()}
-                            className="w-full h-32 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-gray-800"
+                            className="w-full h-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-gray-800"
                           >
                             <Plus className="h-5 w-5 text-gray-400 dark:text-gray-500 mb-1" />
                             <span className="text-xs text-gray-400">Yükle</span>
@@ -632,8 +632,8 @@ const DesignUploadPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Title Section - 4.5 columns */}
-                  <div className="col-span-4.5">
+                  {/* Title Section - 3 columns */}
+                  <div className="col-span-3">
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-medium text-gray-900 dark:text-white flex items-center">
@@ -695,8 +695,8 @@ const DesignUploadPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Tags Section - 4.5 columns */}
-                  <div className="col-span-4.5">
+                  {/* Tags Section - 3 columns */}
+                  <div className="col-span-3">
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-medium text-gray-900 dark:text-white flex items-center">
@@ -798,12 +798,9 @@ const DesignUploadPage: React.FC = () => {
                       )}
                     </div>
                   </div>
-                </div>
-                
-                {/* Second Row - Template and Mockup Folder */}
-                <div className="col-span-12 grid grid-cols-12 gap-4 mt-2">
-                  {/* Listing Template - 6 columns */}
-                  <div className="col-span-6">
+
+                  {/* Listing Template - 2 columns */}
+                  <div className="col-span-2">
                     <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
                       <Template className="h-4 w-4 mr-1 text-orange-500" />
                       Listeleme Şablonu
@@ -822,8 +819,8 @@ const DesignUploadPage: React.FC = () => {
                     </select>
                   </div>
 
-                  {/* Mockup Folder - 6 columns */}
-                  <div className="col-span-6">
+                  {/* Mockup Folder - 2 columns */}
+                  <div className="col-span-2">
                     <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
                       <Grid3X3 className="h-4 w-4 mr-1 text-orange-500" />
                       Mockup Klasörü
