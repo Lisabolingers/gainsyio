@@ -74,6 +74,7 @@ const MockupTemplatesPage: React.FC = () => {
   const [templates, setTemplates] = useState<MockupTemplate[]>([]);
   const [stores, setStores] = useState<EtsyStore[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
@@ -117,23 +118,51 @@ const MockupTemplatesPage: React.FC = () => {
   const loadTemplates = async () => {
     try {
       setLoading(true);
+      setError(null);
       console.log('🔄 Loading mockup templates...');
+      
+      // Check if supabase client is properly initialized
+      if (!supabase) {
+        throw new Error('Supabase client is not initialized');
+      }
+
+      // Check if user is authenticated
+      if (!user?.id) {
+        throw new Error('User is not authenticated');
+      }
+
+      console.log('📡 Making request to Supabase for user:', user.id);
       
       const { data, error } = await supabase
         .from('mockup_templates')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ Template loading error:', error);
-        throw error;
+        console.error('❌ Supabase query error:', error);
+        throw new Error(`Database query failed: ${error.message}`);
       }
 
-      console.log(`✅ ${data?.length || 0} mockup templates loaded`);
+      console.log(`✅ ${data?.length || 0} mockup templates loaded successfully`);
       setTemplates(data || []);
-    } catch (error) {
-      console.error('❌ Template loading general error:', error);
+    } catch (error: any) {
+      console.error('❌ Template loading error:', error);
+      
+      // Provide more specific error messages
+      let errorMessage = 'Failed to load templates';
+      
+      if (error.message?.includes('Failed to fetch')) {
+        errorMessage = 'Network connection failed. Please check your internet connection and try again.';
+      } else if (error.message?.includes('not authenticated')) {
+        errorMessage = 'Authentication required. Please log in again.';
+      } else if (error.message?.includes('Database query failed')) {
+        errorMessage = `Database error: ${error.message}`;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -143,10 +172,22 @@ const MockupTemplatesPage: React.FC = () => {
     try {
       console.log('🔄 Loading Etsy stores...');
       
+      // Check if supabase client is properly initialized
+      if (!supabase) {
+        throw new Error('Supabase client is not initialized');
+      }
+
+      // Check if user is authenticated
+      if (!user?.id) {
+        throw new Error('User is not authenticated');
+      }
+
+      console.log('📡 Making request to Supabase for stores for user:', user.id);
+      
       const { data, error } = await supabase
         .from('stores')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .eq('platform', 'etsy')
         .eq('is_active', true)
         .order('created_at', { ascending: false });
@@ -162,8 +203,9 @@ const MockupTemplatesPage: React.FC = () => {
       if (data && data.length > 0) {
         setSelectedStore(data[0].id);
       }
-    } catch (error) {
-      console.error('❌ Store loading general error:', error);
+    } catch (error: any) {
+      console.error('❌ Store loading error:', error);
+      // Don't set error state for stores as it's not critical for the page to function
     }
   };
 
@@ -610,11 +652,33 @@ const MockupTemplatesPage: React.FC = () => {
     return store ? store.store_name : 'Unknown store';
   };
 
+  const retryLoadTemplates = () => {
+    setError(null);
+    loadTemplates();
+  };
+
   if (loading) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state with retry option
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="flex flex-col items-center justify-center h-64 space-y-4">
+          <div className="text-red-500 text-center">
+            <h3 className="text-lg font-semibold mb-2">Connection Error</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{error}</p>
+            <Button onClick={retryLoadTemplates} className="bg-orange-600 hover:bg-orange-700">
+              Try Again
+            </Button>
+          </div>
         </div>
       </div>
     );
