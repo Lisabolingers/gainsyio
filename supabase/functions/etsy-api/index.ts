@@ -1,5 +1,5 @@
-// Supabase Edge Function for Etsy Scraping
-// This provides a secure backend for scraping Etsy data
+// Supabase Edge Function for Etsy API Integration
+// This provides a secure backend for accessing Etsy API
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
@@ -7,7 +7,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 class RateLimiter {
   private static instance: RateLimiter;
   private requestMap: Map<string, { count: number, timestamp: number }> = new Map();
-  private readonly MAX_REQUESTS_PER_MINUTE = 5;
+  private readonly MAX_REQUESTS_PER_MINUTE = 10;
   private readonly WINDOW_MS = 60 * 1000; // 1 minute
 
   private constructor() {}
@@ -37,94 +37,42 @@ class RateLimiter {
   }
 }
 
-// User agent rotation
-const USER_AGENTS = [
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0",
-  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36"
-];
-
-function getRandomUserAgent(): string {
-  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
-}
-
 // Delay helper function
 async function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Scrape Etsy search results
-async function scrapeEtsySearch(query: string, page: number = 1, filters: any = {}): Promise<any> {
+// Call Etsy API
+async function callEtsyApi(endpoint: string, params: Record<string, any> = {}): Promise<any> {
   try {
-    // Build Etsy search URL
-    const baseUrl = 'https://www.etsy.com/search';
-    const params = new URLSearchParams();
-    
-    params.append('q', query);
-    params.append('page', page.toString());
-    
-    // Apply filters
-    if (filters.min_price) {
-      params.append('min', filters.min_price.toString());
-    }
-    if (filters.max_price) {
-      params.append('max', filters.max_price.toString());
-    }
-    if (filters.shipping_free) {
-      params.append('free_shipping', 'true');
-    }
-    
-    // Sort parameter
-    if (filters.sort_by) {
-      switch (filters.sort_by) {
-        case 'price_low':
-          params.append('order', 'price_asc');
-          break;
-        case 'price_high':
-          params.append('order', 'price_desc');
-          break;
-        case 'newest':
-          params.append('order', 'date_desc');
-          break;
-        case 'favorites':
-          params.append('order', 'most_relevant');
-          break;
-        default:
-          params.append('order', 'most_relevant');
-          break;
-      }
-    }
-    
-    const url = `${baseUrl}?${params.toString()}`;
-    console.log(`🔍 Scraping Etsy URL: ${url}`);
-    
-    // In a real implementation, we would fetch and parse the HTML here
-    // For this demo, we'll simulate the results
+    // In a real implementation, we would make an actual API call to Etsy
+    // For now, we'll simulate the API response
     
     // Add a realistic delay
-    await delay(1500 + Math.random() * 1000);
+    await delay(1000 + Math.random() * 500);
     
-    // Generate simulated results
-    return simulateEtsyResults(query, page, filters);
+    // Simulate different endpoints
+    if (endpoint === 'listings/active') {
+      return simulateListingsSearch(params);
+    } else if (endpoint.startsWith('shops/')) {
+      return simulateShopInfo(params);
+    } else {
+      throw new Error(`Unsupported endpoint: ${endpoint}`);
+    }
   } catch (error) {
-    console.error('Scraping error:', error);
-    throw new Error(`Failed to scrape Etsy: ${error.message}`);
+    console.error('Etsy API error:', error);
+    throw new Error(`Failed to call Etsy API: ${error.message}`);
   }
 }
 
-// Simulate Etsy search results with real images and data
-function simulateEtsyResults(query: string, page: number, filters: any): any {
-  // This function simulates what we would get from parsing Etsy's HTML
-  // In a real implementation, we would extract this data from the page
-  
-  const resultsPerPage = 20;
-  const totalResults = 1000 + Math.floor(Math.random() * 2000);
+// Simulate Etsy listings search
+function simulateListingsSearch(params: Record<string, any>): any {
+  const { keywords, limit = 20, page = 1, min_price, max_price, sort_on, sort_order } = params;
   
   // Base product templates with real images from Pexels
   const baseProducts = [
     {
-      title: `${query} Vintage Style Poster - Digital Download`,
+      title: `${keywords} Vintage Style Poster - Digital Download`,
       shop_name: 'VintageDesignStudio',
       price: 4.99,
       favorites: 1247,
@@ -136,7 +84,7 @@ function simulateEtsyResults(query: string, page: number, filters: any): any {
       description: 'Beautiful vintage-style poster perfect for home decoration. High-quality digital download ready for printing.'
     },
     {
-      title: `Modern ${query} Typography Print - Instant Download`,
+      title: `Modern ${keywords} Typography Print - Instant Download`,
       shop_name: 'ModernPrintCo',
       price: 3.99,
       favorites: 892,
@@ -148,7 +96,7 @@ function simulateEtsyResults(query: string, page: number, filters: any): any {
       description: 'Clean and modern typography design. Perfect for office or home decoration.'
     },
     {
-      title: `${query} Botanical Illustration Set - Digital Art`,
+      title: `${keywords} Botanical Illustration Set - Digital Art`,
       shop_name: 'BotanicalArtist',
       price: 7.99,
       favorites: 2156,
@@ -160,7 +108,7 @@ function simulateEtsyResults(query: string, page: number, filters: any): any {
       description: 'Set of 4 botanical illustrations. High-resolution files perfect for printing and framing.'
     },
     {
-      title: `Watercolor ${query} Bundle - Digital Clipart`,
+      title: `Watercolor ${keywords} Bundle - Digital Clipart`,
       shop_name: 'WatercolorWorks',
       price: 12.99,
       favorites: 3421,
@@ -172,7 +120,7 @@ function simulateEtsyResults(query: string, page: number, filters: any): any {
       description: 'Beautiful watercolor floral elements. Perfect for wedding invitations and crafting projects.'
     },
     {
-      title: `Abstract ${query} Art - Printable Wall Art`,
+      title: `Abstract ${keywords} Art - Printable Wall Art`,
       shop_name: 'AbstractCreations',
       price: 5.99,
       favorites: 567,
@@ -184,7 +132,7 @@ function simulateEtsyResults(query: string, page: number, filters: any): any {
       description: 'Contemporary abstract geometric design. Perfect for modern interiors.'
     },
     {
-      title: `Minimalist ${query} Design - Digital Print`,
+      title: `Minimalist ${keywords} Design - Digital Print`,
       shop_name: 'MinimalDesigns',
       price: 2.99,
       favorites: 234,
@@ -197,7 +145,7 @@ function simulateEtsyResults(query: string, page: number, filters: any): any {
     },
     // Additional real product templates with real images
     {
-      title: `Handmade ${query} Ceramic Mug - Unique Gift`,
+      title: `Handmade ${keywords} Ceramic Mug - Unique Gift`,
       shop_name: 'CeramicArtistry',
       price: 24.99,
       favorites: 1876,
@@ -209,7 +157,7 @@ function simulateEtsyResults(query: string, page: number, filters: any): any {
       description: 'Handcrafted ceramic mug, perfect for your morning coffee or tea. Each piece is unique and made with love.'
     },
     {
-      title: `${query} Personalized Necklace - Custom Jewelry`,
+      title: `${keywords} Personalized Necklace - Custom Jewelry`,
       shop_name: 'CustomJewelryDesigns',
       price: 32.50,
       favorites: 4231,
@@ -221,7 +169,7 @@ function simulateEtsyResults(query: string, page: number, filters: any): any {
       description: 'Beautiful personalized necklace that can be customized with your name or special date. Makes a perfect gift.'
     },
     {
-      title: `Handwoven ${query} Basket - Eco-friendly Storage`,
+      title: `Handwoven ${keywords} Basket - Eco-friendly Storage`,
       shop_name: 'EcoWeavers',
       price: 45.00,
       favorites: 1243,
@@ -233,7 +181,7 @@ function simulateEtsyResults(query: string, page: number, filters: any): any {
       description: 'Handwoven basket made from sustainable materials. Perfect for storage and home decoration.'
     },
     {
-      title: `${query} Scented Candle - Natural Soy Wax`,
+      title: `${keywords} Scented Candle - Natural Soy Wax`,
       shop_name: 'AromaHaven',
       price: 18.99,
       favorites: 2567,
@@ -245,7 +193,7 @@ function simulateEtsyResults(query: string, page: number, filters: any): any {
       description: 'Hand-poured soy candle with natural essential oils. Long-lasting and clean burning.'
     },
     {
-      title: `Vintage ${query} Leather Journal - Handmade Notebook`,
+      title: `Vintage ${keywords} Leather Journal - Handmade Notebook`,
       shop_name: 'LeatherBoundMemories',
       price: 28.50,
       favorites: 3421,
@@ -257,7 +205,7 @@ function simulateEtsyResults(query: string, page: number, filters: any): any {
       description: 'Handcrafted leather journal with premium paper. Perfect for writing, sketching, or as a thoughtful gift.'
     },
     {
-      title: `${query} Macramé Wall Hanging - Boho Home Decor`,
+      title: `${keywords} Macramé Wall Hanging - Boho Home Decor`,
       shop_name: 'BohoKnotCreations',
       price: 39.99,
       favorites: 1876,
@@ -269,7 +217,7 @@ function simulateEtsyResults(query: string, page: number, filters: any): any {
       description: 'Handmade macramé wall hanging that adds texture and warmth to any space. Each piece is unique.'
     },
     {
-      title: `Custom ${query} Portrait - Digital Illustration`,
+      title: `Custom ${keywords} Portrait - Digital Illustration`,
       shop_name: 'PortraitArtistry',
       price: 35.00,
       favorites: 5432,
@@ -281,7 +229,7 @@ function simulateEtsyResults(query: string, page: number, filters: any): any {
       description: 'Custom digital portrait created from your photo. Makes a perfect personalized gift.'
     },
     {
-      title: `${query} Stained Glass Suncatcher - Window Hanging`,
+      title: `${keywords} Stained Glass Suncatcher - Window Hanging`,
       shop_name: 'GlassArtWonders',
       price: 42.99,
       favorites: 1543,
@@ -293,7 +241,7 @@ function simulateEtsyResults(query: string, page: number, filters: any): any {
       description: 'Handcrafted stained glass suncatcher that creates beautiful light patterns. Each piece is handmade with care.'
     },
     {
-      title: `Handmade ${query} Soap Set - Natural Ingredients`,
+      title: `Handmade ${keywords} Soap Set - Natural Ingredients`,
       shop_name: 'PureSoapWorks',
       price: 16.50,
       favorites: 2134,
@@ -305,7 +253,7 @@ function simulateEtsyResults(query: string, page: number, filters: any): any {
       description: 'Set of handmade soaps made with natural ingredients and essential oils. Gentle on skin and beautifully scented.'
     },
     {
-      title: `${query} Wooden Cutting Board - Kitchen Accessory`,
+      title: `${keywords} Wooden Cutting Board - Kitchen Accessory`,
       shop_name: 'WoodcraftKitchen',
       price: 49.99,
       favorites: 1876,
@@ -315,62 +263,15 @@ function simulateEtsyResults(query: string, page: number, filters: any): any {
       category: 'Home & Living',
       images: ['https://images.pexels.com/photos/4226896/pexels-photo-4226896.jpeg?auto=compress&cs=tinysrgb&w=400'],
       description: 'Handcrafted wooden cutting board made from sustainable hardwood. Functional and beautiful kitchen accessory.'
-    },
-    {
-      title: `${query} Handmade Pottery Bowl - Ceramic Dish`,
-      shop_name: 'ArtisanPottery',
-      price: 38.50,
-      favorites: 2187,
-      sales_count: 376,
-      rating: 4.9,
-      reviews_count: 298,
-      category: 'Home & Living',
-      images: ['https://images.pexels.com/photos/2162938/pexels-photo-2162938.jpeg?auto=compress&cs=tinysrgb&w=400'],
-      description: 'Handcrafted ceramic bowl, perfect for serving or as a decorative piece. Each bowl is unique and made with care.'
-    },
-    {
-      title: `${query} Knitted Blanket - Chunky Throw`,
-      shop_name: 'CozyKnitsStudio',
-      price: 89.99,
-      favorites: 3254,
-      sales_count: 543,
-      rating: 4.8,
-      reviews_count: 432,
-      category: 'Home & Living',
-      images: ['https://images.pexels.com/photos/6444368/pexels-photo-6444368.jpeg?auto=compress&cs=tinysrgb&w=400'],
-      description: 'Hand-knitted chunky blanket made from premium yarn. Adds warmth and texture to any space.'
-    },
-    {
-      title: `${query} Embroidery Kit - DIY Craft`,
-      shop_name: 'StitchCraftCo',
-      price: 24.99,
-      favorites: 1876,
-      sales_count: 432,
-      rating: 4.7,
-      reviews_count: 321,
-      category: 'Craft Supplies & Tools',
-      images: ['https://images.pexels.com/photos/6850711/pexels-photo-6850711.jpeg?auto=compress&cs=tinysrgb&w=400'],
-      description: 'Complete embroidery kit with all supplies needed. Perfect for beginners and experienced crafters alike.'
-    },
-    {
-      title: `${query} Handmade Earrings - Statement Jewelry`,
-      shop_name: 'UniqueJewelryArt',
-      price: 18.50,
-      favorites: 2543,
-      sales_count: 654,
-      rating: 4.9,
-      reviews_count: 543,
-      category: 'Jewelry',
-      images: ['https://images.pexels.com/photos/1413420/pexels-photo-1413420.jpeg?auto=compress&cs=tinysrgb&w=400'],
-      description: 'Handcrafted statement earrings that add a pop of color to any outfit. Lightweight and comfortable to wear.'
     }
   ];
   
   // Generate products for the requested page
   const products = [];
-  const startIndex = (page - 1) * resultsPerPage;
+  const startIndex = (page - 1) * limit;
+  const totalResults = 1000 + Math.floor(Math.random() * 2000);
   
-  for (let i = 0; i < resultsPerPage; i++) {
+  for (let i = 0; i < limit; i++) {
     const baseIndex = (startIndex + i) % baseProducts.length;
     const base = baseProducts[baseIndex];
     
@@ -379,8 +280,8 @@ function simulateEtsyResults(query: string, page: number, filters: any): any {
     const favoritesVariation = Math.floor(Math.random() * (base.favorites * 0.1)); // 10% variation
     const salesVariation = Math.floor(Math.random() * (base.sales_count * 0.1)); // 10% variation
     
-    // Generate unique tags based on query and product type
-    const queryWords = query.toLowerCase().split(' ');
+    // Generate unique tags based on keywords and product type
+    const keywordWords = keywords.toLowerCase().split(' ');
     const baseTags = ['handmade', 'custom', 'unique', 'gift'];
     
     // Add category-specific tags
@@ -396,11 +297,11 @@ function simulateEtsyResults(query: string, page: number, filters: any): any {
     }
     
     // Combine and deduplicate tags
-    const allTags = [...queryWords, ...baseTags, ...categoryTags];
+    const allTags = [...keywordWords, ...baseTags, ...categoryTags];
     const uniqueTags = [...new Set(allTags)].slice(0, 13); // Etsy allows max 13 tags
     
     // Create a unique ID
-    const uniqueId = `etsy_${crypto.randomUUID().substring(0, 8)}`;
+    const uniqueId = `etsy_${Math.random().toString(36).substring(2, 10)}`;
     
     // Create the product with realistic data
     products.push({
@@ -408,71 +309,113 @@ function simulateEtsyResults(query: string, page: number, filters: any): any {
       title: base.title,
       description: base.description,
       price: Math.max(0.99, base.price + priceVariation),
-      currency: 'USD',
-      images: base.images,
+      currency_code: 'USD',
+      images: base.images.map(url => ({ url_fullxfull: url })),
       tags: uniqueTags,
       shop_name: base.shop_name,
-      shop_url: `https://etsy.com/shop/${base.shop_name}`,
-      product_url: `https://etsy.com/listing/${startIndex + i + 1000}/${query.toLowerCase().replace(/\s+/g, '-')}-${base.shop_name.toLowerCase()}`,
-      views: Math.floor(Math.random() * 5000) + 100,
-      favorites: Math.max(0, base.favorites + favoritesVariation),
-      sales_count: Math.max(0, base.sales_count + salesVariation),
-      created_at: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000).toISOString(),
-      category: base.category,
-      materials: ['Handmade', 'Custom', 'Unique'],
-      shipping_info: { 
-        free_shipping: Math.random() > 0.3,
-        shipping_cost: Math.random() > 0.3 ? 0 : (2.99 + Math.random() * 5).toFixed(2)
+      shop: {
+        shop_id: Math.floor(Math.random() * 1000000),
+        shop_name: base.shop_name,
+        url: `https://etsy.com/shop/${base.shop_name}`
       },
-      reviews_count: base.reviews_count,
-      rating: base.rating,
-      scraped_at: new Date().toISOString()
+      url: `https://etsy.com/listing/${startIndex + i + 1000}/${keywords.toLowerCase().replace(/\s+/g, '-')}-${base.shop_name.toLowerCase()}`,
+      views: Math.floor(Math.random() * 5000) + 100,
+      num_favorers: Math.max(0, base.favorites + favoritesVariation),
+      quantity_sold: Math.max(0, base.sales_count + salesVariation),
+      creation_timestamp: Math.floor(Date.now() / 1000) - Math.floor(Math.random() * 365 * 24 * 60 * 60),
+      taxonomy_path: [base.category],
+      materials: ['Handmade', 'Custom', 'Unique'],
+      shipping_profile: { 
+        origin_country_iso: 'US',
+        min_processing_days: 1,
+        max_processing_days: 3,
+        shipping_options: [
+          {
+            shipping_method: 'Standard',
+            amount: { amount: Math.random() > 0.3 ? 0 : (2.99 + Math.random() * 5).toFixed(2), currency_code: 'USD' },
+            is_free: Math.random() > 0.3
+          }
+        ]
+      },
+      num_reviews: base.reviews_count,
+      rating: base.rating
     });
   }
   
   // Apply filters
   let filteredProducts = products;
   
-  if (filters.min_price) {
-    filteredProducts = filteredProducts.filter(p => p.price >= filters.min_price);
+  if (min_price) {
+    filteredProducts = filteredProducts.filter(p => p.price >= min_price);
   }
-  if (filters.max_price) {
-    filteredProducts = filteredProducts.filter(p => p.price <= filters.max_price);
-  }
-  if (filters.min_favorites) {
-    filteredProducts = filteredProducts.filter(p => p.favorites >= filters.min_favorites);
-  }
-  if (filters.min_sales) {
-    filteredProducts = filteredProducts.filter(p => p.sales_count >= filters.min_sales);
-  }
-  if (filters.shipping_free) {
-    filteredProducts = filteredProducts.filter(p => p.shipping_info.free_shipping);
+  if (max_price) {
+    filteredProducts = filteredProducts.filter(p => p.price <= max_price);
   }
   
   // Apply sorting
-  if (filters.sort_by) {
-    switch (filters.sort_by) {
-      case 'price_low':
-        filteredProducts.sort((a, b) => a.price - b.price);
+  if (sort_on && sort_order) {
+    switch (sort_on) {
+      case 'price':
+        filteredProducts.sort((a, b) => sort_order === 'asc' ? a.price - b.price : b.price - a.price);
         break;
-      case 'price_high':
-        filteredProducts.sort((a, b) => b.price - a.price);
+      case 'created':
+        filteredProducts.sort((a, b) => sort_order === 'asc' ? a.creation_timestamp - b.creation_timestamp : b.creation_timestamp - a.creation_timestamp);
         break;
-      case 'newest':
-        filteredProducts.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      case 'favorers':
+        filteredProducts.sort((a, b) => sort_order === 'asc' ? a.num_favorers - b.num_favorers : b.num_favorers - a.num_favorers);
         break;
-      case 'favorites':
-        filteredProducts.sort((a, b) => b.favorites - a.favorites);
-        break;
-      default: // relevancy
+      default:
         // Keep original order for relevancy
         break;
     }
   }
   
+  // Format response to match Etsy API format
   return {
-    products: filteredProducts,
-    total: totalResults
+    count: filteredProducts.length,
+    results: filteredProducts,
+    pagination: {
+      effective_page: page,
+      effective_limit: limit,
+      next_page: page < Math.ceil(totalResults / limit) ? page + 1 : null,
+      effective_offset: (page - 1) * limit,
+      total_count: totalResults
+    }
+  };
+}
+
+// Simulate Etsy shop info
+function simulateShopInfo(params: Record<string, any>): any {
+  const shopId = params.shop_id || '12345';
+  
+  return {
+    shop_id: shopId,
+    shop_name: `EtsyShop${shopId}`,
+    title: `Etsy Shop ${shopId}`,
+    announcement: 'Welcome to my Etsy shop!',
+    currency_code: 'USD',
+    is_vacation: false,
+    vacation_message: null,
+    sale_message: 'Thank you for your purchase!',
+    digital_sale_message: null,
+    update_date: Math.floor(Date.now() / 1000) - 86400,
+    listing_active_count: Math.floor(Math.random() * 100) + 10,
+    digital_listing_count: Math.floor(Math.random() * 50),
+    login_name: `etsyshop${shopId}`,
+    accepts_custom_requests: true,
+    policy_welcome: 'Welcome to my shop!',
+    policy_payment: 'I accept PayPal and credit cards',
+    policy_shipping: 'Items ship within 1-3 business days',
+    policy_refunds: 'I accept returns within 14 days',
+    policy_additional: 'Please contact me with any questions',
+    policy_seller_info: 'I am an Etsy seller',
+    policy_update_date: Math.floor(Date.now() / 1000) - 86400 * 30,
+    is_shop_us_based: true,
+    transaction_sold_count: Math.floor(Math.random() * 1000) + 100,
+    shipping_from_country_id: 209,
+    shop_location_country: 'United States',
+    review_count: Math.floor(Math.random() * 500) + 50,
+    review_average: (4 + Math.random()).toFixed(1)
   };
 }
 
@@ -516,14 +459,14 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { query, page = 1, filters = {} } = await req.json();
+    const { endpoint, params = {} } = await req.json();
     
     // Validate request
-    if (!query || query.length < 2) {
+    if (!endpoint) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: "Search query must be at least 2 characters"
+          error: "API endpoint is required"
         }),
         {
           status: 400,
@@ -535,30 +478,14 @@ serve(async (req) => {
       );
     }
     
-    if (page < 1 || page > 50) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Page number must be between 1 and 50"
-        }),
-        {
-          status: 400,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-    }
-    
-    // Perform the scraping
-    const results = await scrapeEtsySearch(query, page, filters);
+    // Call Etsy API
+    const result = await callEtsyApi(endpoint, params);
     
     // Return the results
     return new Response(
       JSON.stringify({
         success: true,
-        data: results
+        data: result
       }),
       {
         status: 200,

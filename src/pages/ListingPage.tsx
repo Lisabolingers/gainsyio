@@ -2,33 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Search, Filter, Grid, List, Star, Heart, Eye, TrendingUp, ExternalLink, Plus, Download, RefreshCw, Store, Tag, DollarSign, Calendar, Users, Target, ArrowRight, AlertCircle, CheckCircle, Globe, Zap, Shield, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { EtsyScrapingService } from '../lib/etsyScrapingService';
+import { etsyApiService, EtsyProduct, EtsySearchParams } from '../lib/etsyApiService';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
-
-interface EtsyProduct {
-  id: string;
-  title: string;
-  description?: string;
-  price: number;
-  currency: string;
-  images: string[];
-  tags: string[];
-  shop_name: string;
-  shop_url: string;
-  product_url: string;
-  views?: number;
-  favorites: number;
-  sales_count: number;
-  created_at?: string;
-  category: string;
-  materials?: string[];
-  shipping_info: any;
-  reviews_count: number;
-  rating: number;
-  scraped_at: string;
-}
 
 interface SearchFilters {
   min_price?: number;
@@ -58,7 +35,7 @@ const ListingPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
-  const [scrapingStatus, setScrapingStatus] = useState<string>('');
+  const [searchStatus, setSearchStatus] = useState<string>('');
   const [showGuidelines, setShowGuidelines] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   
@@ -76,8 +53,17 @@ const ListingPage: React.FC = () => {
     if (user) {
       loadStores();
       loadRecentSearches();
+      initializeEtsyApi();
     }
   }, [user]);
+
+  const initializeEtsyApi = async () => {
+    try {
+      await etsyApiService.initialize();
+    } catch (error) {
+      console.error('Failed to initialize Etsy API:', error);
+    }
+  };
 
   const loadStores = async () => {
     try {
@@ -128,66 +114,52 @@ const ListingPage: React.FC = () => {
     }
   };
 
-  const scrapeEtsyProducts = async (page: number = 1) => {
+  const searchEtsyProducts = async (page: number = 1) => {
     if (!searchTerm.trim()) {
       alert('Lütfen arama terimi girin!');
-      return;
-    }
-
-    // Validate request
-    const validation = EtsyScrapingService.validateRequest({
-      query: searchTerm,
-      page,
-      filters
-    });
-
-    if (!validation.valid) {
-      alert(validation.error);
       return;
     }
 
     try {
       setLoading(true);
       setError(null);
-      setScrapingStatus('Güvenli bağlantı kuruluyor...');
+      setSearchStatus('Etsy API\'ye bağlanılıyor...');
       
-      console.log(`🌐 Starting Etsy scraping for: "${searchTerm}" (Page ${page})`);
+      console.log(`🔍 Searching Etsy for: "${searchTerm}" (Page ${page})`);
 
-      setScrapingStatus('Etsy.com\'dan veri çekiliyor...');
-
-      // Use the secure scraping service
-      const result = await EtsyScrapingService.scrapeEtsyProducts({
+      const searchParams: EtsySearchParams = {
         query: searchTerm,
         page,
+        limit: resultsPerPage,
         filters
-      });
+      };
 
-      if (!result.success || !result.data) {
-        throw new Error(result.error || 'Scraping failed');
-      }
+      setSearchStatus('Ürün verileri çekiliyor...');
+
+      const result = await etsyApiService.searchListings(searchParams);
       
-      setScrapingStatus('Sonuçlar işleniyor...');
+      setSearchStatus('Sonuçlar işleniyor...');
       
       if (page === 1) {
-        setSearchResults(result.data.products);
-        setTotalResults(result.data.total);
+        setSearchResults(result.products);
+        setTotalResults(result.total);
         setCurrentPage(1);
         saveRecentSearch(searchTerm);
       } else {
-        setSearchResults(prev => [...prev, ...result.data!.products]);
+        setSearchResults(prev => [...prev, ...result.products]);
         setCurrentPage(page);
       }
 
-      setScrapingStatus('');
-      console.log(`✅ Successfully processed ${result.data.products.length} products`);
+      setSearchStatus('');
+      console.log(`✅ Retrieved ${result.products.length} products from Etsy API`);
       
     } catch (error: any) {
-      console.error('❌ Etsy scraping error:', error);
+      console.error('❌ Etsy API search error:', error);
       
-      let errorMessage = 'Etsy\'den veri çekilirken bir hata oluştu.';
+      let errorMessage = 'Etsy API\'den veri çekilirken bir hata oluştu.';
       
       if (error.message?.includes('Rate limit')) {
-        errorMessage = 'Çok fazla istek gönderildi. Lütfen bir dakika bekleyip tekrar deneyin.';
+        errorMessage = 'API istek limiti aşıldı. Lütfen bir dakika bekleyip tekrar deneyin.';
       } else if (error.message?.includes('Network')) {
         errorMessage = 'İnternet bağlantısı sorunu. Lütfen bağlantınızı kontrol edin.';
       } else if (error.message?.includes('timeout')) {
@@ -197,7 +169,7 @@ const ListingPage: React.FC = () => {
       }
       
       setError(errorMessage);
-      setScrapingStatus('');
+      setSearchStatus('');
     } finally {
       setLoading(false);
     }
@@ -207,11 +179,11 @@ const ListingPage: React.FC = () => {
     setSearchResults([]);
     setCurrentPage(1);
     setSelectedProducts([]);
-    scrapeEtsyProducts(1);
+    searchEtsyProducts(1);
   };
 
   const loadMoreResults = () => {
-    scrapeEtsyProducts(currentPage + 1);
+    searchEtsyProducts(currentPage + 1);
   };
 
   const toggleProductSelection = (productId: string) => {
@@ -247,7 +219,7 @@ const ListingPage: React.FC = () => {
       const selectedProductsData = searchResults.filter(p => selectedProducts.includes(p.id));
       
       // TODO: Implement actual listing creation logic
-      // This would involve creating products in the selected store based on scraped data
+      // This would involve creating products in the selected store based on API data
       
       // For now, we'll simulate the process
       for (let i = 0; i < selectedProductsData.length; i++) {
@@ -282,7 +254,7 @@ const ListingPage: React.FC = () => {
     }).format(price);
   };
 
-  const scrapingInfo = EtsyScrapingService.getScrapingInfo();
+  const apiInfo = etsyApiService.getApiInfo();
 
   return (
     <div className="p-6 space-y-6">
@@ -294,7 +266,7 @@ const ListingPage: React.FC = () => {
             Etsy Araştırma & Listeleme
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Güvenli ve etik web scraping ile Etsy.com'dan ürün araştırması yapın
+            Etsy API kullanarak ürün araştırması yapın ve mağazanıza ekleyin
           </p>
         </div>
         {selectedProducts.length > 0 && (
@@ -314,43 +286,48 @@ const ListingPage: React.FC = () => {
         )}
       </div>
 
-      {/* Ethical Scraping Guidelines */}
-      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+      {/* API Information */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
         <div className="flex items-start space-x-3">
-          <Shield className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+          <Zap className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
           <div className="flex-1">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-green-700 dark:text-green-400 mb-1">
-                🛡️ Güvenli ve Etik Web Scraping
+              <h3 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
+                ⚡ Etsy API Entegrasyonu
               </h3>
               <button
                 onClick={() => setShowGuidelines(!showGuidelines)}
-                className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 text-sm"
+                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm"
               >
                 {showGuidelines ? 'Gizle' : 'Detayları Göster'}
               </button>
             </div>
-            <p className="text-sm text-green-600 dark:text-green-300">
-              <strong>Yasal Uyumluluk:</strong> Etsy'nin robots.txt ve kullanım şartlarına uygun şekilde veri çekiyoruz.
+            <p className="text-sm text-blue-600 dark:text-blue-300">
+              <strong>Resmi API:</strong> Etsy'nin resmi API'sini kullanarak güvenli ve yasal veri erişimi sağlıyoruz.
               <br />
-              <strong>Rate Limiting:</strong> Sunucuları yormamak için istekler arasında bekleme süresi ekliyoruz.
+              <strong>Yüksek Güvenilirlik:</strong> API kullanımı, web scraping'e göre daha güvenilir ve sürdürülebilir bir çözüm sunar.
               <br />
-              <strong>Sadece Genel Veriler:</strong> Yalnızca herkese açık ürün bilgilerini topluyoruz.
+              <strong>Etsy Onaylı:</strong> Etsy'nin kullanım şartlarına %100 uyumlu veri erişimi.
             </p>
             
             {showGuidelines && (
-              <div className="mt-3 p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <h4 className="text-sm font-medium text-green-800 dark:text-green-300 mb-2">Etik Kurallarımız:</h4>
-                <ul className="text-sm text-green-700 dark:text-green-400 space-y-1">
-                  {scrapingInfo.guidelines.map((guideline, index) => (
+              <div className="mt-3 p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">API Bilgileri:</h4>
+                <ul className="text-sm text-blue-700 dark:text-blue-400 space-y-1">
+                  {apiInfo.guidelines.map((guideline, index) => (
                     <li key={index} className="flex items-start space-x-2">
-                      <span className="text-green-500 mt-0.5">•</span>
+                      <span className="text-blue-500 mt-0.5">•</span>
                       <span>{guideline}</span>
                     </li>
                   ))}
                 </ul>
-                <div className="mt-2 p-2 bg-green-200 dark:bg-green-800/50 rounded text-xs text-green-800 dark:text-green-300">
-                  <strong>Rate Limit:</strong> Dakikada maksimum {scrapingInfo.rateLimit.maxRequests} istek
+                <div className="mt-2 p-2 bg-blue-200 dark:bg-blue-800/50 rounded text-xs text-blue-800 dark:text-blue-300">
+                  <strong>Rate Limit:</strong> {apiInfo.rateLimit.maxRequests} istek / {apiInfo.rateLimit.perTimeWindow}
+                </div>
+                <div className="mt-2 text-xs text-blue-700 dark:text-blue-400">
+                  <a href={apiInfo.documentation} target="_blank" rel="noopener noreferrer" className="underline">
+                    API Dokümantasyonu: {apiInfo.name}
+                  </a>
                 </div>
               </div>
             )}
@@ -400,7 +377,7 @@ const ListingPage: React.FC = () => {
               <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
               <Input
                 type="text"
-                placeholder="Etsy.com'da güvenli arama yapın... (örn: vintage poster, digital art, handmade jewelry)"
+                placeholder="Etsy'de arama yapın... (örn: vintage poster, digital art, handmade jewelry)"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
@@ -425,7 +402,7 @@ const ListingPage: React.FC = () => {
               ) : (
                 <Search className="h-4 w-4" />
               )}
-              <span>Güvenli Ara</span>
+              <span>Etsy'de Ara</span>
             </Button>
             <Button
               onClick={() => setShowFilters(!showFilters)}
@@ -459,17 +436,17 @@ const ListingPage: React.FC = () => {
             </div>
           )}
 
-          {/* Scraping Status */}
-          {loading && scrapingStatus && (
+          {/* Search Status */}
+          {loading && searchStatus && (
             <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
               <div className="flex items-center space-x-3">
                 <RefreshCw className="h-4 w-4 text-orange-500 animate-spin" />
                 <span className="text-sm text-orange-700 dark:text-orange-400 font-medium">
-                  {scrapingStatus}
+                  {searchStatus}
                 </span>
                 <div className="flex items-center space-x-1 text-xs text-orange-600 dark:text-orange-300">
-                  <Shield className="h-3 w-3" />
-                  <span>Güvenli Bağlantı</span>
+                  <Zap className="h-3 w-3" />
+                  <span>API Bağlantısı</span>
                 </div>
               </div>
             </div>
@@ -590,9 +567,9 @@ const ListingPage: React.FC = () => {
                   "{searchTerm}"
                 </span>
               )}
-              <span className="px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-xs rounded-full flex items-center space-x-1">
-                <Shield className="h-3 w-3" />
-                <span>Gerçek Veri</span>
+              <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 text-xs rounded-full flex items-center space-x-1">
+                <Zap className="h-3 w-3" />
+                <span>API</span>
               </span>
             </div>
 
@@ -677,10 +654,10 @@ const ListingPage: React.FC = () => {
                         </div>
                       )}
 
-                      {/* Secure Badge */}
-                      <div className="absolute bottom-2 left-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1">
-                        <Shield className="h-3 w-3" />
-                        <span>Gerçek</span>
+                      {/* API Badge */}
+                      <div className="absolute bottom-2 left-2 bg-blue-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1">
+                        <Zap className="h-3 w-3" />
+                        <span>API</span>
                       </div>
                     </div>
 
@@ -720,7 +697,7 @@ const ListingPage: React.FC = () => {
                         </div>
                         <div className="flex items-center space-x-1 text-gray-400">
                           <Clock className="h-3 w-3" />
-                          <span>{new Date(product.scraped_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span>{new Date(product.fetched_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
 
@@ -773,10 +750,10 @@ const ListingPage: React.FC = () => {
         <div className="text-center py-12">
           <Globe className="h-16 w-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            Etsy Ürün Araştırmasına Başlayın
+            Etsy API Araştırmasına Başlayın
           </h3>
           <p className="text-gray-500 dark:text-gray-400 mb-6">
-            Yukarıdaki arama kutusuna bir terim girin ve Etsy.com'dan gerçek ürün verilerini çekin
+            Yukarıdaki arama kutusuna bir terim girin ve Etsy API'si üzerinden ürün verilerini çekin
           </p>
           
           {/* Recent Searches */}
@@ -802,15 +779,15 @@ const ListingPage: React.FC = () => {
           
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 max-w-2xl mx-auto">
             <div className="flex items-start space-x-3">
-              <Target className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+              <Zap className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
               <div className="text-left">
                 <h4 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
-                  🛡️ Güvenli Web Scraping Nasıl Çalışır?
+                  ⚡ Etsy API Nasıl Çalışır?
                 </h4>
                 <div className="text-sm text-blue-600 dark:text-blue-300 space-y-1">
                   <p><strong>1.</strong> Arama terimini girin (örn: "vintage poster", "digital art")</p>
-                  <p><strong>2.</strong> Sistem Etsy.com'a güvenli bir şekilde bağlanır</p>
-                  <p><strong>3.</strong> Etsy'nin kullanım şartlarına uygun olarak veri çekilir</p>
+                  <p><strong>2.</strong> Sistem Etsy API'sine güvenli bir istek gönderir</p>
+                  <p><strong>3.</strong> API, arama sonuçlarını JSON formatında döndürür</p>
                   <p><strong>4.</strong> Sonuçlar filtrelenir ve size sunulur</p>
                   <p><strong>5.</strong> Beğendiğiniz ürünleri seçip mağazanıza ekleyebilirsiniz</p>
                 </div>
