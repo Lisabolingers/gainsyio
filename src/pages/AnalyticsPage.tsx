@@ -6,21 +6,14 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 
-interface AnalyticsData {
-  id: string;
-  product_id: string;
-  date: string;
-  views: number;
-  favorites: number;
-  sales: number;
-  revenue: number;
-  conversion_rate: number;
-}
-
 interface Product {
   id: string;
   title: string;
+  views: number;
+  favorites: number;
+  sales_count: number;
   price: number;
+  created_at: string;
   status: string;
   store_id: string;
 }
@@ -31,23 +24,14 @@ interface EtsyStore {
   is_active: boolean;
 }
 
-interface MetricCard {
-  title: string;
-  value: string | number;
-  change: string;
-  changeType: 'increase' | 'decrease' | 'neutral';
-  icon: React.ComponentType<any>;
-  color: string;
-}
-
 const AnalyticsPage: React.FC = () => {
   const { user } = useAuth();
   const [stores, setStores] = useState<EtsyStore[]>([]);
   const [selectedStore, setSelectedStore] = useState<string>('all');
   const [selectedPeriod, setSelectedPeriod] = useState('last7days');
+  const [createdDateFilter, setCreatedDateFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsData[]>([]);
-  const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [topProducts, setTopProducts] = useState<Product[]>([]);
 
   // Time period options
   const timePeriods = [
@@ -57,16 +41,25 @@ const AnalyticsPage: React.FC = () => {
     { value: 'last30days', label: 'Last 30 days' },
     { value: 'thismonth', label: 'This month' },
     { value: 'thisyear', label: 'This year' },
-    { value: 'lastyear', label: 'Last year' },
     { value: 'alltime', label: 'All time' }
+  ];
+
+  // Creation date filter options
+  const createdDateOptions = [
+    { value: 'all', label: 'All time' },
+    { value: 'last7days', label: 'Last 7 days' },
+    { value: 'last30days', label: 'Last 30 days' },
+    { value: 'last3months', label: 'Last 3 months' },
+    { value: 'last6months', label: 'Last 6 months' },
+    { value: 'thisyear', label: 'This year' }
   ];
 
   useEffect(() => {
     if (user) {
       loadStores();
-      loadAnalyticsData();
+      loadTopProducts();
     }
-  }, [user, selectedStore, selectedPeriod]);
+  }, [user, selectedStore, selectedPeriod, createdDateFilter]);
 
   const loadStores = async () => {
     try {
@@ -92,239 +85,166 @@ const AnalyticsPage: React.FC = () => {
     }
   };
 
-  const loadAnalyticsData = async () => {
+  const loadTopProducts = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Loading analytics data...');
+      console.log('🔄 Loading top products...');
       
-      // For now, we'll create comprehensive sample data
-      const sampleAnalytics = generateSampleAnalyticsData();
-      setAnalyticsData(sampleAnalytics);
+      // Generate sample data for top products based on views and favorites
+      const sampleProducts = generateTopProductsData();
       
-      // Generate top products data
-      const sampleTopProducts = generateTopProductsData();
-      setTopProducts(sampleTopProducts);
+      // Apply filters
+      const filteredProducts = sampleProducts.filter(product => {
+        // Store filter
+        if (selectedStore !== 'all' && product.store_id !== selectedStore) {
+          return false;
+        }
+        
+        // Creation date filter
+        if (createdDateFilter !== 'all') {
+          const productDate = new Date(product.created_at);
+          const filterDate = getCreatedDateFilterDate(createdDateFilter);
+          if (filterDate && productDate < filterDate) {
+            return false;
+          }
+        }
+        
+        return true;
+      });
       
-      console.log(`✅ Analytics data loaded: ${sampleAnalytics.length} records`);
+      // Sort by views + favorites (engagement score)
+      const sortedProducts = filteredProducts.sort((a, b) => {
+        const scoreA = a.views + (a.favorites * 5); // Weight favorites more
+        const scoreB = b.views + (b.favorites * 5);
+        return scoreB - scoreA;
+      });
+      
+      setTopProducts(sortedProducts);
+      console.log(`✅ ${sortedProducts.length} top products loaded`);
     } catch (error) {
-      console.error('❌ Analytics loading error:', error);
+      console.error('❌ Top products loading error:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const generateSampleAnalyticsData = (): AnalyticsData[] => {
-    const data: AnalyticsData[] = [];
-    const today = new Date();
-    
-    // Generate data for the last 30 days
-    for (let i = 0; i < 30; i++) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      
-      // Simulate realistic e-commerce metrics
-      const baseViews = Math.floor(Math.random() * 200) + 50;
-      const favorites = Math.floor(baseViews * (Math.random() * 0.15 + 0.05)); // 5-20% of views
-      const sales = Math.floor(favorites * (Math.random() * 0.3 + 0.1)); // 10-40% of favorites
-      const avgPrice = 5.99;
-      const revenue = sales * avgPrice * (Math.random() * 0.5 + 0.75); // Price variation
-      const conversionRate = sales > 0 ? (sales / baseViews) * 100 : 0;
-      
-      data.push({
-        id: `analytics_${i}`,
-        product_id: `product_${Math.floor(Math.random() * 6) + 1}`,
-        date: date.toISOString().split('T')[0],
-        views: baseViews,
-        favorites: favorites,
-        sales: sales,
-        revenue: Math.round(revenue * 100) / 100,
-        conversion_rate: Math.round(conversionRate * 100) / 100
-      });
-    }
-    
-    return data.reverse(); // Oldest first
-  };
-
-  const generateTopProductsData = () => {
+  const generateTopProductsData = (): Product[] => {
     return [
       {
         id: '1',
         title: 'Watercolor Floral Bundle - Digital Clipart',
         views: 3421,
         favorites: 287,
-        sales: 76,
-        revenue: 987.24,
-        conversion_rate: 2.22,
-        trend: 'up'
+        sales_count: 76,
+        price: 12.99,
+        created_at: '2024-01-01T08:00:00Z',
+        status: 'active',
+        store_id: 'store1'
       },
       {
         id: '2',
         title: 'Botanical Illustration Set - Digital Art',
         views: 2156,
         favorites: 134,
-        sales: 41,
-        revenue: 327.59,
-        conversion_rate: 1.90,
-        trend: 'up'
+        sales_count: 41,
+        price: 7.99,
+        created_at: '2024-01-05T14:20:00Z',
+        status: 'active',
+        store_id: 'store1'
       },
       {
         id: '3',
         title: 'Vintage Style Poster Design - Digital Download',
         views: 1247,
         favorites: 89,
-        sales: 23,
-        revenue: 114.77,
-        conversion_rate: 1.84,
-        trend: 'down'
+        sales_count: 23,
+        price: 4.99,
+        created_at: '2024-01-15T10:30:00Z',
+        status: 'active',
+        store_id: 'store1'
       },
       {
         id: '4',
         title: 'Modern Typography Print - Instant Download',
         views: 892,
         favorites: 67,
-        sales: 15,
-        revenue: 59.85,
-        conversion_rate: 1.68,
-        trend: 'neutral'
+        sales_count: 15,
+        price: 3.99,
+        created_at: '2024-01-10T09:15:00Z',
+        status: 'active',
+        store_id: 'store1'
       },
       {
         id: '5',
         title: 'Minimalist Quote Print - Motivational Art',
         views: 456,
         favorites: 23,
-        sales: 8,
-        revenue: 23.92,
-        conversion_rate: 1.75,
-        trend: 'up'
+        sales_count: 8,
+        price: 2.99,
+        created_at: '2024-01-08T12:00:00Z',
+        status: 'inactive',
+        store_id: 'store1'
+      },
+      {
+        id: '6',
+        title: 'Abstract Geometric Art - Printable Wall Art',
+        views: 234,
+        favorites: 12,
+        sales_count: 3,
+        price: 5.99,
+        created_at: '2024-01-25T16:45:00Z',
+        status: 'draft',
+        store_id: 'store1'
+      },
+      {
+        id: '7',
+        title: 'Handwritten Script Font Bundle',
+        views: 1876,
+        favorites: 156,
+        sales_count: 34,
+        price: 9.99,
+        created_at: '2023-12-20T11:30:00Z',
+        status: 'active',
+        store_id: 'store1'
+      },
+      {
+        id: '8',
+        title: 'Wedding Invitation Template Set',
+        views: 987,
+        favorites: 78,
+        sales_count: 19,
+        price: 15.99,
+        created_at: '2023-11-15T14:45:00Z',
+        status: 'active',
+        store_id: 'store1'
       }
     ];
   };
 
-  const calculateMetrics = (): MetricCard[] => {
-    const dateRange = getDateRange(selectedPeriod);
-    const filteredData = analyticsData.filter(item => {
-      const itemDate = new Date(item.date);
-      const start = dateRange.start ? new Date(dateRange.start) : null;
-      const end = dateRange.end ? new Date(dateRange.end) : null;
-      
-      if (start && itemDate < start) return false;
-      if (end && itemDate > end) return false;
-      return true;
-    });
-
-    const totalViews = filteredData.reduce((sum, item) => sum + item.views, 0);
-    const totalFavorites = filteredData.reduce((sum, item) => sum + item.favorites, 0);
-    const totalSales = filteredData.reduce((sum, item) => sum + item.sales, 0);
-    const totalRevenue = filteredData.reduce((sum, item) => sum + item.revenue, 0);
-    const avgConversionRate = filteredData.length > 0 
-      ? filteredData.reduce((sum, item) => sum + item.conversion_rate, 0) / filteredData.length 
-      : 0;
-
-    return [
-      {
-        title: 'Total Views',
-        value: totalViews.toLocaleString(),
-        change: '+12.5%',
-        changeType: 'increase',
-        icon: Eye,
-        color: 'bg-blue-500'
-      },
-      {
-        title: 'Total Favorites',
-        value: totalFavorites.toLocaleString(),
-        change: '+8.3%',
-        changeType: 'increase',
-        icon: Heart,
-        color: 'bg-pink-500'
-      },
-      {
-        title: 'Total Sales',
-        value: totalSales.toLocaleString(),
-        change: '+15.7%',
-        changeType: 'increase',
-        icon: ShoppingCart,
-        color: 'bg-green-500'
-      },
-      {
-        title: 'Total Revenue',
-        value: `$${totalRevenue.toFixed(2)}`,
-        change: '+18.2%',
-        changeType: 'increase',
-        icon: DollarSign,
-        color: 'bg-emerald-500'
-      },
-      {
-        title: 'Conversion Rate',
-        value: `${avgConversionRate.toFixed(2)}%`,
-        change: '+2.1%',
-        changeType: 'increase',
-        icon: Target,
-        color: 'bg-orange-500'
-      },
-      {
-        title: 'Active Products',
-        value: topProducts.length.toString(),
-        change: '0%',
-        changeType: 'neutral',
-        icon: Package,
-        color: 'bg-purple-500'
-      }
-    ];
-  };
-
-  const getDateRange = (period: string) => {
+  const getCreatedDateFilterDate = (filter: string): Date | null => {
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
-    switch (period) {
-      case 'today':
-        return {
-          start: today.toISOString().split('T')[0],
-          end: today.toISOString().split('T')[0]
-        };
-      case 'yesterday':
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        return {
-          start: yesterday.toISOString().split('T')[0],
-          end: yesterday.toISOString().split('T')[0]
-        };
+    switch (filter) {
       case 'last7days':
-        const last7Days = new Date(today);
+        const last7Days = new Date(now);
         last7Days.setDate(last7Days.getDate() - 7);
-        return {
-          start: last7Days.toISOString().split('T')[0],
-          end: today.toISOString().split('T')[0]
-        };
+        return last7Days;
       case 'last30days':
-        const last30Days = new Date(today);
+        const last30Days = new Date(now);
         last30Days.setDate(last30Days.getDate() - 30);
-        return {
-          start: last30Days.toISOString().split('T')[0],
-          end: today.toISOString().split('T')[0]
-        };
-      case 'thismonth':
-        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        return {
-          start: thisMonthStart.toISOString().split('T')[0],
-          end: today.toISOString().split('T')[0]
-        };
+        return last30Days;
+      case 'last3months':
+        const last3Months = new Date(now);
+        last3Months.setMonth(last3Months.getMonth() - 3);
+        return last3Months;
+      case 'last6months':
+        const last6Months = new Date(now);
+        last6Months.setMonth(last6Months.getMonth() - 6);
+        return last6Months;
       case 'thisyear':
-        const thisYearStart = new Date(now.getFullYear(), 0, 1);
-        return {
-          start: thisYearStart.toISOString().split('T')[0],
-          end: today.toISOString().split('T')[0]
-        };
-      case 'lastyear':
-        const lastYearStart = new Date(now.getFullYear() - 1, 0, 1);
-        const lastYearEnd = new Date(now.getFullYear() - 1, 11, 31);
-        return {
-          start: lastYearStart.toISOString().split('T')[0],
-          end: lastYearEnd.toISOString().split('T')[0]
-        };
-      case 'alltime':
+        return new Date(now.getFullYear(), 0, 1);
       default:
-        return { start: null, end: null };
+        return null;
     }
   };
 
@@ -339,29 +259,66 @@ const AnalyticsPage: React.FC = () => {
     return period ? period.label : 'Last 7 days';
   };
 
-  const getTrendIcon = (trend: string) => {
-    switch (trend) {
-      case 'up':
-        return <ArrowUpRight className="h-4 w-4 text-green-500" />;
-      case 'down':
-        return <ArrowDownRight className="h-4 w-4 text-red-500" />;
-      default:
-        return <Minus className="h-4 w-4 text-gray-500" />;
+  const getCreatedDateLabel = () => {
+    const option = createdDateOptions.find(o => o.value === createdDateFilter);
+    return option ? option.label : 'All time';
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    const colors = {
+      'active': 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
+      'draft': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
+      'inactive': 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+    };
+    return colors[status as keyof typeof colors] || colors.draft;
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'active': return '🟢';
+      case 'draft': return '🟡';
+      case 'inactive': return '🔴';
+      default: return '⚪';
     }
   };
 
-  const getTrendColor = (trend: string) => {
-    switch (trend) {
-      case 'up':
-        return 'text-green-600 dark:text-green-400';
-      case 'down':
-        return 'text-red-600 dark:text-red-400';
-      default:
-        return 'text-gray-600 dark:text-gray-400';
-    }
+  const handleRefresh = () => {
+    loadTopProducts();
   };
 
-  const metrics = calculateMetrics();
+  const handleExport = () => {
+    // Create CSV data
+    const csvData = [
+      ['Rank', 'Product Title', 'Views', 'Favorites', 'Sales', 'Price', 'Status', 'Created Date'],
+      ...topProducts.map((product, index) => [
+        index + 1,
+        product.title,
+        product.views,
+        product.favorites,
+        product.sales_count,
+        `$${product.price}`,
+        product.status,
+        formatDate(product.created_at)
+      ])
+    ];
+
+    const csvContent = csvData.map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `top-products-${selectedPeriod}-${Date.now()}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
 
   if (loading) {
     return (
@@ -380,10 +337,10 @@ const AnalyticsPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
             <BarChart3 className="h-6 w-6 mr-2 text-orange-500" />
-            Product Analytics
+            Analytics
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Detailed performance analysis for your products • {getSelectedStoreName()} • {getSelectedPeriodLabel()}
+            Top performing products • {getSelectedStoreName()} • {getSelectedPeriodLabel()}
           </p>
         </div>
         
@@ -426,10 +383,28 @@ const AnalyticsPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Creation Date Filter */}
+          <div className="relative">
+            <select
+              value={createdDateFilter}
+              onChange={(e) => setCreatedDateFilter(e.target.value)}
+              className="appearance-none bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 pr-10 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent min-w-[150px]"
+            >
+              {createdDateOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  Created: {option.label}
+                </option>
+              ))}
+            </select>
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+              <Filter className="h-4 w-4 text-gray-400" />
+            </div>
+          </div>
+
           {/* Action Buttons */}
           <div className="flex space-x-2">
             <Button
-              onClick={() => loadAnalyticsData()}
+              onClick={handleRefresh}
               variant="secondary"
               size="sm"
               className="flex items-center space-x-2"
@@ -438,7 +413,7 @@ const AnalyticsPage: React.FC = () => {
               <span>Refresh</span>
             </Button>
             <Button
-              onClick={() => alert('Export functionality will be implemented')}
+              onClick={handleExport}
               variant="secondary"
               size="sm"
               className="flex items-center space-x-2"
@@ -460,7 +435,7 @@ const AnalyticsPage: React.FC = () => {
                 No Etsy stores connected
               </h3>
               <p className="text-sm text-yellow-600 dark:text-yellow-300 mt-1">
-                Connect your first Etsy store to see product analytics.{' '}
+                Connect your first Etsy store to see analytics.{' '}
                 <a href="/admin/stores" className="underline hover:text-yellow-800 dark:hover:text-yellow-200">
                   Add store now
                 </a>
@@ -470,204 +445,141 @@ const AnalyticsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Product Performance Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {metrics.map((metric, index) => (
-          <Card key={index} className="hover:shadow-lg transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    {metric.title}
-                  </p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                    {metric.value}
-                  </p>
-                </div>
-                <div className={`p-3 rounded-lg ${metric.color}`}>
-                  <metric.icon className="h-6 w-6 text-white" />
-                </div>
-              </div>
-              <div className="flex items-center mt-4">
-                {metric.changeType === 'increase' ? (
-                  <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
-                ) : metric.changeType === 'decrease' ? (
-                  <TrendingDown className="h-4 w-4 text-red-500 mr-1" />
-                ) : (
-                  <Minus className="h-4 w-4 text-gray-500 mr-1" />
-                )}
-                <span className={`text-sm font-medium ${
-                  metric.changeType === 'increase' ? 'text-green-600 dark:text-green-400' : 
-                  metric.changeType === 'decrease' ? 'text-red-600 dark:text-red-400' : 
-                  'text-gray-600 dark:text-gray-400'
-                }`}>
-                  {metric.change}
-                </span>
-                <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
-                  vs previous period
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Product Analysis Charts and Tables */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Product Performance Chart */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Product Performance Trends</span>
-              <Button variant="secondary" size="sm">
-                View Details
-              </Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 flex items-center justify-center bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <div className="text-center">
-                <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-500 dark:text-gray-400 mb-2">
-                  Product performance charts
-                </p>
-                <p className="text-sm text-gray-400 dark:text-gray-500">
-                  Views, conversions, and revenue by product
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Top Performing Products */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Top Performing Products</span>
-              <Button variant="secondary" size="sm">
-                View All Products
-              </Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {topProducts.slice(0, 5).map((product, index) => (
-                <div key={product.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">
-                      {index + 1}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate max-w-xs">
-                        {product.title}
-                      </p>
-                      <div className="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        <span>{product.views} views</span>
-                        <span>{product.sales} sales</span>
-                        <span>${product.revenue}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className={`text-sm font-medium ${getTrendColor(product.trend)}`}>
-                      {product.conversion_rate}%
-                    </span>
-                    {getTrendIcon(product.trend)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Product Analytics Table */}
+      {/* Top Products List */}
       <Card>
         <CardHeader>
-          <CardTitle>Product Performance Details</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            <span>Most Viewed & Favorited Products</span>
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              {topProducts.length} products • Created: {getCreatedDateLabel()}
+            </div>
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Product
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Views
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Favorites
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Sales
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Revenue
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Conversion Rate
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Trend
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {topProducts.map((product) => (
-                  <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white max-w-xs truncate">
-                        {product.title}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {product.views.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {product.favorites}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {product.sales}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      ${product.revenue.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {product.conversion_rate.toFixed(2)}%
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center space-x-1">
-                        {getTrendIcon(product.trend)}
-                        <span className={`text-sm ${getTrendColor(product.trend)}`}>
-                          {product.trend === 'up' ? 'Rising' : product.trend === 'down' ? 'Falling' : 'Stable'}
-                        </span>
-                      </div>
-                    </td>
+          {topProducts.length === 0 ? (
+            <div className="text-center py-12">
+              <Package className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                No products found
+              </h3>
+              <p className="text-gray-500 dark:text-gray-400 mb-6">
+                Try adjusting your filters or add some products to your store
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Rank
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Product
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Views
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Favorites
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Sales
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Price
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Created
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {topProducts.map((product, index) => (
+                    <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm ${
+                            index === 0 ? 'bg-yellow-500' : 
+                            index === 1 ? 'bg-gray-400' : 
+                            index === 2 ? 'bg-orange-600' : 
+                            'bg-gray-300 text-gray-700'
+                          }`}>
+                            {index + 1}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white max-w-xs truncate">
+                          {product.title}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center space-x-1">
+                          <Eye className="h-4 w-4 text-blue-500" />
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {product.views.toLocaleString()}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center space-x-1">
+                          <Heart className="h-4 w-4 text-pink-500" />
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {product.favorites}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center space-x-1">
+                          <ShoppingCart className="h-4 w-4 text-green-500" />
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {product.sales_count}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center space-x-1">
+                          <DollarSign className="h-4 w-4 text-emerald-500" />
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {product.price.toFixed(2)}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(product.status)}`}>
+                          {getStatusIcon(product.status)} {product.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {formatDate(product.created_at)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Sample Data Notice */}
+      {/* Simplified Analytics Notice */}
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
         <div className="flex items-start space-x-3">
           <BarChart3 className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
           <div>
             <h3 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
-              📊 Product-Focused Analytics Dashboard
+              📊 Simplified Analytics - Top Products Focus
             </h3>
             <p className="text-sm text-blue-600 dark:text-blue-300">
-              This analytics page is now focused on <strong>individual product performance</strong> rather than overall store metrics.
+              Analytics page now shows <strong>most viewed and favorited products</strong> from your selected store and time period.
               <br />
-              <strong>Features:</strong> Product-specific metrics, conversion tracking, performance trends, 
-              top product rankings, and detailed product analytics tables.
+              <strong>Features:</strong> Store selection, time period filter, creation date filter, refresh, and export functionality.
               <br />
-              <strong>Focus:</strong> Views, favorites, sales, and conversion rates per product to help optimize individual listings.
+              <strong>Focus:</strong> Simple ranking of products by engagement (views + favorites) to identify your best performers.
             </p>
           </div>
         </div>
