@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Brain, Plus, Trash2, Edit, Save, X, Check, AlertTriangle, Zap, Server, Key, BookOpen, Sparkles, RefreshCw, Database, Lock, Settings, Code } from 'lucide-react';
+import { Brain, Plus, Trash2, Edit, Save, X, Check, AlertTriangle, Zap, Server, Key, BookOpen, Sparkles, RefreshCw, Database, Lock, Settings, Code, FileText, Tag } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { AIService, AIProvider, AIRule } from '../lib/aiService';
@@ -529,7 +529,10 @@ const AIAgentPage: React.FC = () => {
                       <div className="mt-2 flex items-center">
                         <Key className="h-3 w-3 text-gray-400 mr-1" />
                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {provider.apiKey.substring(0, 4)}•••••••••••••••
+                          {provider.apiKey && provider.apiKey.length > 0 
+                            ? `${provider.apiKey.substring(0, 4)}•••••••••••••••`
+                            : 'API anahtarı yok'
+                          }
                         </p>
                       </div>
                     </div>
