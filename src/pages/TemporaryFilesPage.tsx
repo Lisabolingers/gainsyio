@@ -237,10 +237,10 @@ const TemporaryFilesPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
             <Clock className="h-6 w-6 mr-2 text-orange-500" />
-            Temporary Files
+            Geçici Dosyalar
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Auto-generated files from Text to Image ({files.length} files)
+            Auto Text to Image'dan oluşturulan dosyalar ({files.length} dosya)
           </p>
         </div>
         <div className="flex items-center space-x-3 mt-4 sm:mt-0">
@@ -250,7 +250,7 @@ const TemporaryFilesPage: React.FC = () => {
             className="flex items-center space-x-2"
           >
             <RefreshCw className="h-4 w-4" />
-            <span>Refresh</span>
+            <span>Yenile</span>
           </Button>
         </div>
       </div>
@@ -261,14 +261,14 @@ const TemporaryFilesPage: React.FC = () => {
           <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0" />
           <div>
             <h3 className="text-sm font-medium text-orange-700 dark:text-orange-400 mb-1">
-              ⏱️ Very Short-Term Storage
+              ⏱️ Çok Kısa Süreli Depolama
             </h3>
             <p className="text-sm text-orange-600 dark:text-orange-300">
-              <strong>Auto-Deletion:</strong> Files in this section are automatically deleted after 10 minutes.
+              <strong>Otomatik Silme:</strong> Bu bölümdeki dosyalar 10 dakika sonra otomatik olarak silinir.
               <br />
-              <strong>Purpose:</strong> These files are generated from Auto Text to Image templates and are meant for immediate use in Etsy listings.
+              <strong>Amaç:</strong> Bu dosyalar, Auto Text to Image şablonlarından oluşturulur ve Etsy listelerinde hemen kullanım içindir.
               <br />
-              <strong>Action Required:</strong> Download any files you want to keep before they expire.
+              <strong>Gerekli İşlem:</strong> Saklamak istediğiniz dosyaları süresi dolmadan indirin.
             </p>
           </div>
         </div>
@@ -281,7 +281,7 @@ const TemporaryFilesPage: React.FC = () => {
             <AlertCircle className="h-5 w-5 text-red-500" />
             <div>
               <h3 className="text-sm font-medium text-red-700 dark:text-red-400">
-                Error
+                Hata
               </h3>
               <p className="text-sm text-red-600 dark:text-red-300 mt-1">
                 {error}
@@ -297,7 +297,7 @@ const TemporaryFilesPage: React.FC = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
           <Input
             type="text"
-            placeholder="Search files..."
+            placeholder="Dosyalarda ara..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
@@ -327,15 +327,15 @@ const TemporaryFilesPage: React.FC = () => {
         <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <span className="text-orange-700 dark:text-orange-400">
-              {selectedFiles.length} file(s) selected
+              {selectedFiles.length} dosya seçildi
             </span>
             <div className="flex space-x-2">
               <Button onClick={handleBulkDelete} variant="danger" size="sm">
                 <Trash2 className="h-4 w-4 mr-1" />
-                Delete Selected
+                Seçilenleri Sil
               </Button>
               <Button onClick={() => setSelectedFiles([])} variant="secondary" size="sm">
-                Clear Selection
+                Seçimi Temizle
               </Button>
             </div>
           </div>
@@ -347,12 +347,12 @@ const TemporaryFilesPage: React.FC = () => {
         <div className="text-center py-12">
           <ImageIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            {searchTerm ? 'No files found' : 'No temporary files yet'}
+            {searchTerm ? 'Dosya bulunamadı' : 'Henüz geçici dosya yok'}
           </h3>
           <p className="text-gray-500 dark:text-gray-400 mb-6">
             {searchTerm
-              ? 'Try adjusting your search terms'
-              : 'Create designs with Auto Text to Image to see files here'
+              ? 'Arama terimlerinizi değiştirmeyi deneyin'
+              : 'Dosyaları görmek için Auto Text to Image ile tasarımlar oluşturun'
             }
           </p>
           {!searchTerm && (
@@ -361,7 +361,7 @@ const TemporaryFilesPage: React.FC = () => {
               className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
             >
               <FileUp className="h-4 w-4" />
-              <span>Create Auto Text Design</span>
+              <span>Auto Text Tasarım Oluştur</span>
             </Button>
           )}
         </div>
@@ -376,7 +376,7 @@ const TemporaryFilesPage: React.FC = () => {
               className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
             />
             <label className="text-sm text-gray-700 dark:text-gray-300">
-              Select all ({filteredFiles.length} files)
+              Tümünü seç ({filteredFiles.length} dosya)
             </label>
           </div>
 
@@ -407,14 +407,14 @@ const TemporaryFilesPage: React.FC = () => {
                             <button
                               onClick={() => downloadFile(file)}
                               className="p-2 bg-white text-gray-900 rounded-full hover:bg-gray-100"
-                              title="Download"
+                              title="İndir"
                             >
                               <Download className="h-4 w-4" />
                             </button>
                             <button
                               onClick={() => deleteFile(file.id)}
                               className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600"
-                              title="Delete"
+                              title="Sil"
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
@@ -463,19 +463,19 @@ const TemporaryFilesPage: React.FC = () => {
                       />
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      File
+                      Dosya
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Size
+                      Boyut
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Created
+                      Oluşturulma
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Expires In
+                      Kalan Süre
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Actions
+                      İşlemler
                     </th>
                   </tr>
                 </thead>
@@ -526,14 +526,14 @@ const TemporaryFilesPage: React.FC = () => {
                           <button
                             onClick={() => downloadFile(file)}
                             className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                            title="Download"
+                            title="İndir"
                           >
                             <Download className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => deleteFile(file.id)}
                             className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                            title="Delete"
+                            title="Sil"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
