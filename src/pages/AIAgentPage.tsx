@@ -52,6 +52,14 @@ const AIAgentPage: React.FC = () => {
   const [ruleMinLength, setRuleMinLength] = useState<number>(20);
   const [ruleApiProvider, setRuleApiProvider] = useState('');
 
+  // Test AI Generation state
+  const [testProductDescription, setTestProductDescription] = useState('');
+  const [testGeneratedTitle, setTestGeneratedTitle] = useState('');
+  const [testGeneratedTags, setTestGeneratedTags] = useState('');
+  const [selectedTestTitleRule, setSelectedTestTitleRule] = useState('');
+  const [selectedTestTagsRule, setSelectedTestTagsRule] = useState('');
+  const [testAiLoading, setTestAiLoading] = useState(false);
+
   useEffect(() => {
     if (user) {
       loadApiKeys();
@@ -351,6 +359,64 @@ const AIAgentPage: React.FC = () => {
     setRuleMinLength(20);
     setRuleApiProvider('');
     setShowAddRule(false);
+  };
+
+  const handleGenerateTestContent = async () => {
+    if (!testProductDescription.trim()) {
+      setError('Please enter a product description to test AI generation.');
+      return;
+    }
+
+    try {
+      setTestAiLoading(true);
+      setError(null);
+      console.log('🤖 Generating test content...');
+
+      // Mock AI generation for demonstration
+      // In a real implementation, this would call AIService.generateContent
+      
+      let generatedTitle = '';
+      let generatedTags = '';
+
+      if (selectedTestTitleRule) {
+        const titleRule = rules.find(rule => rule.id === selectedTestTitleRule);
+        if (titleRule) {
+          // Mock title generation
+          generatedTitle = `Premium ${testProductDescription} - Handcrafted Quality Design - Perfect Gift Idea - Instant Download`;
+          if (generatedTitle.length > titleRule.maxLength) {
+            generatedTitle = generatedTitle.substring(0, titleRule.maxLength - 3) + '...';
+          }
+        }
+      }
+
+      if (selectedTestTagsRule) {
+        const tagsRule = rules.find(rule => rule.id === selectedTestTagsRule);
+        if (tagsRule) {
+          // Mock tags generation
+          const mockTags = [
+            'handmade', 'custom design', 'gift idea', 'digital download', 
+            'printable art', 'home decor', 'wall art', 'instant download',
+            'personalized', 'unique gift', 'creative', 'modern design', 'trendy'
+          ];
+          generatedTags = mockTags.slice(0, 13).join(', ');
+        }
+      }
+
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      setTestGeneratedTitle(generatedTitle);
+      setTestGeneratedTags(generatedTags);
+
+      setSuccess('Test content generated successfully!');
+      setTimeout(() => setSuccess(null), 3000);
+
+    } catch (error: any) {
+      console.error('❌ Error generating test content:', error);
+      setError('Failed to generate test content: ' + error.message);
+    } finally {
+      setTestAiLoading(false);
+    }
   };
 
   const getProviderIcon = (provider: string) => {
@@ -1015,6 +1081,8 @@ const AIAgentPage: React.FC = () => {
                   Product Description
                 </label>
                 <textarea
+                  value={testProductDescription}
+                  onChange={(e) => setTestProductDescription(e.target.value)}
                   placeholder="Enter a product description to test AI generation..."
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 resize-none"
                   rows={3}
@@ -1027,6 +1095,8 @@ const AIAgentPage: React.FC = () => {
                     Title Rule
                   </label>
                   <select
+                    value={selectedTestTitleRule}
+                    onChange={(e) => setSelectedTestTitleRule(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
                   >
                     <option value="">Select title rule...</option>
@@ -1042,6 +1112,8 @@ const AIAgentPage: React.FC = () => {
                     Tags Rule
                   </label>
                   <select
+                    value={selectedTestTagsRule}
+                    onChange={(e) => setSelectedTestTagsRule(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
                   >
                     <option value="">Select tags rule...</option>
@@ -1056,10 +1128,21 @@ const AIAgentPage: React.FC = () => {
               
               <div className="flex justify-center">
                 <Button
+                  onClick={handleGenerateTestContent}
+                  disabled={testAiLoading || !testProductDescription.trim()}
                   className="px-6 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
                 >
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  <span>Generate Test Content</span>
+                  {testAiLoading ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                      <span>Generating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      <span>Generate Test Content</span>
+                    </>
+                  )}
                 </Button>
               </div>
               
@@ -1070,9 +1153,15 @@ const AIAgentPage: React.FC = () => {
                     Generated Title
                   </h4>
                   <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-3 min-h-[100px]">
-                    <p className="text-gray-400 dark:text-gray-500 text-sm italic">
-                      Generated title will appear here...
-                    </p>
+                    {testGeneratedTitle ? (
+                      <p className="text-gray-900 dark:text-white text-sm">
+                        {testGeneratedTitle}
+                      </p>
+                    ) : (
+                      <p className="text-gray-400 dark:text-gray-500 text-sm italic">
+                        Generated title will appear here...
+                      </p>
+                    )}
                   </div>
                 </div>
                 
@@ -1082,9 +1171,15 @@ const AIAgentPage: React.FC = () => {
                     Generated Tags
                   </h4>
                   <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-3 min-h-[100px]">
-                    <p className="text-gray-400 dark:text-gray-500 text-sm italic">
-                      Generated tags will appear here...
-                    </p>
+                    {testGeneratedTags ? (
+                      <p className="text-gray-900 dark:text-white text-sm">
+                        {testGeneratedTags}
+                      </p>
+                    ) : (
+                      <p className="text-gray-400 dark:text-gray-500 text-sm italic">
+                        Generated tags will appear here...
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
