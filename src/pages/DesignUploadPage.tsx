@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, Plus, Trash2, X, Check, Image as ImageIcon, FileText, Tag, BookTemplate as Template, Grid as Grid3X3, Send } from 'lucide-react';
+import { Upload, Plus, Trash2, X, Check, Image as ImageIcon, FileText, Tag, BookTemplate as Template, Grid as Grid3X3, Send, Sparkles, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
@@ -17,7 +17,9 @@ interface DesignItem {
     preview: string;
   };
   title: string;
-  tags: string;
+  aiTitle: string;
+  tags: string[];
+  aiTags: string[];
   template: string;
   mockupFolder: string;
 }
@@ -30,7 +32,9 @@ const DesignUploadPage: React.FC = () => {
       blackDesign: { file: null, preview: '' },
       whiteDesign: { file: null, preview: '' },
       title: '',
-      tags: '',
+      aiTitle: '',
+      tags: [],
+      aiTags: [],
       template: '',
       mockupFolder: ''
     }
@@ -52,6 +56,7 @@ const DesignUploadPage: React.FC = () => {
     { id: '6', name: 'Tote Bags' },
   ]);
   const [loading, setLoading] = useState(false);
+  const [aiLoading, setAiLoading] = useState<{[key: string]: boolean}>({});
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   
@@ -123,9 +128,11 @@ const DesignUploadPage: React.FC = () => {
   };
 
   const handleTagsChange = (value: string, itemIndex: number) => {
+    const tagsArray = value.split(/,\s*/).filter(tag => tag.trim() !== '');
+    
     setDesignItems(prev => prev.map((item, idx) => {
       if (idx === itemIndex) {
-        return { ...item, tags: value };
+        return { ...item, tags: tagsArray };
       }
       return item;
     }));
@@ -157,7 +164,9 @@ const DesignUploadPage: React.FC = () => {
         blackDesign: { file: null, preview: '' },
         whiteDesign: { file: null, preview: '' },
         title: '',
-        tags: '',
+        aiTitle: '',
+        tags: [],
+        aiTags: [],
         template: '',
         mockupFolder: ''
       }
@@ -173,11 +182,141 @@ const DesignUploadPage: React.FC = () => {
     setDesignItems(prev => prev.filter((_, idx) => idx !== itemIndex));
   };
 
+  const removeTag = (itemIndex: number, tagIndex: number) => {
+    setDesignItems(prev => prev.map((item, idx) => {
+      if (idx === itemIndex) {
+        const newTags = [...item.tags];
+        newTags.splice(tagIndex, 1);
+        
+        // If we removed a tag, add one from AI suggestions if available
+        let newAiTags = [...item.aiTags];
+        if (newAiTags.length > 0) {
+          const newTag = newAiTags.shift();
+          if (newTag) {
+            newTags.push(newTag);
+          }
+        }
+        
+        return { ...item, tags: newTags, aiTags: newAiTags };
+      }
+      return item;
+    }));
+  };
+
+  const generateAIContent = async (itemIndex: number, contentType: 'title' | 'tags') => {
+    const item = designItems[itemIndex];
+    
+    // Check if we have enough information
+    if (!item.title && contentType === 'tags') {
+      setError('Etiket önerileri için önce bir başlık girin.');
+      return;
+    }
+    
+    try {
+      setAiLoading(prev => ({ ...prev, [`${itemIndex}-${contentType}`]: true }));
+      
+      // In a real implementation, this would call an AI service
+      // For now, we'll simulate the AI response
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      if (contentType === 'title') {
+        // Generate AI title based on tags or other info
+        const aiTitle = generateMockAITitle(item);
+        
+        setDesignItems(prev => prev.map((item, idx) => {
+          if (idx === itemIndex) {
+            return { ...item, aiTitle };
+          }
+          return item;
+        }));
+      } else {
+        // Generate AI tags based on title
+        const aiTags = generateMockAITags(item);
+        
+        setDesignItems(prev => prev.map((item, idx) => {
+          if (idx === itemIndex) {
+            return { ...item, aiTags };
+          }
+          return item;
+        }));
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Error generating AI content:', error);
+      setError(`AI içerik oluşturma hatası: ${error.message}`);
+    } finally {
+      setAiLoading(prev => ({ ...prev, [`${itemIndex}-${contentType}`]: false }));
+    }
+  };
+
+  // Mock AI title generator
+  const generateMockAITitle = (item: DesignItem): string => {
+    const baseTitle = item.title.trim() || "T-shirt Design";
+    const adjectives = ["Vintage", "Modern", "Minimalist", "Elegant", "Rustic", "Bold", "Creative", "Unique", "Premium", "Handcrafted"];
+    const nouns = ["Style", "Collection", "Edition", "Series", "Design", "Artwork", "Creation", "Masterpiece"];
+    
+    const randomAdj = adjectives[Math.floor(Math.random() * adjectives.length)];
+    const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
+    
+    if (item.title) {
+      // Enhance existing title
+      if (item.title.includes("shirt") || item.title.includes("tshirt") || item.title.includes("t-shirt")) {
+        return `${randomAdj} ${item.title} - Perfect Gift Idea`;
+      } else {
+        return `${randomAdj} ${item.title} ${randomNoun} - Unique Gift`;
+      }
+    } else {
+      // Create new title
+      return `${randomAdj} T-shirt ${randomNoun} - Unique Gift Idea`;
+    }
+  };
+
+  // Mock AI tags generator
+  const generateMockAITags = (item: DesignItem): string[] => {
+    const baseTags = ["gift idea", "custom design", "unique gift", "personalized", "handmade", "trending"];
+    const titleWords = item.title.toLowerCase().split(/\s+/).filter(word => word.length > 3);
+    
+    // Add some title-based tags
+    const titleTags = titleWords.map(word => {
+      const relatedWords = {
+        "shirt": ["tshirt", "clothing", "apparel", "fashion"],
+        "vintage": ["retro", "classic", "nostalgic", "old school"],
+        "modern": ["contemporary", "minimalist", "sleek", "trendy"],
+        "gift": ["present", "birthday gift", "holiday gift", "special occasion"],
+        "design": ["artwork", "graphic", "illustration", "creative"],
+        "custom": ["personalized", "unique", "one of a kind", "special"],
+      };
+      
+      // @ts-ignore
+      return relatedWords[word] || [`${word} design`, `${word} gift`, `${word} lover`];
+    }).flat();
+    
+    // Combine and deduplicate
+    const allTags = [...new Set([...baseTags, ...titleTags])];
+    
+    // Return random selection of tags
+    return allTags
+      .sort(() => 0.5 - Math.random())
+      .slice(0, 8);
+  };
+
+  const useAITitle = (itemIndex: number) => {
+    const item = designItems[itemIndex];
+    if (!item.aiTitle) return;
+    
+    setDesignItems(prev => prev.map((item, idx) => {
+      if (idx === itemIndex) {
+        return { ...item, title: item.aiTitle, aiTitle: '' };
+      }
+      return item;
+    }));
+  };
+
   const handleSubmit = async () => {
     // Validate inputs
     const invalidItems = designItems.filter(item => {
       const hasBlackOrWhite = item.blackDesign.file !== null || item.whiteDesign.file !== null;
-      return !item.title.trim() || !item.tags.trim() || !hasBlackOrWhite || !item.template || !item.mockupFolder;
+      return !item.title.trim() || item.tags.length === 0 || !hasBlackOrWhite || !item.template || !item.mockupFolder;
     });
     
     if (invalidItems.length > 0) {
@@ -205,7 +344,9 @@ const DesignUploadPage: React.FC = () => {
           blackDesign: { file: null, preview: '' },
           whiteDesign: { file: null, preview: '' },
           title: '',
-          tags: '',
+          aiTitle: '',
+          tags: [],
+          aiTags: [],
           template: '',
           mockupFolder: ''
         }
@@ -273,121 +414,245 @@ const DesignUploadPage: React.FC = () => {
                 )}
               </div>
               
-              <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
-                {/* Black Design - SMALLER */}
-                <div className="lg:col-span-1">
-                  <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
-                    <div className="w-4 h-4 bg-black rounded-full mr-2"></div>
-                    Siyah Tasarım
-                  </h3>
-                  <div className="relative">
-                    {item.blackDesign.preview ? (
-                      <div className="relative w-24 h-24 mx-auto bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
-                        <img 
-                          src={item.blackDesign.preview} 
-                          alt={`Black design ${itemIndex + 1}`} 
-                          className="w-full h-full object-contain"
-                        />
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Design Uploads - First Row, 2 columns */}
+                <div className="lg:col-span-2 flex space-x-4">
+                  {/* Black Design - SMALLER */}
+                  <div className="flex-1">
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
+                      <div className="w-3 h-3 bg-black rounded-full mr-1"></div>
+                      Siyah Tasarım
+                    </h3>
+                    <div className="relative">
+                      {item.blackDesign.preview ? (
+                        <div className="relative w-20 h-20 mx-auto bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
+                          <img 
+                            src={item.blackDesign.preview} 
+                            alt={`Black design ${itemIndex + 1}`} 
+                            className="w-full h-full object-contain"
+                          />
+                          <button
+                            onClick={() => removeDesign(itemIndex, 'black')}
+                            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                            title="Remove design"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : (
                         <button
-                          onClick={() => removeDesign(itemIndex, 'black')}
-                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                          title="Remove design"
+                          onClick={() => blackFileInputRefs.current[itemIndex]?.click()}
+                          className="w-20 h-20 mx-auto flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-white dark:bg-gray-800"
                         >
-                          <X className="h-3 w-3" />
+                          <Plus className="h-5 w-5 text-gray-400 dark:text-gray-500 mb-1" />
+                          <span className="text-xs text-gray-500 dark:text-gray-400">Yükle</span>
+                          <input
+                            ref={el => blackFileInputRefs.current[itemIndex] = el}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => handleFileSelect(e, itemIndex, 'black')}
+                          />
                         </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => blackFileInputRefs.current[itemIndex]?.click()}
-                        className="w-24 h-24 mx-auto flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-white dark:bg-gray-800"
+                      )}
+                    </div>
+                  </div>
+
+                  {/* White Design - SMALLER */}
+                  <div className="flex-1">
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
+                      <div className="w-3 h-3 bg-white border border-gray-300 rounded-full mr-1"></div>
+                      Beyaz Tasarım
+                    </h3>
+                    <div className="relative">
+                      {item.whiteDesign.preview ? (
+                        <div className="relative w-20 h-20 mx-auto bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
+                          <img 
+                            src={item.whiteDesign.preview} 
+                            alt={`White design ${itemIndex + 1}`} 
+                            className="w-full h-full object-contain"
+                          />
+                          <button
+                            onClick={() => removeDesign(itemIndex, 'white')}
+                            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                            title="Remove design"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => whiteFileInputRefs.current[itemIndex]?.click()}
+                          className="w-20 h-20 mx-auto flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-gray-800"
+                        >
+                          <Plus className="h-5 w-5 text-gray-400 dark:text-gray-500 mb-1" />
+                          <span className="text-xs text-gray-400">Yükle</span>
+                          <input
+                            ref={el => whiteFileInputRefs.current[itemIndex] = el}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => handleFileSelect(e, itemIndex, 'white')}
+                          />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Title Section - 5 columns */}
+                <div className="lg:col-span-5">
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
+                      <FileText className="h-4 w-4 mr-1 text-orange-500" />
+                      Başlık
+                    </h3>
+                    <Input
+                      value={item.title}
+                      onChange={(e) => handleTitleChange(e.target.value, itemIndex)}
+                      placeholder="Ürün başlığı girin..."
+                      className="w-full"
+                    />
+                    
+                    {/* AI Title Suggestion */}
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        onClick={() => generateAIContent(itemIndex, 'title')}
+                        variant="secondary"
+                        size="sm"
+                        className="flex items-center space-x-1"
+                        disabled={aiLoading[`${itemIndex}-title`]}
                       >
-                        <Plus className="h-6 w-6 text-gray-400 dark:text-gray-500 mb-1" />
-                        <span className="text-xs text-gray-500 dark:text-gray-400">Yükle</span>
-                        <input
-                          ref={el => blackFileInputRefs.current[itemIndex] = el}
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => handleFileSelect(e, itemIndex, 'black')}
-                        />
-                      </button>
+                        {aiLoading[`${itemIndex}-title`] ? (
+                          <RefreshCw className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-3 w-3 text-orange-500" />
+                        )}
+                        <span className="text-xs">AI Başlık Öner</span>
+                      </Button>
+                    </div>
+                    
+                    {item.aiTitle && (
+                      <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <Sparkles className="h-3 w-3 text-orange-500" />
+                            <p className="text-sm text-orange-700 dark:text-orange-400">{item.aiTitle}</p>
+                          </div>
+                          <Button
+                            onClick={() => useAITitle(itemIndex)}
+                            variant="secondary"
+                            size="sm"
+                            className="py-1 px-2 text-xs"
+                          >
+                            Kullan
+                          </Button>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
 
-                {/* White Design - SMALLER */}
-                <div className="lg:col-span-1">
-                  <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
-                    <div className="w-4 h-4 bg-white border border-gray-300 rounded-full mr-2"></div>
-                    Beyaz Tasarım
-                  </h3>
-                  <div className="relative">
-                    {item.whiteDesign.preview ? (
-                      <div className="relative w-24 h-24 mx-auto bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
-                        <img 
-                          src={item.whiteDesign.preview} 
-                          alt={`White design ${itemIndex + 1}`} 
-                          className="w-full h-full object-contain"
-                        />
-                        <button
-                          onClick={() => removeDesign(itemIndex, 'white')}
-                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                          title="Remove design"
+                {/* Tags Section - 5 columns */}
+                <div className="lg:col-span-5">
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
+                      <Tag className="h-4 w-4 mr-1 text-orange-500" />
+                      Etiketler
+                    </h3>
+                    <Input
+                      value={item.tags.join(', ')}
+                      onChange={(e) => handleTagsChange(e.target.value, itemIndex)}
+                      placeholder="Etiketleri virgülle ayırarak girin..."
+                      className="w-full"
+                    />
+                    
+                    {/* Tags Display */}
+                    <div className="flex flex-wrap gap-2 min-h-[32px]">
+                      {item.tags.map((tag, tagIndex) => (
+                        <div 
+                          key={tagIndex}
+                          className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full text-xs flex items-center space-x-1"
                         >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => whiteFileInputRefs.current[itemIndex]?.click()}
-                        className="w-24 h-24 mx-auto flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-gray-800"
+                          <span>{tag}</span>
+                          <button
+                            onClick={() => removeTag(itemIndex, tagIndex)}
+                            className="text-gray-500 hover:text-red-500"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* AI Tags Button */}
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        onClick={() => generateAIContent(itemIndex, 'tags')}
+                        variant="secondary"
+                        size="sm"
+                        className="flex items-center space-x-1"
+                        disabled={aiLoading[`${itemIndex}-tags`] || !item.title}
                       >
-                        <Plus className="h-6 w-6 text-gray-400 dark:text-gray-500 mb-1" />
-                        <span className="text-xs text-gray-400">Yükle</span>
-                        <input
-                          ref={el => whiteFileInputRefs.current[itemIndex] = el}
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => handleFileSelect(e, itemIndex, 'white')}
-                        />
-                      </button>
+                        {aiLoading[`${itemIndex}-tags`] ? (
+                          <RefreshCw className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-3 w-3 text-orange-500" />
+                        )}
+                        <span className="text-xs">AI Etiket Öner</span>
+                      </Button>
+                      
+                      {!item.title && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Etiket önerisi için önce başlık girin
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* AI Tags Suggestions */}
+                    {item.aiTags.length > 0 && (
+                      <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-2">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <Sparkles className="h-3 w-3 text-orange-500" />
+                          <p className="text-xs text-orange-700 dark:text-orange-400">Önerilen Etiketler:</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {item.aiTags.map((tag, tagIndex) => (
+                            <div 
+                              key={tagIndex}
+                              className="bg-orange-100 dark:bg-orange-800/30 px-2 py-1 rounded-full text-xs flex items-center space-x-1 cursor-pointer hover:bg-orange-200 dark:hover:bg-orange-800/50"
+                              onClick={() => {
+                                setDesignItems(prev => prev.map((item, idx) => {
+                                  if (idx === itemIndex) {
+                                    const newAiTags = [...item.aiTags];
+                                    const tag = newAiTags.splice(tagIndex, 1)[0];
+                                    return { 
+                                      ...item, 
+                                      tags: [...item.tags, tag],
+                                      aiTags: newAiTags
+                                    };
+                                  }
+                                  return item;
+                                }));
+                              }}
+                            >
+                              <span className="text-orange-700 dark:text-orange-300">{tag}</span>
+                              <Plus className="h-3 w-3 text-orange-500" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
-
-                {/* Title */}
-                <div className="lg:col-span-1">
-                  <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
-                    <FileText className="h-5 w-5 mr-2 text-orange-500" />
-                    Başlık
-                  </h3>
-                  <Input
-                    value={item.title}
-                    onChange={(e) => handleTitleChange(e.target.value, itemIndex)}
-                    placeholder="Ürün başlığı girin..."
-                    className="w-full"
-                  />
-                </div>
-
-                {/* Tags */}
-                <div className="lg:col-span-1">
-                  <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
-                    <Tag className="h-5 w-5 mr-2 text-orange-500" />
-                    Etiketler
-                  </h3>
-                  <Input
-                    value={item.tags}
-                    onChange={(e) => handleTagsChange(e.target.value, itemIndex)}
-                    placeholder="Etiketleri virgülle ayırarak girin..."
-                    className="w-full"
-                  />
-                </div>
-
+              </div>
+              
+              {/* Second Row - Templates and Mockups */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
                 {/* Listing Templates */}
-                <div className="lg:col-span-1">
-                  <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
-                    <Template className="h-5 w-5 mr-2 text-orange-500" />
+                <div>
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
+                    <Template className="h-4 w-4 mr-1 text-orange-500" />
                     Listeleme Şablonu
                   </h3>
                   <select
@@ -405,9 +670,9 @@ const DesignUploadPage: React.FC = () => {
                 </div>
 
                 {/* Mockup Folders */}
-                <div className="lg:col-span-1">
-                  <h3 className="text-md font-medium text-gray-900 dark:text-white mb-3 flex items-center">
-                    <Grid3X3 className="h-5 w-5 mr-2 text-orange-500" />
+                <div>
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
+                    <Grid3X3 className="h-4 w-4 mr-1 text-orange-500" />
                     Mockup Klasörü
                   </h3>
                   <select
