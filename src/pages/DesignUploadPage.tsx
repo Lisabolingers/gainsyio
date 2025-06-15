@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Upload, Plus, Trash2, X, Check, Image as ImageIcon, FileText, Tag, BookTemplate as Template, Grid as Grid3X3, Send, Sparkles, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -20,6 +20,7 @@ interface DesignItem {
   aiTitle: string;
   tags: string[];
   aiTags: string[];
+  tagInput: string;
   template: string;
   mockupFolder: string;
 }
@@ -39,6 +40,7 @@ const DesignUploadPage: React.FC = () => {
       aiTitle: '',
       tags: [],
       aiTags: [],
+      tagInput: '',
       template: '',
       mockupFolder: ''
     }
@@ -66,6 +68,14 @@ const DesignUploadPage: React.FC = () => {
   
   const blackFileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const whiteFileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const tagInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Initialize refs array when designItems changes
+  useEffect(() => {
+    blackFileInputRefs.current = blackFileInputRefs.current.slice(0, designItems.length);
+    whiteFileInputRefs.current = whiteFileInputRefs.current.slice(0, designItems.length);
+    tagInputRefs.current = tagInputRefs.current.slice(0, designItems.length);
+  }, [designItems.length]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>, itemIndex: number, designType: 'black' | 'white') => {
     const file = event.target.files?.[0];
@@ -136,31 +146,39 @@ const DesignUploadPage: React.FC = () => {
     }));
   };
 
-  const handleTagInput = (value: string, itemIndex: number) => {
-    // Split by commas and filter empty tags
-    const tagsArray = value.split(/,\s*/).filter(tag => tag.trim() !== '');
-    
-    // Limit to MAX_TAG_COUNT tags
-    const limitedTags = tagsArray.slice(0, MAX_TAG_COUNT);
-    
-    // Limit each tag to MAX_TAG_LENGTH characters
-    const formattedTags = limitedTags.map(tag => {
-      if (tag.length > MAX_TAG_LENGTH) {
-        return tag.substring(0, MAX_TAG_LENGTH);
-      }
-      return tag;
-    });
-    
+  const handleTagInputChange = (value: string, itemIndex: number) => {
     setDesignItems(prev => prev.map((item, idx) => {
       if (idx === itemIndex) {
-        return { ...item, tags: formattedTags };
+        return { ...item, tagInput: value };
       }
       return item;
     }));
   };
 
+  const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, itemIndex: number) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const value = designItems[itemIndex].tagInput.trim();
+      
+      if (value) {
+        addTag(itemIndex, value);
+        
+        // Clear input
+        setDesignItems(prev => prev.map((item, idx) => {
+          if (idx === itemIndex) {
+            return { ...item, tagInput: '' };
+          }
+          return item;
+        }));
+      }
+    }
+  };
+
   const addTag = (itemIndex: number, tag: string) => {
     if (!tag.trim()) return;
+    
+    // Remove commas from tag
+    tag = tag.replace(/,/g, '').trim();
     
     setDesignItems(prev => prev.map((item, idx) => {
       if (idx === itemIndex) {
@@ -215,6 +233,7 @@ const DesignUploadPage: React.FC = () => {
         aiTitle: '',
         tags: [],
         aiTags: [],
+        tagInput: '',
         template: '',
         mockupFolder: ''
       }
@@ -429,6 +448,7 @@ const DesignUploadPage: React.FC = () => {
           aiTitle: '',
           tags: [],
           aiTags: [],
+          tagInput: '',
           template: '',
           mockupFolder: ''
         }
@@ -477,7 +497,7 @@ const DesignUploadPage: React.FC = () => {
       {/* Design Items List */}
       <div className="space-y-8">
         {designItems.map((item, itemIndex) => (
-          <Card key={item.id} className="border-2 border-gray-200 dark:border-gray-700">
+          <Card key={item.id} className="border-2 border-gray-200 dark:border-gray-700 overflow-hidden">
             <CardContent className="p-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -659,7 +679,7 @@ const DesignUploadPage: React.FC = () => {
                       </div>
                       
                       {/* Tags Display */}
-                      <div className="flex flex-wrap gap-1 min-h-[38px] max-h-[76px] overflow-y-auto p-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                      <div className="flex flex-wrap gap-1 min-h-[38px] max-h-[76px] overflow-y-auto p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
                         {item.tags.length === 0 ? (
                           <span className="text-xs text-gray-500 dark:text-gray-400 p-1">
                             Etiket eklemek için virgülle ayırarak girin veya AI önerisi alın
@@ -668,12 +688,12 @@ const DesignUploadPage: React.FC = () => {
                           item.tags.map((tag, tagIndex) => (
                             <div 
                               key={tagIndex}
-                              className="bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded-full text-xs flex items-center space-x-1"
+                              className="bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded-full text-xs flex items-center space-x-1 group hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
                             >
                               <span className="text-gray-800 dark:text-gray-200 max-w-[100px] truncate">{tag}</span>
                               <button
                                 onClick={() => removeTag(itemIndex, tagIndex)}
-                                className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400"
+                                className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 opacity-70 group-hover:opacity-100"
                               >
                                 <X className="h-3 w-3" />
                               </button>
@@ -685,18 +705,11 @@ const DesignUploadPage: React.FC = () => {
                       {/* Tag Input */}
                       <div className="flex items-center space-x-2">
                         <Input
+                          ref={el => tagInputRefs.current[itemIndex] = el}
+                          value={item.tagInput}
+                          onChange={(e) => handleTagInputChange(e.target.value, itemIndex)}
                           placeholder="Etiket ekle, virgülle ayır..."
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ',') {
-                              e.preventDefault();
-                              const input = e.currentTarget;
-                              const value = input.value.trim();
-                              if (value) {
-                                addTag(itemIndex, value);
-                                input.value = '';
-                              }
-                            }
-                          }}
+                          onKeyDown={(e) => handleTagInputKeyDown(e, itemIndex)}
                           className="flex-1"
                           disabled={item.tags.length >= MAX_TAG_COUNT}
                         />
@@ -740,7 +753,7 @@ const DesignUploadPage: React.FC = () => {
                             {item.aiTags.slice(0, 5).map((tag, tagIndex) => (
                               <div 
                                 key={tagIndex}
-                                className="bg-orange-100 dark:bg-orange-800/30 px-2 py-1 rounded-full text-xs flex items-center space-x-1 cursor-pointer hover:bg-orange-200 dark:hover:bg-orange-800/50"
+                                className="bg-orange-100 dark:bg-orange-800/30 px-2 py-1 rounded-full text-xs flex items-center space-x-1 cursor-pointer hover:bg-orange-200 dark:hover:bg-orange-800/50 transition-colors"
                                 onClick={() => {
                                   if (item.tags.length < MAX_TAG_COUNT) {
                                     setDesignItems(prev => prev.map((item, idx) => {
@@ -811,11 +824,11 @@ const DesignUploadPage: React.FC = () => {
                 
                 {/* Character Limit Info */}
                 <div className="col-span-12">
-                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-2">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-2 mt-2">
                     <div className="flex items-start space-x-2">
                       <AlertTriangle className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
                       <div className="text-xs text-blue-700 dark:text-blue-400">
-                        <p><strong>Sınırlamalar:</strong> Başlık en fazla {MAX_TITLE_LENGTH} karakter olabilir. Etiketler en fazla {MAX_TAG_COUNT} adet ve her biri en fazla {MAX_TAG_LENGTH} karakter olabilir.</p>
+                        <p><strong>Etsy Sınırlamaları:</strong> Başlık en fazla {MAX_TITLE_LENGTH} karakter olabilir. Etiketler en fazla {MAX_TAG_COUNT} adet ve her biri en fazla {MAX_TAG_LENGTH} karakter olabilir.</p>
                       </div>
                     </div>
                   </div>
@@ -831,7 +844,7 @@ const DesignUploadPage: React.FC = () => {
         <Button
           onClick={addNewDesignItem}
           variant="secondary"
-          className="flex items-center space-x-2"
+          className="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600"
         >
           <Plus className="h-4 w-4" />
           <span>Yeni Tasarım Ekle</span>
@@ -842,7 +855,7 @@ const DesignUploadPage: React.FC = () => {
       <div className="flex justify-end mt-8">
         <Button
           onClick={handleSubmit}
-          className="px-8 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-lg flex items-center space-x-2 text-lg"
+          className="px-8 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg flex items-center space-x-2 text-lg shadow-md hover:shadow-lg transition-all"
           disabled={loading}
         >
           {loading ? (
@@ -853,7 +866,7 @@ const DesignUploadPage: React.FC = () => {
           ) : (
             <>
               <Send className="h-5 w-5" />
-              <span>Gönder</span>
+              <span>Etsy'ye Gönder</span>
             </>
           )}
         </Button>
