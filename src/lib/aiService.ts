@@ -118,6 +118,31 @@ export class AIService {
     }
   }
   
+  // Update an existing API provider
+  static async updateProvider(userId: string, providerId: string, provider: Partial<AIProvider>): Promise<AIProvider> {
+    try {
+      const { data, error } = await supabase
+        .from('ai_providers')
+        .update({
+          name: provider.name,
+          provider: provider.provider,
+          api_key: provider.apiKey,
+          is_active: provider.isActive
+        })
+        .eq('id', providerId)
+        .eq('user_id', userId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      return data;
+    } catch (error) {
+      console.error('Error updating AI provider:', error);
+      throw error;
+    }
+  }
+  
   // Save a new AI rule
   static async saveRule(userId: string, rule: Omit<AIRule, 'id'>): Promise<AIRule> {
     try {
