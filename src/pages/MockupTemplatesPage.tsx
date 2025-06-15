@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Konva from 'konva';
 import { Stage, Layer, Rect, Text as KonvaText, Transformer, Group, Image as KonvaImage } from 'react-konva';
-import { Image, Plus, Edit, Trash2, Copy, Search, Filter, Grid, List, Save, Download, Upload, Eye, EyeOff, Move, RotateCw, Palette, Type, Square, Circle, Store } from 'lucide-react';
+import { Image, Plus, Edit, Trash2, Copy, Search, Filter, Grid, List, Save, Download, Upload, Eye, EyeOff, Move, RotateCw, Palette, Type, Square, Circle, Store, Tag, Package } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
@@ -17,6 +17,8 @@ interface MockupTemplate {
   design_areas: DesignArea[];
   text_areas: TextArea[];
   logo_area?: LogoArea;
+  design_type: 'black' | 'white' | 'color';
+  product_category: string;
   store_id?: string;
   is_default: boolean;
   created_at: string;
@@ -80,11 +82,17 @@ const MockupTemplatesPage: React.FC = () => {
   const [showEditor, setShowEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<MockupTemplate | null>(null);
 
+  // Filter states
+  const [selectedDesignType, setSelectedDesignType] = useState<string>('all');
+  const [selectedProductCategory, setSelectedProductCategory] = useState<string>('all');
+
   // Editor States
   const [canvasSize, setCanvasSize] = useState({ width: 2000, height: 2000 });
   const [templateName, setTemplateName] = useState('');
   const [backgroundImage, setBackgroundImage] = useState<string>('');
   const [selectedStore, setSelectedStore] = useState<string>('');
+  const [designType, setDesignType] = useState<'black' | 'white' | 'color'>('black');
+  const [productCategory, setProductCategory] = useState<string>('t-shirt');
   const [designAreas, setDesignAreas] = useState<DesignArea[]>([]);
   const [textAreas, setTextAreas] = useState<TextArea[]>([]);
   const [logoArea, setLogoArea] = useState<LogoArea | null>(null);
@@ -106,6 +114,28 @@ const MockupTemplatesPage: React.FC = () => {
   // Canvas scaling
   const maxContainerSize = 600;
   const scale = Math.min(maxContainerSize / canvasSize.width, maxContainerSize / canvasSize.height, 1);
+
+  // Product categories
+  const productCategories = [
+    { value: 't-shirt', label: '👕 T-Shirt', icon: '👕' },
+    { value: 'sweatshirt', label: '🧥 Sweatshirt', icon: '🧥' },
+    { value: 'hoodie', label: '👘 Hoodie', icon: '👘' },
+    { value: 'mug', label: '☕ Mug', icon: '☕' },
+    { value: 'poster', label: '🖼️ Poster', icon: '🖼️' },
+    { value: 'canvas', label: '🎨 Canvas', icon: '🎨' },
+    { value: 'pillow', label: '🛏️ Pillow', icon: '🛏️' },
+    { value: 'phone-case', label: '📱 Phone Case', icon: '📱' },
+    { value: 'tote-bag', label: '👜 Tote Bag', icon: '👜' },
+    { value: 'sticker', label: '🏷️ Sticker', icon: '🏷️' },
+    { value: 'other', label: '📦 Other', icon: '📦' }
+  ];
+
+  // Design types
+  const designTypes = [
+    { value: 'black', label: '⚫ Black Design', description: 'For light colored products' },
+    { value: 'white', label: '⚪ White Design', description: 'For dark colored products' },
+    { value: 'color', label: '🌈 Color Design', description: 'For any colored products' }
+  ];
 
   useEffect(() => {
     if (user) {
@@ -131,7 +161,15 @@ const MockupTemplatesPage: React.FC = () => {
       }
 
       console.log(`✅ ${data?.length || 0} mockup templates loaded`);
-      setTemplates(data || []);
+      
+      // Ensure all templates have design_type and product_category
+      const templatesWithDefaults = data?.map(template => ({
+        ...template,
+        design_type: template.design_type || 'black',
+        product_category: template.product_category || 't-shirt'
+      })) || [];
+      
+      setTemplates(templatesWithDefaults);
     } catch (error) {
       console.error('❌ Template loading general error:', error);
     } finally {
@@ -202,6 +240,8 @@ const MockupTemplatesPage: React.FC = () => {
     setTemplateName('');
     setBackgroundImage('');
     setSelectedStore(stores.length > 0 ? stores[0].id : '');
+    setDesignType('black');
+    setProductCategory('t-shirt');
     setDesignAreas([]);
     setTextAreas([]);
     setLogoArea(null);
@@ -217,6 +257,8 @@ const MockupTemplatesPage: React.FC = () => {
     setTemplateName(template.name);
     setBackgroundImage(template.image_url);
     setSelectedStore(template.store_id || (stores.length > 0 ? stores[0].id : ''));
+    setDesignType(template.design_type || 'black');
+    setProductCategory(template.product_category || 't-shirt');
     setDesignAreas(template.design_areas || []);
     setTextAreas(template.text_areas || []);
     setLogoArea(template.logo_area || null);
@@ -271,6 +313,8 @@ const MockupTemplatesPage: React.FC = () => {
         design_areas: designAreas,
         text_areas: textAreas,
         logo_area: logoArea,
+        design_type: designType,
+        product_category: productCategory,
         store_id: selectedStore,
         is_default: false
       };
@@ -309,7 +353,7 @@ const MockupTemplatesPage: React.FC = () => {
 
     } catch (error) {
       console.error('❌ Template save general error:', error);
-      alert('Template could not be saved: ' + error.message);
+      alert('Template could not be saved: ' + (error as Error).message);
     }
   };
 
@@ -344,6 +388,8 @@ const MockupTemplatesPage: React.FC = () => {
           design_areas: template.design_areas,
           text_areas: template.text_areas,
           logo_area: template.logo_area,
+          design_type: template.design_type || 'black',
+          product_category: template.product_category || 't-shirt',
           store_id: template.store_id,
           is_default: false
         });
@@ -590,9 +636,13 @@ const MockupTemplatesPage: React.FC = () => {
     }
   }, [selectedId, showTransformer]);
 
-  const filteredTemplates = templates.filter(template =>
-    template.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredTemplates = templates.filter(template => {
+    const matchesSearch = template.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesDesignType = selectedDesignType === 'all' || template.design_type === selectedDesignType;
+    const matchesProductCategory = selectedProductCategory === 'all' || template.product_category === selectedProductCategory;
+    
+    return matchesSearch && matchesDesignType && matchesProductCategory;
+  });
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -640,6 +690,25 @@ const MockupTemplatesPage: React.FC = () => {
     return store ? store.store_name : 'Unknown store';
   };
 
+  const getDesignTypeIcon = (type: string) => {
+    switch (type) {
+      case 'black': return '⚫';
+      case 'white': return '⚪';
+      case 'color': return '🌈';
+      default: return '⚫';
+    }
+  };
+
+  const getProductCategoryIcon = (category: string) => {
+    const categoryData = productCategories.find(cat => cat.value === category);
+    return categoryData ? categoryData.icon : '📦';
+  };
+
+  const getProductCategoryLabel = (category: string) => {
+    const categoryData = productCategories.find(cat => cat.value === category);
+    return categoryData ? categoryData.label : category;
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -683,19 +752,20 @@ const MockupTemplatesPage: React.FC = () => {
           <div className="flex-1 p-6 bg-gray-100 dark:bg-gray-900">
             <div className="flex flex-col items-center">
               {/* Canvas Controls */}
-              <div className="mb-4 flex items-center space-x-4">
+              <div className="mb-4 flex items-center space-x-4 flex-wrap">
                 <Input
                   placeholder="Template name"
                   value={templateName}
                   onChange={(e) => setTemplateName(e.target.value)}
                   className="w-64"
                 />
+                
                 <div className="flex items-center space-x-2">
                   <Store className="h-5 w-5 text-orange-500" />
                   <select
                     value={selectedStore}
                     onChange={(e) => setSelectedStore(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
                   >
                     <option value="">Select store...</option>
                     {stores.map((store) => (
@@ -705,6 +775,37 @@ const MockupTemplatesPage: React.FC = () => {
                     ))}
                   </select>
                 </div>
+
+                <div className="flex items-center space-x-2">
+                  <Palette className="h-5 w-5 text-orange-500" />
+                  <select
+                    value={designType}
+                    onChange={(e) => setDesignType(e.target.value as 'black' | 'white' | 'color')}
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                  >
+                    {designTypes.map((type) => (
+                      <option key={type.value} value={type.value}>
+                        {type.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Package className="h-5 w-5 text-orange-500" />
+                  <select
+                    value={productCategory}
+                    onChange={(e) => setProductCategory(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                  >
+                    {productCategories.map((category) => (
+                      <option key={category.value} value={category.value}>
+                        {category.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
                 <Button
                   onClick={() => fileInputRef.current?.click()}
                   variant="secondary"
@@ -897,7 +998,7 @@ const MockupTemplatesPage: React.FC = () => {
 
               {/* Canvas Info */}
               <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
-                <p>💡 <strong>Tip:</strong> To save the template, please add a template name and design area. Logo and text are optional.</p>
+                <p>💡 <strong>Tip:</strong> Select design type and product category for better organization</p>
                 <p>Canvas size: {canvasSize.width} × {canvasSize.height} px</p>
                 <p className="mt-2 text-orange-600 dark:text-orange-400">
                   🖱️ <strong>Click empty area to clear selection and view areas only</strong>
@@ -914,6 +1015,27 @@ const MockupTemplatesPage: React.FC = () => {
           {/* Properties Panel */}
           <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 p-4 overflow-y-auto">
             <div className="space-y-4">
+              {/* Template Info */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Template Settings</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+                    <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Design Type:</div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">
+                      {getDesignTypeIcon(designType)} {designTypes.find(t => t.value === designType)?.label}
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+                    <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Product Category:</div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">
+                      {getProductCategoryIcon(productCategory)} {getProductCategoryLabel(productCategory)}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Add Areas */}
               <Card>
                 <CardHeader>
@@ -1161,6 +1283,34 @@ const MockupTemplatesPage: React.FC = () => {
         </div>
 
         <div className="flex items-center space-x-2">
+          {/* Design Type Filter */}
+          <select
+            value={selectedDesignType}
+            onChange={(e) => setSelectedDesignType(e.target.value)}
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+          >
+            <option value="all">All Design Types</option>
+            {designTypes.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
+
+          {/* Product Category Filter */}
+          <select
+            value={selectedProductCategory}
+            onChange={(e) => setSelectedProductCategory(e.target.value)}
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+          >
+            <option value="all">All Categories</option>
+            {productCategories.map((category) => (
+              <option key={category.value} value={category.value}>
+                {category.label}
+              </option>
+            ))}
+          </select>
+
           <div className="flex border border-gray-300 dark:border-gray-600 rounded-lg">
             <button
               onClick={() => setViewMode('grid')}
@@ -1183,15 +1333,15 @@ const MockupTemplatesPage: React.FC = () => {
         <div className="text-center py-12">
           <Image className="h-16 w-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            {searchTerm ? 'No templates found' : 'No mockup templates yet'}
+            {searchTerm || selectedDesignType !== 'all' || selectedProductCategory !== 'all' ? 'No templates found' : 'No mockup templates yet'}
           </h3>
           <p className="text-gray-500 dark:text-gray-400 mb-6">
-            {searchTerm
-              ? 'Try adjusting your search terms'
+            {searchTerm || selectedDesignType !== 'all' || selectedProductCategory !== 'all'
+              ? 'Try adjusting your search terms or filters'
               : 'Start creating your first mockup template'
             }
           </p>
-          {!searchTerm && (
+          {!searchTerm && selectedDesignType === 'all' && selectedProductCategory === 'all' && (
             <Button
               onClick={createNewTemplate}
               className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
@@ -1231,6 +1381,16 @@ const MockupTemplatesPage: React.FC = () => {
                     <h3 className="font-medium text-gray-900 dark:text-white truncate">
                       {template.name}
                     </h3>
+                    
+                    {/* Design Type and Product Category */}
+                    <div className="flex items-center justify-between">
+                      <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 text-xs rounded-full">
+                        {getDesignTypeIcon(template.design_type)} {template.design_type}
+                      </span>
+                      <span className="px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-xs rounded-full">
+                        {getProductCategoryIcon(template.product_category)} {template.product_category}
+                      </span>
+                    </div>
                     
                     <div className="flex items-center justify-between text-sm">
                       <div className="flex items-center space-x-1">
@@ -1280,6 +1440,25 @@ const MockupTemplatesPage: React.FC = () => {
           ))}
         </div>
       )}
+
+      {/* Enhanced Features Info */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <div className="flex items-start space-x-3">
+          <Package className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+          <div>
+            <h3 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
+              🎨 Enhanced Mockup Templates
+            </h3>
+            <p className="text-sm text-blue-600 dark:text-blue-300">
+              <strong>New Features:</strong> Design type selection (Black/White/Color) and product categories (T-Shirt, Mug, Sweatshirt, etc.).
+              <br />
+              <strong>Design Types:</strong> Choose black designs for light products, white for dark products, or color for any product.
+              <br />
+              <strong>Product Categories:</strong> Organize templates by product type for better management and easier selection.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
