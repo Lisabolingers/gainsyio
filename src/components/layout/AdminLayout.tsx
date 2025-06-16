@@ -164,7 +164,7 @@ const AdminLayout: React.FC = () => {
                     onClick={item.name === 'Templates' ? toggleTemplatesSubmenu : toggleListingSubmenu}
                     className={`
                       group flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-lg transition-colors
-                      ${isActive(item.href) && !((item.name === 'Research' && location.pathname === '/admin/listing') || (item.name === 'Templates' && location.pathname === '/admin/templates'))
+                      ${isActive(item.href) && !((item.name === 'Listing' && location.pathname === '/admin/listing') || (item.name === 'Templates' && location.pathname === '/admin/templates'))
                         ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400'
                         : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
                       }
