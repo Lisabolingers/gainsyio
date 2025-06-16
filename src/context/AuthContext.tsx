@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { useSupabase } from './SupabaseContext';
+import { testSupabaseConnection } from '../lib/supabase';
 
 interface UserProfile {
   id: string;
@@ -55,14 +56,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('🔍 Checking user profile for:', user.id);
       
       // Test basic connectivity first
-      const { data: testData, error: testError } = await supabase
-        .from('user_profiles')
-        .select('count')
-        .limit(1);
-      
-      if (testError) {
-        console.error('❌ Supabase connectivity test failed:', testError);
-        throw new Error(`Database connection failed: ${testError.message}`);
+      const connectionOk = await testSupabaseConnection();
+      if (!connectionOk) {
+        throw new Error('Database connection failed. Please check your internet connection and try again.');
       }
       
       console.log('✅ Supabase connectivity test passed');

@@ -89,6 +89,7 @@ export interface UserProfile {
   trial_ends_at?: string;
   created_at: string;
   updated_at: string;
+  role: 'user' | 'admin' | 'superadmin';
 }
 
 export interface Store {
@@ -143,6 +144,12 @@ export interface MockupTemplate {
   image_url: string;
   design_areas: any[];
   text_areas: any[];
+  logo_area?: any;
+  store_id?: string;
+  design_type: 'black' | 'white' | 'color';
+  product_category: string;
+  folder_path?: string;
+  folder_name?: string;
   is_default: boolean;
   created_at: string;
   updated_at: string;
