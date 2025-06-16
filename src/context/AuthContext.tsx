@@ -106,6 +106,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         if (!isConfigured) {
           console.log('⚠️ Supabase not configured, using local auth');
+          setError('Supabase is not configured. Using local authentication mode.');
           setUseLocalAuth(true);
           setLoading(false);
           return;
@@ -122,13 +123,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         if (error || !data) {
           console.log('⚠️ Supabase connection failed, using local auth:', error?.message);
+          setError(`Supabase connection failed: ${error?.message || 'Unknown error'}. Using local authentication mode.`);
           setUseLocalAuth(true);
         } else {
           console.log('✅ Supabase connection successful');
           setUseLocalAuth(false);
+          setError(null); // Clear any previous errors
         }
       } catch (err: any) {
         console.error('❌ Error checking Supabase connection:', err.message);
+        setError(`Connection timeout: Unable to reach Supabase server. Please check your internet connection and Supabase configuration. Using local authentication mode.`);
         setUseLocalAuth(true);
       } finally {
         setLoading(false);
@@ -181,7 +185,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           
           if (sessionError) {
             console.error('❌ Error getting session:', sessionError);
-            setError(`Session error: ${sessionError.message}`);
+            setError(`Session error: ${sessionError.message}. Falling back to local authentication.`);
             // Fall back to local auth on session error
             setUseLocalAuth(true);
           } else {
@@ -212,7 +216,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } catch (error: any) {
           console.error('❌ Error initializing auth:', error);
           if (error.message.includes('timeout') || error.message.includes('Failed to fetch')) {
-            setError('Connection timeout: Unable to reach the server. Using offline mode.');
+            setError('Connection timeout: Unable to reach the Supabase server. Using offline mode.');
             setUseLocalAuth(true);
           } else {
             setError('Connection error: Unable to reach the server. Please check your internet connection.');
