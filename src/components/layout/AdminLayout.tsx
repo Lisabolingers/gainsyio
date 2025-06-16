@@ -239,7 +239,7 @@ const AdminLayout: React.FC = () => {
                 )}
 
                 {/* Listing Submenu items */}
-                {item.name === 'Research' && listingExpanded && (
+                {item.name === 'Listing' && listingExpanded && (
                   <div className="ml-6 mt-1 space-y-1">
                     {item.submenu?.map((subItem) => (
                       <Link
