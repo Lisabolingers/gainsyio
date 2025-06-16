@@ -164,7 +164,7 @@ const AdminLayout: React.FC = () => {
                     onClick={item.name === 'Templates' ? toggleTemplatesSubmenu : toggleListingSubmenu}
                     className={`
                       group flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-lg transition-colors
-                      ${isActive(item.href)
+                      ${isActive(item.href) && !((item.name === 'Research' && location.pathname === '/admin/listing') || (item.name === 'Templates' && location.pathname === '/admin/templates'))
                         ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400'
                         : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
                       }
@@ -173,7 +173,7 @@ const AdminLayout: React.FC = () => {
                     <div className="flex items-center">
                       <item.icon className={`
                         mr-3 h-5 w-5 flex-shrink-0
-                        ${isActive(item.href)
+                        ${isActive(item.href) && !((item.name === 'Research' && location.pathname === '/admin/listing') || (item.name === 'Templates' && location.pathname === '/admin/templates'))
                           ? 'text-orange-500'
                           : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
                         }
@@ -247,7 +247,7 @@ const AdminLayout: React.FC = () => {
                         to={subItem.href}
                         className={`
                           group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors
-                          ${isActive(subItem.href)
+                          ${location.pathname === subItem.href
                             ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400'
                             : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
                           }
@@ -256,7 +256,7 @@ const AdminLayout: React.FC = () => {
                       >
                         <subItem.icon className={`
                           mr-3 h-4 w-4 flex-shrink-0
-                          ${isActive(subItem.href)
+                          ${location.pathname === subItem.href
                             ? 'text-orange-500'
                             : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
                           }
