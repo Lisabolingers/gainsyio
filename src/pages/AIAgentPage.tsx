@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Brain, Plus, Edit, Trash2, Copy, Search, Filter, Grid, List, Save, Download, Store, Package, Tag, DollarSign, FileText, Layers, Target, RefreshCw, ArrowRight, CheckCircle, AlertCircle, Sparkles, Zap, Key, Server, Lock, Shield, Settings, Check, X } from 'lucide-react';
+import { Brain, Plus, Edit, Trash2, Save, Check, X, RefreshCw, Sparkles, Zap, AlertTriangle, Info, Settings, Key, Lock, FileText, Tag, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { AIService, AIProvider, AIRule } from '../lib/aiService';
@@ -22,7 +22,7 @@ const AIAgentPage: React.FC = () => {
   const [providerName, setProviderName] = useState('');
   const [providerType, setProviderType] = useState<'openai' | 'anthropic' | 'google' | 'custom'>('openai');
   const [apiKey, setApiKey] = useState('');
-  const [isActive, setIsActive] = useState(true);
+  const [savingProvider, setSavingProvider] = useState(false);
   
   // Rule form state
   const [showRuleForm, setShowRuleForm] = useState(false);
@@ -30,293 +30,114 @@ const AIAgentPage: React.FC = () => {
   const [ruleType, setRuleType] = useState<'title' | 'tags'>('title');
   const [ruleName, setRuleName] = useState('');
   const [rulePrompt, setRulePrompt] = useState('');
-  const [maxLength, setMaxLength] = useState(140);
-  const [minLength, setMinLength] = useState(10);
-  const [selectedProviderId, setSelectedProviderId] = useState('');
-  const [isDefault, setIsDefault] = useState(false);
+  const [ruleMaxLength, setRuleMaxLength] = useState(140);
+  const [ruleMinLength, setRuleMinLength] = useState(10);
+  const [ruleApiProviderId, setRuleApiProviderId] = useState('');
+  const [ruleIsDefault, setRuleIsDefault] = useState(false);
+  const [savingRule, setSavingRule] = useState(false);
   
   // Test state
   const [showTestPanel, setShowTestPanel] = useState(false);
   const [testType, setTestType] = useState<'title' | 'tags'>('title');
-  const [testRuleId, setTestRuleId] = useState('');
   const [testInput, setTestInput] = useState('');
-  const [testResult, setTestResult] = useState<string | string[] | null>(null);
-  const [testLoading, setTestLoading] = useState(false);
-  const [testError, setTestError] = useState<string | null>(null);
+  const [testRuleId, setTestRuleId] = useState('');
+  const [testResult, setTestResult] = useState<string | string[]>('');
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     if (user) {
-      loadProviders();
-      loadRules();
+      loadData();
     }
   }, [user]);
 
-  const loadProviders = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Loading AI providers...');
+      setError(null);
       
-      const { data, error } = await supabase
-        .from('ai_providers')
-        .select('*')
-        .eq('user_id', user?.id);
+      // Load providers
+      const providers = await AIService.getProviders(user?.id || '');
+      setProviders(providers);
       
-      if (error) {
-        console.error('❌ AI providers loading error:', error);
-        throw error;
-      }
+      // Load rules
+      const rules = await AIService.getRules(user?.id || '');
+      setTitleRules(rules.filter(rule => rule.type === 'title'));
+      setTagRules(rules.filter(rule => rule.type === 'tags'));
       
-      // Map database fields to camelCase for frontend
-      const mappedProviders = (data || []).map(provider => ({
-        id: provider.id,
-        name: provider.name,
-        provider: provider.provider,
-        apiKey: provider.api_key,
-        isActive: provider.is_active
-      }));
-      
-      setProviders(mappedProviders);
-      console.log(`✅ ${mappedProviders.length} AI providers loaded`);
     } catch (error: any) {
-      console.error('❌ Error loading AI providers:', error);
-      setError(`AI sağlayıcıları yüklenirken hata: ${error.message}`);
+      console.error('Error loading AI data:', error);
+      setError(`Veri yüklenirken hata oluştu: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadRules = async () => {
-    try {
-      setLoading(true);
-      console.log('🔄 Loading AI rules...');
-      
-      const { data, error } = await supabase
-        .from('ai_rules')
-        .select('*')
-        .eq('user_id', user?.id);
-      
-      if (error) {
-        console.error('❌ AI rules loading error:', error);
-        throw error;
-      }
-      
-      // Map database fields to camelCase for frontend
-      const mappedRules = (data || []).map(rule => ({
-        id: rule.id,
-        type: rule.type,
-        name: rule.name,
-        prompt: rule.prompt,
-        maxLength: rule.max_length,
-        minLength: rule.min_length,
-        apiProviderId: rule.api_provider_id,
-        isDefault: rule.is_default
-      }));
-      
-      // Split rules by type
-      const titleRules = mappedRules.filter(rule => rule.type === 'title');
-      const tagRules = mappedRules.filter(rule => rule.type === 'tags');
-      
-      setTitleRules(titleRules);
-      setTagRules(tagRules);
-      
-      console.log(`✅ ${titleRules.length} title rules and ${tagRules.length} tag rules loaded`);
-    } catch (error: any) {
-      console.error('❌ Error loading AI rules:', error);
-      setError(`AI kuralları yüklenirken hata: ${error.message}`);
-    } finally {
-      setLoading(false);
+  // Provider form handlers
+  const openProviderForm = (provider?: AIProvider) => {
+    if (provider) {
+      setEditingProvider(provider);
+      setProviderName(provider.name);
+      setProviderType(provider.provider);
+      setApiKey(provider.apiKey);
+    } else {
+      setEditingProvider(null);
+      setProviderName('');
+      setProviderType('openai');
+      setApiKey('');
     }
+    setShowProviderForm(true);
+  };
+
+  const closeProviderForm = () => {
+    setShowProviderForm(false);
+    setEditingProvider(null);
+    setProviderName('');
+    setProviderType('openai');
+    setApiKey('');
   };
 
   const saveProvider = async () => {
-    if (!providerName.trim() || !apiKey.trim()) {
-      setError('Sağlayıcı adı ve API anahtarı gereklidir.');
+    if (!providerName.trim()) {
+      setError('Sağlayıcı adı gereklidir.');
+      return;
+    }
+    
+    if (!apiKey.trim()) {
+      setError('API anahtarı gereklidir.');
       return;
     }
     
     try {
-      setLoading(true);
+      setSavingProvider(true);
       setError(null);
       
       const providerData = {
         name: providerName,
         provider: providerType,
-        apiKey,
-        isActive
+        apiKey: apiKey,
+        isActive: true
       };
-      
-      let result;
       
       if (editingProvider) {
         // Update existing provider
-        result = await supabase
-          .from('ai_providers')
-          .update({
-            name: providerName,
-            provider: providerType,
-            api_key: apiKey,
-            is_active: isActive,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', editingProvider.id)
-          .eq('user_id', user?.id)
-          .select()
-          .single();
+        await AIService.updateProvider(user?.id || '', editingProvider.id, providerData);
+        setSuccess('API sağlayıcı başarıyla güncellendi!');
       } else {
         // Create new provider
-        result = await supabase
-          .from('ai_providers')
-          .insert({
-            user_id: user?.id,
-            name: providerName,
-            provider: providerType,
-            api_key: apiKey,
-            is_active: isActive
-          })
-          .select()
-          .single();
+        await AIService.saveProvider(user?.id || '', providerData);
+        setSuccess('API sağlayıcı başarıyla eklendi!');
       }
       
-      if (result.error) {
-        console.error('❌ Provider save error:', result.error);
-        throw result.error;
-      }
+      // Reload data
+      await loadData();
       
-      // Map database fields to camelCase for frontend
-      const savedProvider = {
-        id: result.data.id,
-        name: result.data.name,
-        provider: result.data.provider,
-        apiKey: result.data.api_key,
-        isActive: result.data.is_active
-      };
-      
-      // Update providers list
-      if (editingProvider) {
-        setProviders(prev => prev.map(p => p.id === savedProvider.id ? savedProvider : p));
-      } else {
-        setProviders(prev => [...prev, savedProvider]);
-      }
-      
-      // Reset form
-      resetProviderForm();
-      
-      setShowProviderForm(false);
-      setSuccess(`API sağlayıcı ${editingProvider ? 'güncellendi' : 'eklendi'}!`);
-      
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccess(null), 3000);
+      // Close form
+      closeProviderForm();
     } catch (error: any) {
-      console.error('❌ Error saving provider:', error);
-      setError(`API sağlayıcı kaydedilirken hata: ${error.message}`);
+      console.error('Error saving provider:', error);
+      setError(`Sağlayıcı kaydedilirken hata oluştu: ${error.message}`);
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const saveRule = async () => {
-    if (!ruleName.trim() || !rulePrompt.trim() || !selectedProviderId) {
-      setError('Kural adı, prompt ve API sağlayıcı gereklidir.');
-      return;
-    }
-    
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // If this is a default rule, unset any existing default for this type
-      if (isDefault) {
-        await supabase
-          .from('ai_rules')
-          .update({ is_default: false })
-          .eq('user_id', user?.id)
-          .eq('type', ruleType)
-          .eq('is_default', true);
-      }
-      
-      let result;
-      
-      if (editingRule) {
-        // Update existing rule
-        result = await supabase
-          .from('ai_rules')
-          .update({
-            type: ruleType,
-            name: ruleName,
-            prompt: rulePrompt,
-            max_length: maxLength,
-            min_length: minLength,
-            api_provider_id: selectedProviderId,
-            is_default: isDefault,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', editingRule.id)
-          .eq('user_id', user?.id)
-          .select()
-          .single();
-      } else {
-        // Create new rule
-        result = await supabase
-          .from('ai_rules')
-          .insert({
-            user_id: user?.id,
-            type: ruleType,
-            name: ruleName,
-            prompt: rulePrompt,
-            max_length: maxLength,
-            min_length: minLength,
-            api_provider_id: selectedProviderId,
-            is_default: isDefault
-          })
-          .select()
-          .single();
-      }
-      
-      if (result.error) {
-        console.error('❌ Rule save error:', result.error);
-        throw result.error;
-      }
-      
-      // Map database fields to camelCase for frontend
-      const savedRule = {
-        id: result.data.id,
-        type: result.data.type,
-        name: result.data.name,
-        prompt: result.data.prompt,
-        maxLength: result.data.max_length,
-        minLength: result.data.min_length,
-        apiProviderId: result.data.api_provider_id,
-        isDefault: result.data.is_default
-      };
-      
-      // Update rules list
-      if (editingRule) {
-        if (savedRule.type === 'title') {
-          setTitleRules(prev => prev.map(r => r.id === savedRule.id ? savedRule : r));
-        } else {
-          setTagRules(prev => prev.map(r => r.id === savedRule.id ? savedRule : r));
-        }
-      } else {
-        if (savedRule.type === 'title') {
-          setTitleRules(prev => [...prev, savedRule]);
-        } else {
-          setTagRules(prev => [...prev, savedRule]);
-        }
-      }
-      
-      // Reset form
-      resetRuleForm();
-      
-      setShowRuleForm(false);
-      setSuccess(`AI kuralı ${editingRule ? 'güncellendi' : 'eklendi'}!`);
-      
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (error: any) {
-      console.error('❌ Error saving rule:', error);
-      setError(`AI kuralı kaydedilirken hata: ${error.message}`);
-    } finally {
-      setLoading(false);
+      setSavingProvider(false);
     }
   };
 
@@ -326,288 +147,235 @@ const AIAgentPage: React.FC = () => {
     }
     
     try {
-      setLoading(true);
+      setError(null);
       
-      // Check if this provider is used by any rules
-      const { data: rulesUsingProvider, error: rulesError } = await supabase
-        .from('ai_rules')
-        .select('id')
-        .eq('api_provider_id', providerId);
+      // Check if provider is used in any rules
+      const usedInRules = [...titleRules, ...tagRules].some(rule => rule.apiProviderId === providerId);
       
-      if (rulesError) throw rulesError;
-      
-      if (rulesUsingProvider && rulesUsingProvider.length > 0) {
-        throw new Error(`Bu sağlayıcı ${rulesUsingProvider.length} kural tarafından kullanılıyor. Önce bu kuralları silmelisiniz.`);
+      if (usedInRules) {
+        setError('Bu sağlayıcı bir veya daha fazla kuralda kullanılıyor. Önce bu kuralları silmeniz gerekiyor.');
+        return;
       }
       
-      // Delete the provider
-      const { error } = await supabase
-        .from('ai_providers')
-        .delete()
-        .eq('id', providerId)
-        .eq('user_id', user?.id);
-      
-      if (error) throw error;
-      
-      // Update providers list
-      setProviders(prev => prev.filter(p => p.id !== providerId));
-      
+      await AIService.deleteProvider(user?.id || '', providerId);
       setSuccess('API sağlayıcı başarıyla silindi!');
       
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccess(null), 3000);
+      // Reload data
+      await loadData();
     } catch (error: any) {
-      console.error('❌ Error deleting provider:', error);
-      setError(`API sağlayıcı silinirken hata: ${error.message}`);
-    } finally {
-      setLoading(false);
+      console.error('Error deleting provider:', error);
+      setError(`Sağlayıcı silinirken hata oluştu: ${error.message}`);
     }
   };
 
-  const deleteRule = async (ruleId: string, ruleType: 'title' | 'tags') => {
+  // Rule form handlers
+  const openRuleForm = (rule?: AIRule) => {
+    if (providers.length === 0) {
+      setError('Kural oluşturmadan önce bir API sağlayıcı eklemelisiniz.');
+      return;
+    }
+    
+    if (rule) {
+      setEditingRule(rule);
+      setRuleType(rule.type);
+      setRuleName(rule.name);
+      setRulePrompt(rule.prompt);
+      setRuleMaxLength(rule.maxLength);
+      setRuleMinLength(rule.minLength);
+      setRuleApiProviderId(rule.apiProviderId);
+      setRuleIsDefault(rule.isDefault);
+    } else {
+      setEditingRule(null);
+      setRuleType('title');
+      setRuleName('');
+      setRulePrompt('');
+      setRuleMaxLength(140);
+      setRuleMinLength(10);
+      setRuleApiProviderId(providers[0]?.id || '');
+      setRuleIsDefault(false);
+    }
+    setShowRuleForm(true);
+  };
+
+  const closeRuleForm = () => {
+    setShowRuleForm(false);
+    setEditingRule(null);
+    setRuleType('title');
+    setRuleName('');
+    setRulePrompt('');
+    setRuleMaxLength(140);
+    setRuleMinLength(10);
+    setRuleApiProviderId('');
+    setRuleIsDefault(false);
+  };
+
+  const saveRule = async () => {
+    if (!ruleName.trim()) {
+      setError('Kural adı gereklidir.');
+      return;
+    }
+    
+    if (!rulePrompt.trim()) {
+      setError('Kural metni gereklidir.');
+      return;
+    }
+    
+    if (!ruleApiProviderId) {
+      setError('API sağlayıcı seçmelisiniz.');
+      return;
+    }
+    
+    try {
+      setSavingRule(true);
+      setError(null);
+      
+      const ruleData = {
+        type: ruleType,
+        name: ruleName,
+        prompt: rulePrompt,
+        maxLength: ruleMaxLength,
+        minLength: ruleMinLength,
+        apiProviderId: ruleApiProviderId,
+        isDefault: ruleIsDefault
+      };
+      
+      if (editingRule) {
+        // Update existing rule
+        await AIService.updateRule(user?.id || '', editingRule.id, ruleData);
+        setSuccess('AI kuralı başarıyla güncellendi!');
+      } else {
+        // Create new rule
+        await AIService.saveRule(user?.id || '', ruleData);
+        setSuccess('AI kuralı başarıyla eklendi!');
+      }
+      
+      // Reload data
+      await loadData();
+      
+      // Close form
+      closeRuleForm();
+    } catch (error: any) {
+      console.error('Error saving rule:', error);
+      setError(`Kural kaydedilirken hata oluştu: ${error.message}`);
+    } finally {
+      setSavingRule(false);
+    }
+  };
+
+  const deleteRule = async (ruleId: string) => {
     if (!window.confirm('Bu AI kuralını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.')) {
       return;
     }
     
     try {
-      setLoading(true);
+      setError(null);
       
-      const { error } = await supabase
-        .from('ai_rules')
-        .delete()
-        .eq('id', ruleId)
-        .eq('user_id', user?.id);
-      
-      if (error) throw error;
-      
-      // Update rules list
-      if (ruleType === 'title') {
-        setTitleRules(prev => prev.filter(r => r.id !== ruleId));
-      } else {
-        setTagRules(prev => prev.filter(r => r.id !== ruleId));
-      }
-      
+      await AIService.deleteRule(user?.id || '', ruleId);
       setSuccess('AI kuralı başarıyla silindi!');
       
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccess(null), 3000);
+      // Reload data
+      await loadData();
     } catch (error: any) {
-      console.error('❌ Error deleting rule:', error);
-      setError(`AI kuralı silinirken hata: ${error.message}`);
-    } finally {
-      setLoading(false);
+      console.error('Error deleting rule:', error);
+      setError(`Kural silinirken hata oluştu: ${error.message}`);
     }
   };
 
-  const setRuleAsDefault = async (ruleId: string, ruleType: 'title' | 'tags') => {
+  const setRuleAsDefault = async (rule: AIRule) => {
     try {
-      setLoading(true);
+      setError(null);
       
-      // Update the rule
-      const { error } = await supabase
-        .from('ai_rules')
-        .update({ is_default: true })
-        .eq('id', ruleId)
-        .eq('user_id', user?.id);
+      await AIService.updateRule(user?.id || '', rule.id, { isDefault: true });
+      setSuccess(`"${rule.name}" varsayılan ${rule.type === 'title' ? 'başlık' : 'etiket'} kuralı olarak ayarlandı!`);
       
-      if (error) throw error;
-      
-      // Reload rules to get updated default status
-      await loadRules();
-      
-      setSuccess('Varsayılan kural güncellendi!');
-      
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccess(null), 3000);
+      // Reload data
+      await loadData();
     } catch (error: any) {
-      console.error('❌ Error setting default rule:', error);
-      setError(`Varsayılan kural ayarlanırken hata: ${error.message}`);
-    } finally {
-      setLoading(false);
+      console.error('Error setting rule as default:', error);
+      setError(`Kural varsayılan olarak ayarlanırken hata oluştu: ${error.message}`);
     }
   };
 
-  const editProvider = (provider: AIProvider) => {
-    setEditingProvider(provider);
-    setProviderName(provider.name);
-    setProviderType(provider.provider);
-    setApiKey(provider.apiKey);
-    setIsActive(provider.isActive);
-    setShowProviderForm(true);
+  // Test panel handlers
+  const openTestPanel = () => {
+    const rules = [...titleRules, ...tagRules];
+    if (rules.length === 0) {
+      setError('Test yapmadan önce en az bir kural oluşturmalısınız.');
+      return;
+    }
+    
+    setShowTestPanel(true);
+    setTestType('title');
+    setTestInput('');
+    setTestRuleId(titleRules.find(r => r.isDefault)?.id || titleRules[0]?.id || '');
+    setTestResult('');
   };
 
-  const editRule = (rule: AIRule) => {
-    setEditingRule(rule);
-    setRuleType(rule.type);
-    setRuleName(rule.name);
-    setRulePrompt(rule.prompt);
-    setMaxLength(rule.maxLength);
-    setMinLength(rule.minLength);
-    setSelectedProviderId(rule.apiProviderId);
-    setIsDefault(rule.isDefault);
-    setShowRuleForm(true);
+  const closeTestPanel = () => {
+    setShowTestPanel(false);
+    setTestType('title');
+    setTestInput('');
+    setTestRuleId('');
+    setTestResult('');
   };
 
-  const resetProviderForm = () => {
-    setEditingProvider(null);
-    setProviderName('');
-    setProviderType('openai');
-    setApiKey('');
-    setIsActive(true);
-  };
-
-  const resetRuleForm = () => {
-    setEditingRule(null);
-    setRuleType('title');
-    setRuleName('');
-    setRulePrompt('');
-    setMaxLength(140);
-    setMinLength(10);
-    setSelectedProviderId('');
-    setIsDefault(false);
-  };
-
-  const testRule = async () => {
-    if (!testInput.trim() || !testRuleId) {
-      setTestError('Test için bir girdi ve kural seçmelisiniz.');
+  const runTest = async () => {
+    if (!testInput.trim()) {
+      setError('Test için bir ürün bilgisi girmelisiniz.');
+      return;
+    }
+    
+    if (!testRuleId) {
+      setError('Test için bir kural seçmelisiniz.');
       return;
     }
     
     try {
-      setTestLoading(true);
-      setTestError(null);
-      setTestResult(null);
+      setTesting(true);
+      setError(null);
+      setTestResult('');
       
-      console.log(`🧪 Testing ${testType} rule: ${testRuleId}`);
+      const response = await AIService.generateContent(user?.id || '', {
+        productInfo: testInput,
+        ruleId: testRuleId,
+        type: testType
+      });
       
-      // In a real implementation, this would call the AI service
-      // For now, we'll simulate the response
-      
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      if (testType === 'title') {
-        // Generate a title
-        const title = simulateTitleGeneration(testInput);
-        setTestResult(title);
-      } else {
-        // Generate tags
-        const tags = simulateTagsGeneration(testInput);
-        setTestResult(tags);
+      if (!response.success) {
+        throw new Error(response.error);
       }
       
+      if (testType === 'title') {
+        setTestResult(response.data?.title || 'Başlık oluşturulamadı.');
+      } else {
+        setTestResult(response.data?.tags || []);
+      }
     } catch (error: any) {
-      console.error('❌ Error testing rule:', error);
-      setTestError(`Test sırasında hata: ${error.message}`);
+      console.error('Error running test:', error);
+      setError(`Test çalıştırılırken hata oluştu: ${error.message}`);
     } finally {
-      setTestLoading(false);
+      setTesting(false);
     }
   };
 
-  // Simulate title generation (for demo purposes)
-  const simulateTitleGeneration = (productInfo: string): string => {
-    const keywords = productInfo.toLowerCase().split(/\s+/).filter(word => word.length > 3);
-    
-    const adjectives = [
-      'Handmade', 'Custom', 'Personalized', 'Unique', 'Vintage', 'Modern', 
-      'Rustic', 'Minimalist', 'Elegant', 'Premium', 'Exclusive', 'Trendy'
-    ];
-    
-    const nouns = [
-      'Gift', 'Design', 'Artwork', 'Creation', 'Piece', 'Item', 
-      'Product', 'Present', 'Decor', 'Accessory', 'Collection'
-    ];
-    
-    const occasions = [
-      'Birthday', 'Anniversary', 'Wedding', 'Graduation', 'Housewarming',
-      'Christmas', 'Holiday', 'Special Occasion', 'Celebration'
-    ];
-    
-    // Pick random elements
-    const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
-    const noun = nouns[Math.floor(Math.random() * nouns.length)];
-    const occasion = occasions[Math.floor(Math.random() * occasions.length)];
-    
-    // Use keywords from product info if available
-    let keyword = 'Item';
-    if (keywords.length > 0) {
-      keyword = keywords[Math.floor(Math.random() * keywords.length)];
-      // Capitalize first letter
-      keyword = keyword.charAt(0).toUpperCase() + keyword.slice(1);
-    }
-    
-    // Generate title
-    return `${adjective} ${keyword} ${noun} - Perfect ${occasion} Gift`;
-  };
-  
-  // Simulate tags generation (for demo purposes)
-  const simulateTagsGeneration = (productInfo: string): string[] => {
-    const keywords = productInfo.toLowerCase().split(/\s+/).filter(word => word.length > 3);
-    
-    const baseTags = [
-      'handmade', 'custom', 'personalized', 'unique', 'gift idea',
-      'birthday gift', 'special occasion', 'home decor', 'wall art',
-      'trending', 'best seller', 'popular item', 'fast shipping'
-    ];
-    
-    // Generate tags based on keywords
-    const keywordTags = keywords.map(word => {
-      return [word, `${word} gift`, `${word} design`, `custom ${word}`];
-    }).flat();
-    
-    // Combine and deduplicate
-    const allTags = [...new Set([...baseTags, ...keywordTags])];
-    
-    // Return random selection of tags
-    return allTags
-      .sort(() => 0.5 - Math.random())
-      .slice(0, 13); // Etsy allows max 13 tags
+  // Helper function to get provider name by ID
+  const getProviderName = (providerId: string): string => {
+    const provider = providers.find(p => p.id === providerId);
+    return provider ? provider.name : 'Bilinmeyen Sağlayıcı';
   };
 
-  const getProviderTypeIcon = (type: string) => {
-    switch (type) {
-      case 'openai':
-        return '🤖';
-      case 'anthropic':
-        return '🧠';
-      case 'google':
-        return '🔍';
-      case 'custom':
-        return '⚙️';
-      default:
-        return '🔌';
-    }
-  };
-
-  const getProviderTypeColor = (type: string) => {
-    const colors = {
-      'openai': 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
-      'anthropic': 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400',
-      'google': 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
-      'custom': 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+  // Helper function to get provider type display name
+  const getProviderTypeName = (type: string): string => {
+    const typeMap: {[key: string]: string} = {
+      'openai': 'OpenAI',
+      'anthropic': 'Anthropic',
+      'google': 'Google AI',
+      'custom': 'Özel API'
     };
-    return colors[type as keyof typeof colors] || colors.custom;
+    return typeMap[type] || type;
   };
 
-  const getRuleTypeColor = (type: string) => {
-    const colors = {
-      'title': 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
-      'tags': 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400'
-    };
-    return colors[type as keyof typeof colors] || colors.title;
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('tr-TR', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  if (loading && providers.length === 0 && titleRules.length === 0 && tagRules.length === 0) {
+  if (loading) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center h-64">
@@ -620,31 +388,43 @@ const AIAgentPage: React.FC = () => {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
-          <Brain className="h-6 w-6 mr-2 text-orange-500" />
-          AI Agent
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">
-          Başlık ve etiket oluşturma için AI kurallarını yönetin
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+            <Brain className="h-6 w-6 mr-2 text-orange-500" />
+            AI Agent
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
+            Başlık ve etiket oluşturma için AI kurallarını yönetin
+          </p>
+        </div>
+        <div className="flex items-center space-x-3 mt-4 sm:mt-0">
+          <Button
+            onClick={openTestPanel}
+            variant="secondary"
+            className="flex items-center space-x-2"
+          >
+            <Sparkles className="h-4 w-4" />
+            <span>Test Et</span>
+          </Button>
+        </div>
       </div>
 
-      {/* Status Message */}
-      {success && (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+      {/* Error/Success Messages */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
           <div className="flex items-center space-x-3">
-            <CheckCircle className="h-5 w-5 text-green-500" />
-            <p className="text-green-700 dark:text-green-400">{success}</p>
+            <AlertTriangle className="h-5 w-5 text-red-500" />
+            <p className="text-red-700 dark:text-red-400">{error}</p>
           </div>
         </div>
       )}
 
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+      {success && (
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
           <div className="flex items-center space-x-3">
-            <AlertCircle className="h-5 w-5 text-red-500" />
-            <p className="text-red-700 dark:text-red-400">{error}</p>
+            <Check className="h-5 w-5 text-green-500" />
+            <p className="text-green-700 dark:text-green-400">{success}</p>
           </div>
         </div>
       )}
@@ -653,15 +433,12 @@ const AIAgentPage: React.FC = () => {
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
-            <Server className="h-5 w-5 mr-2 text-orange-500" />
+            <Key className="h-5 w-5 mr-2 text-orange-500" />
             API Sağlayıcıları
           </h2>
           <Button
-            onClick={() => {
-              resetProviderForm();
-              setShowProviderForm(true);
-            }}
-            className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
+            onClick={() => openProviderForm()}
+            className="flex items-center space-x-2"
           >
             <Plus className="h-4 w-4" />
             <span>Sağlayıcı Ekle</span>
@@ -669,40 +446,32 @@ const AIAgentPage: React.FC = () => {
         </div>
 
         {providers.length === 0 ? (
-          <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <Server className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-8 text-center">
+            <Key className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
               Henüz API sağlayıcı yok
             </h3>
             <p className="text-gray-500 dark:text-gray-400 mb-6">
-              AI özelliklerini kullanmak için bir API sağlayıcı ekleyin
+              AI özelliklerini kullanmak için bir API sağlayıcı eklemelisiniz.
             </p>
             <Button
-              onClick={() => {
-                resetProviderForm();
-                setShowProviderForm(true);
-              }}
-              className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
+              onClick={() => openProviderForm()}
+              className="flex items-center space-x-2 mx-auto"
             >
               <Plus className="h-4 w-4" />
               <span>İlk Sağlayıcıyı Ekle</span>
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {providers.map((provider) => (
               <Card key={provider.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
-                    <CardTitle className="text-lg flex items-center space-x-2">
-                      <span className={`p-1 rounded-lg ${getProviderTypeColor(provider.provider)}`}>
-                        {getProviderTypeIcon(provider.provider)}
-                      </span>
-                      <span>{provider.name}</span>
-                    </CardTitle>
+                    <CardTitle className="text-lg">{provider.name}</CardTitle>
                     <div className="flex space-x-1">
                       <button
-                        onClick={() => editProvider(provider)}
+                        onClick={() => openProviderForm(provider)}
                         className="text-blue-500 hover:text-blue-700 p-1"
                         title="Düzenle"
                       >
@@ -721,9 +490,19 @@ const AIAgentPage: React.FC = () => {
                 <CardContent>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getProviderTypeColor(provider.provider)}`}>
-                        {provider.provider.toUpperCase()}
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Sağlayıcı:</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        {getProviderTypeName(provider.provider)}
                       </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">API Anahtarı:</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        ••••••••{provider.apiKey.substring(provider.apiKey.length - 4)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Durum:</span>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         provider.isActive 
                           ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
@@ -731,22 +510,6 @@ const AIAgentPage: React.FC = () => {
                       }`}>
                         {provider.isActive ? 'Aktif' : 'Pasif'}
                       </span>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <Key className="h-4 w-4 text-gray-500" />
-                      <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded px-3 py-1">
-                        <code className="text-xs text-gray-800 dark:text-gray-300">
-                          {provider.apiKey.substring(0, 4)}...{provider.apiKey.substring(provider.apiKey.length - 4)}
-                        </code>
-                      </div>
-                    </div>
-                    
-                    <div className="text-xs text-gray-500 dark:text-gray-400 flex justify-between">
-                      <span>Kullanılan Kurallar: {
-                        titleRules.filter(r => r.apiProviderId === provider.id).length +
-                        tagRules.filter(r => r.apiProviderId === provider.id).length
-                      }</span>
                     </div>
                   </div>
                 </CardContent>
@@ -764,12 +527,8 @@ const AIAgentPage: React.FC = () => {
             Başlık Kuralları
           </h2>
           <Button
-            onClick={() => {
-              resetRuleForm();
-              setRuleType('title');
-              setShowRuleForm(true);
-            }}
-            className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
+            onClick={() => openRuleForm()}
+            className="flex items-center space-x-2"
             disabled={providers.length === 0}
           >
             <Plus className="h-4 w-4" />
@@ -777,65 +536,58 @@ const AIAgentPage: React.FC = () => {
           </Button>
         </div>
 
-        {providers.length === 0 ? (
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-            <div className="flex items-center space-x-3">
-              <AlertCircle className="h-5 w-5 text-yellow-500" />
-              <p className="text-yellow-700 dark:text-yellow-400">
-                Kural eklemek için önce bir API sağlayıcı eklemelisiniz.
-              </p>
-            </div>
-          </div>
-        ) : titleRules.length === 0 ? (
-          <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+        {titleRules.length === 0 ? (
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-8 text-center">
+            <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
               Henüz başlık kuralı yok
             </h3>
             <p className="text-gray-500 dark:text-gray-400 mb-6">
-              AI başlık oluşturma için bir kural ekleyin
+              AI başlık önerilerini kullanmak için bir kural eklemelisiniz.
             </p>
-            <Button
-              onClick={() => {
-                resetRuleForm();
-                setRuleType('title');
-                setShowRuleForm(true);
-              }}
-              className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
-            >
-              <Plus className="h-4 w-4" />
-              <span>İlk Başlık Kuralını Ekle</span>
-            </Button>
+            {providers.length === 0 ? (
+              <p className="text-orange-500 dark:text-orange-400">
+                Kural eklemek için önce bir API sağlayıcı eklemelisiniz.
+              </p>
+            ) : (
+              <Button
+                onClick={() => {
+                  setRuleType('title');
+                  openRuleForm();
+                }}
+                className="flex items-center space-x-2 mx-auto"
+              >
+                <Plus className="h-4 w-4" />
+                <span>İlk Başlık Kuralını Ekle</span>
+              </Button>
+            )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {titleRules.map((rule) => (
               <Card key={rule.id} className={`hover:shadow-lg transition-shadow ${
                 rule.isDefault ? 'border-2 border-orange-500 dark:border-orange-400' : ''
               }`}>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
-                    <CardTitle className="text-lg flex items-center space-x-2">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRuleTypeColor(rule.type)}`}>
-                        Başlık
-                      </span>
-                      <span>{rule.name}</span>
+                    <div className="flex items-center space-x-2">
+                      <CardTitle className="text-lg">{rule.name}</CardTitle>
                       {rule.isDefault && (
-                        <span className="bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400 text-xs px-2 py-1 rounded-full">
+                        <span className="px-2 py-1 bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400 rounded-full text-xs font-medium">
                           Varsayılan
                         </span>
                       )}
-                    </CardTitle>
+                    </div>
                     <div className="flex space-x-1">
                       <button
-                        onClick={() => editRule(rule)}
+                        onClick={() => openRuleForm(rule)}
                         className="text-blue-500 hover:text-blue-700 p-1"
                         title="Düzenle"
                       >
                         <Edit className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => deleteRule(rule.id, rule.type)}
+                        onClick={() => deleteRule(rule.id)}
                         className="text-red-500 hover:text-red-700 p-1"
                         title="Sil"
                       >
@@ -846,48 +598,36 @@ const AIAgentPage: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
-                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Prompt:</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Sağlayıcı:</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        {getProviderName(rule.apiProviderId)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Uzunluk:</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        {rule.minLength} - {rule.maxLength} karakter
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Prompt:</span>
+                      <p className="text-sm text-gray-900 dark:text-white mt-1 bg-gray-50 dark:bg-gray-700 p-2 rounded-lg line-clamp-3">
                         {rule.prompt}
                       </p>
                     </div>
                     
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Uzunluk: {rule.minLength}-{rule.maxLength}
-                      </span>
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Sağlayıcı: {providers.find(p => p.id === rule.apiProviderId)?.name || 'Bilinmeyen'}
-                      </span>
-                    </div>
-                    
-                    <div className="flex space-x-2">
-                      {!rule.isDefault && (
-                        <Button
-                          onClick={() => setRuleAsDefault(rule.id, rule.type)}
-                          variant="secondary"
-                          size="sm"
-                          className="flex-1"
-                        >
-                          Varsayılan Yap
-                        </Button>
-                      )}
+                    {!rule.isDefault && (
                       <Button
-                        onClick={() => {
-                          setTestType('title');
-                          setTestRuleId(rule.id);
-                          setTestInput('');
-                          setTestResult(null);
-                          setTestError(null);
-                          setShowTestPanel(true);
-                        }}
+                        onClick={() => setRuleAsDefault(rule)}
+                        variant="secondary"
                         size="sm"
-                        className="flex-1"
+                        className="w-full mt-2"
                       >
-                        Test Et
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Varsayılan Yap
                       </Button>
-                    </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -905,11 +645,10 @@ const AIAgentPage: React.FC = () => {
           </h2>
           <Button
             onClick={() => {
-              resetRuleForm();
               setRuleType('tags');
-              setShowRuleForm(true);
+              openRuleForm();
             }}
-            className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
+            className="flex items-center space-x-2"
             disabled={providers.length === 0}
           >
             <Plus className="h-4 w-4" />
@@ -917,65 +656,58 @@ const AIAgentPage: React.FC = () => {
           </Button>
         </div>
 
-        {providers.length === 0 ? (
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-            <div className="flex items-center space-x-3">
-              <AlertCircle className="h-5 w-5 text-yellow-500" />
-              <p className="text-yellow-700 dark:text-yellow-400">
-                Kural eklemek için önce bir API sağlayıcı eklemelisiniz.
-              </p>
-            </div>
-          </div>
-        ) : tagRules.length === 0 ? (
-          <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <Tag className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+        {tagRules.length === 0 ? (
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-8 text-center">
+            <Tag className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
               Henüz etiket kuralı yok
             </h3>
             <p className="text-gray-500 dark:text-gray-400 mb-6">
-              AI etiket oluşturma için bir kural ekleyin
+              AI etiket önerilerini kullanmak için bir kural eklemelisiniz.
             </p>
-            <Button
-              onClick={() => {
-                resetRuleForm();
-                setRuleType('tags');
-                setShowRuleForm(true);
-              }}
-              className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
-            >
-              <Plus className="h-4 w-4" />
-              <span>İlk Etiket Kuralını Ekle</span>
-            </Button>
+            {providers.length === 0 ? (
+              <p className="text-orange-500 dark:text-orange-400">
+                Kural eklemek için önce bir API sağlayıcı eklemelisiniz.
+              </p>
+            ) : (
+              <Button
+                onClick={() => {
+                  setRuleType('tags');
+                  openRuleForm();
+                }}
+                className="flex items-center space-x-2 mx-auto"
+              >
+                <Plus className="h-4 w-4" />
+                <span>İlk Etiket Kuralını Ekle</span>
+              </Button>
+            )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {tagRules.map((rule) => (
               <Card key={rule.id} className={`hover:shadow-lg transition-shadow ${
                 rule.isDefault ? 'border-2 border-orange-500 dark:border-orange-400' : ''
               }`}>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
-                    <CardTitle className="text-lg flex items-center space-x-2">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRuleTypeColor(rule.type)}`}>
-                        Etiket
-                      </span>
-                      <span>{rule.name}</span>
+                    <div className="flex items-center space-x-2">
+                      <CardTitle className="text-lg">{rule.name}</CardTitle>
                       {rule.isDefault && (
-                        <span className="bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400 text-xs px-2 py-1 rounded-full">
+                        <span className="px-2 py-1 bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400 rounded-full text-xs font-medium">
                           Varsayılan
                         </span>
                       )}
-                    </CardTitle>
+                    </div>
                     <div className="flex space-x-1">
                       <button
-                        onClick={() => editRule(rule)}
+                        onClick={() => openRuleForm(rule)}
                         className="text-blue-500 hover:text-blue-700 p-1"
                         title="Düzenle"
                       >
                         <Edit className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => deleteRule(rule.id, rule.type)}
+                        onClick={() => deleteRule(rule.id)}
                         className="text-red-500 hover:text-red-700 p-1"
                         title="Sil"
                       >
@@ -986,48 +718,36 @@ const AIAgentPage: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
-                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Prompt:</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Sağlayıcı:</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        {getProviderName(rule.apiProviderId)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Uzunluk:</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        {rule.minLength} - {rule.maxLength} karakter
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Prompt:</span>
+                      <p className="text-sm text-gray-900 dark:text-white mt-1 bg-gray-50 dark:bg-gray-700 p-2 rounded-lg line-clamp-3">
                         {rule.prompt}
                       </p>
                     </div>
                     
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Uzunluk: {rule.minLength}-{rule.maxLength}
-                      </span>
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Sağlayıcı: {providers.find(p => p.id === rule.apiProviderId)?.name || 'Bilinmeyen'}
-                      </span>
-                    </div>
-                    
-                    <div className="flex space-x-2">
-                      {!rule.isDefault && (
-                        <Button
-                          onClick={() => setRuleAsDefault(rule.id, rule.type)}
-                          variant="secondary"
-                          size="sm"
-                          className="flex-1"
-                        >
-                          Varsayılan Yap
-                        </Button>
-                      )}
+                    {!rule.isDefault && (
                       <Button
-                        onClick={() => {
-                          setTestType('tags');
-                          setTestRuleId(rule.id);
-                          setTestInput('');
-                          setTestResult(null);
-                          setTestError(null);
-                          setShowTestPanel(true);
-                        }}
+                        onClick={() => setRuleAsDefault(rule)}
+                        variant="secondary"
                         size="sm"
-                        className="flex-1"
+                        className="w-full mt-2"
                       >
-                        Test Et
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Varsayılan Yap
                       </Button>
-                    </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -1042,12 +762,11 @@ const AIAgentPage: React.FC = () => {
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                {editingProvider ? 'API Sağlayıcı Düzenle' : 'Yeni API Sağlayıcı Ekle'}
+                {editingProvider ? 'API Sağlayıcı Düzenle' : 'API Sağlayıcı Ekle'}
               </h2>
             </div>
             
             <div className="p-6 space-y-4">
-              {/* Provider Name */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Sağlayıcı Adı:
@@ -1055,15 +774,14 @@ const AIAgentPage: React.FC = () => {
                 <Input
                   value={providerName}
                   onChange={(e) => setProviderName(e.target.value)}
-                  placeholder="Örn: OpenAI GPT-4"
+                  placeholder="Örn: OpenAI API"
                   className="w-full"
                 />
               </div>
               
-              {/* Provider Type */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Sağlayıcı Türü:
+                  Sağlayıcı Tipi:
                 </label>
                 <select
                   value={providerType}
@@ -1077,7 +795,6 @@ const AIAgentPage: React.FC = () => {
                 </select>
               </div>
               
-              {/* API Key */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   API Anahtarı:
@@ -1091,34 +808,32 @@ const AIAgentPage: React.FC = () => {
                 />
               </div>
               
-              {/* Active Status */}
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="isActive"
-                  checked={isActive}
-                  onChange={(e) => setIsActive(e.target.checked)}
-                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                />
-                <label htmlFor="isActive" className="text-sm text-gray-700 dark:text-gray-300">
-                  Aktif
-                </label>
-              </div>
-              
               <div className="flex space-x-3 pt-4">
                 <Button
                   onClick={saveProvider}
                   className="flex-1"
-                  disabled={!providerName.trim() || !apiKey.trim()}
+                  disabled={savingProvider}
                 >
-                  {editingProvider ? 'Güncelle' : 'Ekle'}
+                  {savingProvider ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                      <span>Kaydediliyor...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      <span>Kaydet</span>
+                    </>
+                  )}
                 </Button>
                 <Button
-                  onClick={() => setShowProviderForm(false)}
+                  onClick={closeProviderForm}
                   variant="secondary"
                   className="flex-1"
+                  disabled={savingProvider}
                 >
-                  İptal
+                  <X className="h-4 w-4 mr-2" />
+                  <span>İptal</span>
                 </Button>
               </div>
             </div>
@@ -1132,15 +847,14 @@ const AIAgentPage: React.FC = () => {
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                {editingRule ? 'AI Kuralı Düzenle' : 'Yeni AI Kuralı Ekle'}
+                {editingRule ? 'AI Kuralı Düzenle' : 'AI Kuralı Ekle'}
               </h2>
             </div>
             
             <div className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-200px)]">
-              {/* Rule Type */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Kural Türü:
+                  Kural Tipi:
                 </label>
                 <select
                   value={ruleType}
@@ -1153,7 +867,6 @@ const AIAgentPage: React.FC = () => {
                 </select>
               </div>
               
-              {/* Rule Name */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Kural Adı:
@@ -1166,26 +879,6 @@ const AIAgentPage: React.FC = () => {
                 />
               </div>
               
-              {/* API Provider */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  API Sağlayıcı:
-                </label>
-                <select
-                  value={selectedProviderId}
-                  onChange={(e) => setSelectedProviderId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-                >
-                  <option value="">Sağlayıcı seçin...</option>
-                  {providers.map(provider => (
-                    <option key={provider.id} value={provider.id} disabled={!provider.isActive}>
-                      {provider.name} {!provider.isActive && '(Pasif)'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              {/* Prompt */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Prompt:
@@ -1193,18 +886,19 @@ const AIAgentPage: React.FC = () => {
                 <textarea
                   value={rulePrompt}
                   onChange={(e) => setRulePrompt(e.target.value)}
-                  rows={5}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 resize-none"
                   placeholder={ruleType === 'title' 
-                    ? 'Ürün için SEO dostu bir başlık oluştur. Ürün: {{product}}'
-                    : 'Ürün için 13 adet Etsy etiketi oluştur. Ürün: {{product}}'}
+                    ? "Aşağıdaki ürün için bir Etsy başlığı oluştur:\n\n{{product}}\n\nBaşlığın SEO dostu olduğundan emin ol ve anahtar kelimeleri içersin."
+                    : "Aşağıdaki ürün için Etsy etiketleri oluştur:\n\n{{product}}\n\nEtiketler virgülle ayrılmış olmalı ve her biri 20 karakterden kısa olmalı."
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 resize-none"
+                  rows={6}
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Ürün bilgisi için <code>{'{{product}}'}</code> yer tutucusunu kullanın.
+                  <Info className="h-3 w-3 inline mr-1" />
+                  <code>{{'{{'}}product{{'}}'}}</code> yer tutucusu, ürün bilgisiyle değiştirilecektir.
                 </p>
               </div>
               
-              {/* Length Settings */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -1212,33 +906,51 @@ const AIAgentPage: React.FC = () => {
                   </label>
                   <Input
                     type="number"
-                    value={minLength}
-                    onChange={(e) => setMinLength(parseInt(e.target.value))}
+                    value={ruleMinLength}
+                    onChange={(e) => setRuleMinLength(parseInt(e.target.value))}
                     min={1}
                     className="w-full"
                   />
                 </div>
+                
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Maksimum Uzunluk:
                   </label>
                   <Input
                     type="number"
-                    value={maxLength}
-                    onChange={(e) => setMaxLength(parseInt(e.target.value))}
-                    min={1}
+                    value={ruleMaxLength}
+                    onChange={(e) => setRuleMaxLength(parseInt(e.target.value))}
+                    min={ruleMinLength}
                     className="w-full"
                   />
                 </div>
               </div>
               
-              {/* Default Setting */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  API Sağlayıcı:
+                </label>
+                <select
+                  value={ruleApiProviderId}
+                  onChange={(e) => setRuleApiProviderId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="">Sağlayıcı seçin...</option>
+                  {providers.map((provider) => (
+                    <option key={provider.id} value={provider.id}>
+                      {provider.name} ({getProviderTypeName(provider.provider)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
               <div className="flex items-center space-x-2">
                 <input
                   type="checkbox"
                   id="isDefault"
-                  checked={isDefault}
-                  onChange={(e) => setIsDefault(e.target.checked)}
+                  checked={ruleIsDefault}
+                  onChange={(e) => setRuleIsDefault(e.target.checked)}
                   className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
                 />
                 <label htmlFor="isDefault" className="text-sm text-gray-700 dark:text-gray-300">
@@ -1250,16 +962,28 @@ const AIAgentPage: React.FC = () => {
                 <Button
                   onClick={saveRule}
                   className="flex-1"
-                  disabled={!ruleName.trim() || !rulePrompt.trim() || !selectedProviderId}
+                  disabled={savingRule}
                 >
-                  {editingRule ? 'Güncelle' : 'Ekle'}
+                  {savingRule ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                      <span>Kaydediliyor...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      <span>Kaydet</span>
+                    </>
+                  )}
                 </Button>
                 <Button
-                  onClick={() => setShowRuleForm(false)}
+                  onClick={closeRuleForm}
                   variant="secondary"
                   className="flex-1"
+                  disabled={savingRule}
                 >
-                  İptal
+                  <X className="h-4 w-4 mr-2" />
+                  <span>İptal</span>
                 </Button>
               </div>
             </div>
@@ -1267,77 +991,88 @@ const AIAgentPage: React.FC = () => {
         </div>
       )}
 
-      {/* Test Panel */}
+      {/* Test Panel Modal */}
       {showTestPanel && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
-                  <Zap className="h-5 w-5 mr-2 text-orange-500" />
-                  AI Kuralı Test Et
-                </h2>
-                <button
-                  onClick={() => setShowTestPanel(false)}
-                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                AI Kuralı Test Et
+              </h2>
             </div>
             
             <div className="p-6 space-y-4">
-              {/* Test Input */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Test Girdisi (Ürün Bilgisi):
+                  Test Tipi:
+                </label>
+                <div className="flex space-x-4">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      checked={testType === 'title'}
+                      onChange={() => {
+                        setTestType('title');
+                        setTestRuleId(titleRules.find(r => r.isDefault)?.id || titleRules[0]?.id || '');
+                        setTestResult('');
+                      }}
+                      className="rounded-full border-gray-300 text-orange-600 focus:ring-orange-500"
+                    />
+                    <span className="text-gray-700 dark:text-gray-300">Başlık</span>
+                  </label>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      checked={testType === 'tags'}
+                      onChange={() => {
+                        setTestType('tags');
+                        setTestRuleId(tagRules.find(r => r.isDefault)?.id || tagRules[0]?.id || '');
+                        setTestResult('');
+                      }}
+                      className="rounded-full border-gray-300 text-orange-600 focus:ring-orange-500"
+                    />
+                    <span className="text-gray-700 dark:text-gray-300">Etiketler</span>
+                  </label>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Kural:
+                </label>
+                <select
+                  value={testRuleId}
+                  onChange={(e) => setTestRuleId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="">Kural seçin...</option>
+                  {(testType === 'title' ? titleRules : tagRules).map((rule) => (
+                    <option key={rule.id} value={rule.id}>
+                      {rule.name} {rule.isDefault ? '(Varsayılan)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Ürün Bilgisi:
                 </label>
                 <textarea
                   value={testInput}
                   onChange={(e) => setTestInput(e.target.value)}
-                  rows={3}
+                  placeholder="Ürününüzü tanımlayın..."
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 resize-none"
-                  placeholder="Örn: Vintage tarzı el yapımı deri cüzdan, kahverengi, erkekler için"
+                  rows={4}
                 />
               </div>
-              
-              {/* Test Button */}
-              <Button
-                onClick={testRule}
-                className="w-full"
-                disabled={testLoading || !testInput.trim()}
-              >
-                {testLoading ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-                    <span>Test Ediliyor...</span>
-                  </>
-                ) : (
-                  <>
-                    <Zap className="h-4 w-4 mr-2" />
-                    <span>Test Et</span>
-                  </>
-                )}
-              </Button>
-              
-              {/* Test Error */}
-              {testError && (
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-                  <div className="flex items-center space-x-2">
-                    <AlertCircle className="h-4 w-4 text-red-500" />
-                    <p className="text-sm text-red-700 dark:text-red-400">{testError}</p>
-                  </div>
-                </div>
-              )}
               
               {/* Test Result */}
               {testResult && (
                 <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-green-700 dark:text-green-400 mb-2 flex items-center">
-                    <Sparkles className="h-4 w-4 mr-1" />
-                    {testType === 'title' ? 'Oluşturulan Başlık:' : 'Oluşturulan Etiketler:'}
+                  <h3 className="text-sm font-medium text-green-800 dark:text-green-400 mb-2">
+                    Test Sonucu:
                   </h3>
-                  
                   {testType === 'title' ? (
                     <p className="text-green-700 dark:text-green-400">{testResult as string}</p>
                   ) : (
@@ -1358,6 +1093,35 @@ const AIAgentPage: React.FC = () => {
                   )}
                 </div>
               )}
+              
+              <div className="flex space-x-3 pt-4">
+                <Button
+                  onClick={runTest}
+                  className="flex-1"
+                  disabled={testing || !testInput.trim() || !testRuleId}
+                >
+                  {testing ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                      <span>Test Ediliyor...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="h-4 w-4 mr-2" />
+                      <span>Test Et</span>
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={closeTestPanel}
+                  variant="secondary"
+                  className="flex-1"
+                  disabled={testing}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  <span>Kapat</span>
+                </Button>
+              </div>
             </div>
           </div>
         </div>
