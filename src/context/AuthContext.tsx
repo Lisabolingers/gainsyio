@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { useSupabase } from './SupabaseContext';
 
@@ -42,286 +42,267 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Mock user data for local development
+const MOCK_USERS = [
+  {
+    id: '1',
+    email: 'admin@example.com',
+    password: 'password123',
+    profile: {
+      id: '1',
+      email: 'admin@example.com',
+      full_name: 'Admin User',
+      subscription_plan: 'professional' as const,
+      subscription_status: 'active' as const,
+      role: 'admin' as const,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+  },
+  {
+    id: '2',
+    email: 'superadmin@example.com',
+    password: 'password123',
+    profile: {
+      id: '2',
+      email: 'superadmin@example.com',
+      full_name: 'Super Admin',
+      subscription_plan: 'enterprise' as const,
+      subscription_status: 'active' as const,
+      role: 'superadmin' as const,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+  },
+  {
+    id: '3',
+    email: 'user@example.com',
+    password: 'password123',
+    profile: {
+      id: '3',
+      email: 'user@example.com',
+      full_name: 'Regular User',
+      subscription_plan: 'free' as const,
+      subscription_status: 'active' as const,
+      role: 'user' as const,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+  }
+];
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const { supabase } = useSupabase();
+  const { supabase, isConfigured } = useSupabase();
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [useLocalAuth, setUseLocalAuth] = useState(false);
 
-  // Add timeout wrapper for Supabase calls
-  const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number = 10000): Promise<T> => {
-    let timeoutId: NodeJS.Timeout;
-    
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(() => {
-        reject(new Error('İstek zaman aşımına uğradı. Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin.'));
-      }, timeoutMs);
-    });
-    
-    try {
-      const result = await Promise.race([promise, timeoutPromise]);
-      clearTimeout(timeoutId!);
-      return result as T;
-    } catch (error) {
-      clearTimeout(timeoutId!);
-      throw error;
-    }
-  };
-
-  const ensureUserProfile = async (user: User) => {
-    try {
-      console.log('🔍 Checking user profile for:', user.id);
-      
-      // Test basic connectivity first
-      const { error: testError } = await withTimeout(
-        supabase
-          .from('user_profiles')
-          .select('count')
-          .limit(1),
-        5000
-      );
-      
-      if (testError) {
-        console.error('❌ Supabase connectivity test failed:', testError);
-        throw new Error(`Veritabanı bağlantısı başarısız: ${testError.message}`);
-      }
-      
-      console.log('✅ Supabase connectivity test passed');
-
-      // Check if user profile exists
-      const { data: existingProfile, error: fetchError } = await withTimeout(
-        supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('id', user.id)
-          .maybeSingle(),
-        8000
-      );
-
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        // PGRST116 is "not found" error, which is expected if profile doesn't exist
-        console.error('❌ Error checking user profile:', fetchError);
-        throw new Error(`Profil kontrolü başarısız: ${fetchError.message}`);
-      }
-
-      // If profile doesn't exist, create it
-      if (!existingProfile) {
-        console.log('📝 Creating new user profile...');
-        const { data, error: insertError } = await withTimeout(
-          supabase
-            .from('user_profiles')
-            .insert({
-              id: user.id,
-              email: user.email || '',
-              subscription_plan: 'free',
-              subscription_status: 'active',
-              role: 'user' // Default role is 'user'
-            })
-            .select()
-            .single(),
-          8000
-        );
-
-        if (insertError) {
-          console.error('❌ Error creating user profile:', insertError);
-          throw new Error(`Profil oluşturma başarısız: ${insertError.message}`);
-        } else {
-          console.log('✅ User profile created successfully');
-          setUserProfile(data);
-        }
-      } else {
-        console.log('✅ User profile already exists');
-        setUserProfile(existingProfile);
-      }
-    } catch (error: any) {
-      console.error('❌ Error in ensureUserProfile:', error);
-      
-      // Check if it's a network error
-      if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-        const networkError = 'Bağlantı hatası: Sunucuya ulaşılamıyor. Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin.';
-        setError(networkError);
-        throw new Error(networkError);
-      }
-      
-      // Check if it's a CORS error
-      if (error.message?.includes('CORS') || error.message?.includes('Access-Control')) {
-        const corsError = 'CORS hatası: Sunucu yapılandırma sorunu. Lütfen daha sonra tekrar deneyin.';
-        setError(corsError);
-        throw new Error(corsError);
-      }
-      
-      // Check if it's a timeout error
-      if (error.message?.includes('zaman aşımı')) {
-        setError(error.message);
-        throw error;
-      }
-      
-      // Generic error
-      setError(`Kullanıcı profili hatası: ${error.message}`);
-      throw error;
-    }
-  };
-
+  // Check if we should use local auth
   useEffect(() => {
-    // Get initial session
-    const initializeAuth = async () => {
+    const checkConnection = async () => {
       try {
-        console.log('🚀 Initializing authentication...');
-        console.log('📍 Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
-        
-        const { data: { session }, error: sessionError } = await withTimeout(
-          supabase.auth.getSession(),
-          8000
-        );
-        
-        if (sessionError) {
-          console.error('❌ Error getting session:', sessionError);
-          setError(`Oturum hatası: ${sessionError.message}`);
-        } else {
-          console.log('✅ Session retrieved successfully');
-          setSession(session);
-          setUser(session?.user ?? null);
-          
-          // Ensure user profile exists in background (don't block UI)
-          if (session?.user) {
-            console.log('👤 User found, ensuring profile exists...');
-            try {
-              await ensureUserProfile(session.user);
-              console.log('✅ Profile check completed successfully');
-            } catch (error) {
-              console.error('❌ Background profile check failed:', error);
-              // Don't set error state here as it would block the UI
-            }
-          }
+        if (!isConfigured) {
+          console.log('⚠️ Supabase not configured, using local auth');
+          setUseLocalAuth(true);
+          setLoading(false);
+          return;
         }
-      } catch (error: any) {
-        console.error('❌ Error initializing auth:', error);
+
+        // Try to get session from Supabase
+        const { data, error } = await supabase.auth.getSession();
         
-        if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-          setError('Bağlantı hatası: Sunucuya ulaşılamıyor. Lütfen internet bağlantınızı kontrol edin.');
-        } else if (error.message?.includes('zaman aşımı')) {
-          setError(error.message);
+        if (error || !data.session) {
+          console.log('⚠️ Supabase connection failed, using local auth');
+          setUseLocalAuth(true);
         } else {
-          setError(error.message || 'Kimlik doğrulama başlatılamadı');
+          console.log('✅ Supabase connection successful');
+          setUseLocalAuth(false);
         }
+      } catch (err) {
+        console.error('❌ Error checking Supabase connection:', err);
+        setUseLocalAuth(true);
       } finally {
-        // Always set loading to false after 15 seconds maximum
-        const maxLoadingTimeout = setTimeout(() => {
-          if (loading) {
-            console.log('⚠️ Auth loading timed out after 15 seconds');
-            setLoading(false);
-            if (!error) {
-              setError('Kimlik doğrulama zaman aşımına uğradı. Lütfen sayfayı yenileyip tekrar deneyin.');
-            }
-          }
-        }, 15000);
-        
         setLoading(false);
-        return () => clearTimeout(maxLoadingTimeout);
       }
     };
 
-    initializeAuth();
+    checkConnection();
+  }, [isConfigured, supabase]);
 
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔄 Auth state changed:', event);
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        // Fetch user profile when auth state changes
+  // Initialize auth state
+  useEffect(() => {
+    if (useLocalAuth) {
+      // Check if user is logged in locally
+      const storedUser = localStorage.getItem('local_auth_user');
+      if (storedUser) {
         try {
-          console.log('🔍 Fetching user profile after auth change for:', session.user.id);
-          const { data, error } = await withTimeout(
-            supabase
+          const parsedUser = JSON.parse(storedUser);
+          setUser({
+            id: parsedUser.id,
+            email: parsedUser.email,
+            app_metadata: {},
+            user_metadata: {},
+            aud: 'local',
+            created_at: parsedUser.profile.created_at
+          } as User);
+          setUserProfile(parsedUser.profile);
+          setLoading(false);
+        } catch (err) {
+          console.error('❌ Error parsing stored user:', err);
+          localStorage.removeItem('local_auth_user');
+          setLoading(false);
+        }
+      } else {
+        setLoading(false);
+      }
+    } else if (isConfigured) {
+      // Use Supabase auth
+      const initializeAuth = async () => {
+        try {
+          console.log('🚀 Initializing Supabase authentication...');
+          
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          
+          if (sessionError) {
+            console.error('❌ Error getting session:', sessionError);
+            setError(`Session error: ${sessionError.message}`);
+          } else {
+            console.log('✅ Session retrieved successfully');
+            setSession(session);
+            setUser(session?.user ?? null);
+            
+            // Fetch user profile if user exists
+            if (session?.user) {
+              try {
+                const { data, error } = await supabase
+                  .from('user_profiles')
+                  .select('*')
+                  .eq('id', session.user.id)
+                  .single();
+                  
+                if (error) {
+                  console.error('❌ Error fetching user profile:', error);
+                } else {
+                  console.log('✅ User profile fetched successfully');
+                  setUserProfile(data);
+                }
+              } catch (error) {
+                console.error('❌ Error fetching user profile:', error);
+              }
+            }
+          }
+        } catch (error: any) {
+          console.error('❌ Error initializing auth:', error);
+          setError('Connection error: Unable to reach the server. Please check your internet connection.');
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      initializeAuth();
+
+      // Listen for auth changes
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log('🔄 Auth state changed:', event);
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          try {
+            const { data, error } = await supabase
               .from('user_profiles')
               .select('*')
               .eq('id', session.user.id)
-              .single(),
-            8000
-          );
-            
-          if (error) {
+              .single();
+              
+            if (error) {
+              console.error('❌ Error fetching user profile:', error);
+            } else {
+              setUserProfile(data);
+            }
+          } catch (error) {
             console.error('❌ Error fetching user profile:', error);
-            throw error;
           }
-          
-          console.log('✅ User profile fetched successfully:', data);
-          setUserProfile(data);
-        } catch (error) {
-          console.error('❌ Error fetching user profile:', error);
-          // Don't set error state here as it would block the UI
+        } else {
+          setUserProfile(null);
         }
-      } else {
-        setUserProfile(null);
-      }
-      
-      setLoading(false);
-    });
+      });
 
-    return () => subscription.unsubscribe();
-  }, [supabase.auth]);
+      return () => subscription.unsubscribe();
+    }
+  }, [useLocalAuth, isConfigured, supabase]);
 
   const signIn = async (email: string, password: string) => {
     try {
       setError(null);
       setLoading(true);
-      console.log('🔐 Attempting sign in with:', email);
       
-      const { data, error } = await withTimeout(
-        supabase.auth.signInWithPassword({
+      if (useLocalAuth) {
+        // Local authentication
+        console.log('🔐 Using local auth for sign in');
+        const user = MOCK_USERS.find(u => u.email === email && u.password === password);
+        
+        if (!user) {
+          throw new Error('Invalid email or password');
+        }
+        
+        // Store user in localStorage
+        localStorage.setItem('local_auth_user', JSON.stringify(user));
+        
+        // Set user state
+        setUser({
+          id: user.id,
+          email: user.email,
+          app_metadata: {},
+          user_metadata: {},
+          aud: 'local',
+          created_at: user.profile.created_at
+        } as User);
+        setUserProfile(user.profile);
+        
+        console.log('✅ Local sign in successful');
+      } else {
+        // Supabase authentication
+        console.log('🔐 Attempting Supabase sign in with:', email);
+        
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
-        }),
-        10000
-      );
-      
-      if (error) throw error;
-      console.log('✅ Sign in successful');
-      
-      // Fetch user profile after sign in
-      if (data.user) {
-        console.log('🔍 Fetching user profile after sign in for:', data.user.id);
-        const { data: profileData, error: profileError } = await withTimeout(
-          supabase
+        });
+        
+        if (error) throw error;
+        console.log('✅ Supabase sign in successful');
+        
+        // Fetch user profile after sign in
+        if (data.user) {
+          const { data: profileData, error: profileError } = await supabase
             .from('user_profiles')
             .select('*')
             .eq('id', data.user.id)
-            .single(),
-          8000
-        );
-          
-        if (profileError) {
-          console.error('❌ Error fetching user profile after sign in:', profileError);
-          
-          // If profile doesn't exist, create it
-          if (profileError.code === 'PGRST116') {
-            console.log('📝 Profile not found, creating new profile...');
-            await ensureUserProfile(data.user);
+            .single();
+            
+          if (profileError) {
+            console.error('❌ Error fetching user profile after sign in:', profileError);
           } else {
-            throw profileError;
+            console.log('✅ User profile fetched after sign in:', profileData);
+            setUserProfile(profileData);
           }
-        } else {
-          console.log('✅ User profile fetched after sign in:', profileData);
-          setUserProfile(profileData);
         }
       }
     } catch (error: any) {
       console.error('❌ Sign in error:', error);
       
       if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-        setError('Bağlantı hatası: Sunucuya ulaşılamıyor. Lütfen internet bağlantınızı kontrol edin.');
+        setError('Connection error: Unable to reach the server. Please check your internet connection.');
       } else if (error.message?.includes('Invalid login credentials')) {
-        setError('Geçersiz e-posta veya şifre. Lütfen bilgilerinizi kontrol edin.');
-      } else if (error.message?.includes('zaman aşımı')) {
-        setError(error.message);
+        setError('Invalid email or password. Please check your credentials.');
       } else {
-        setError(error.message || 'Giriş sırasında bir hata oluştu. Lütfen tekrar deneyin.');
+        setError(error.message || 'An error occurred during sign in. Please try again.');
       }
       throw error;
     } finally {
@@ -333,38 +314,102 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setError(null);
       setLoading(true);
-      console.log('📝 Attempting sign up...');
       
-      const { data, error } = await withTimeout(
-        supabase.auth.signUp({
+      if (useLocalAuth) {
+        // Local authentication
+        console.log('🔐 Using local auth for sign up');
+        
+        // Check if user already exists
+        if (MOCK_USERS.some(u => u.email === email)) {
+          throw new Error('User with this email already exists');
+        }
+        
+        // Create new user
+        const newUser = {
+          id: (MOCK_USERS.length + 1).toString(),
           email,
           password,
-        }),
-        10000
-      );
-      
-      if (error) throw error;
-      console.log('✅ Sign up successful');
+          profile: {
+            id: (MOCK_USERS.length + 1).toString(),
+            email,
+            full_name: '',
+            subscription_plan: 'free' as const,
+            subscription_status: 'active' as const,
+            role: 'user' as const,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+        };
+        
+        // Add to mock users (in a real app, this would persist to a database)
+        MOCK_USERS.push(newUser);
+        
+        // Store user in localStorage
+        localStorage.setItem('local_auth_user', JSON.stringify(newUser));
+        
+        // Set user state
+        setUser({
+          id: newUser.id,
+          email: newUser.email,
+          app_metadata: {},
+          user_metadata: {},
+          aud: 'local',
+          created_at: newUser.profile.created_at
+        } as User);
+        setUserProfile(newUser.profile);
+        
+        console.log('✅ Local sign up successful');
+      } else {
+        // Supabase authentication
+        console.log('📝 Attempting Supabase sign up...');
+        
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+        
+        if (error) throw error;
+        console.log('✅ Supabase sign up successful');
 
-      // Create user profile record if user was successfully created
-      if (data.user) {
-        try {
-          await ensureUserProfile(data.user);
-          console.log('✅ Profile created after signup');
-        } catch (profileError) {
-          console.error('❌ Profile creation after signup failed:', profileError);
-          // Don't throw here as signup was successful
+        // Create user profile if user was created
+        if (data.user) {
+          try {
+            const { error: profileError } = await supabase
+              .from('user_profiles')
+              .insert({
+                id: data.user.id,
+                email: data.user.email,
+                subscription_plan: 'free',
+                subscription_status: 'active',
+                role: 'user'
+              });
+              
+            if (profileError) {
+              console.error('❌ Error creating user profile:', profileError);
+            } else {
+              console.log('✅ User profile created successfully');
+              
+              // Fetch the created profile
+              const { data: profileData } = await supabase
+                .from('user_profiles')
+                .select('*')
+                .eq('id', data.user.id)
+                .single();
+                
+              setUserProfile(profileData);
+            }
+          } catch (profileError) {
+            console.error('❌ Profile creation failed:', profileError);
+          }
         }
       }
     } catch (error: any) {
       console.error('❌ Sign up error:', error);
       
       if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-        setError('Bağlantı hatası: Sunucuya ulaşılamıyor. Lütfen internet bağlantınızı kontrol edin.');
-      } else if (error.message?.includes('zaman aşımı')) {
-        setError(error.message);
+        setError('Connection error: Unable to reach the server. Please check your internet connection.');
       } else {
-        setError(error.message || 'Kayıt sırasında bir hata oluştu. Lütfen tekrar deneyin.');
+        setError(error.message || 'An error occurred during registration. Please try again.');
       }
       throw error;
     } finally {
@@ -376,25 +421,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setError(null);
       setLoading(true);
-      console.log('🚪 Attempting sign out...');
       
-      const { error } = await withTimeout(
-        supabase.auth.signOut(),
-        8000
-      );
-      
-      if (error) throw error;
-      console.log('✅ Sign out successful');
-      setUserProfile(null);
+      if (useLocalAuth) {
+        // Local authentication
+        console.log('🚪 Using local auth for sign out');
+        
+        // Remove user from localStorage
+        localStorage.removeItem('local_auth_user');
+        
+        // Clear user state
+        setUser(null);
+        setUserProfile(null);
+        
+        console.log('✅ Local sign out successful');
+      } else {
+        // Supabase authentication
+        console.log('🚪 Attempting Supabase sign out...');
+        
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+        
+        console.log('✅ Supabase sign out successful');
+        setUserProfile(null);
+      }
     } catch (error: any) {
       console.error('❌ Sign out error:', error);
       
       if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-        setError('Bağlantı hatası: Çıkış sırasında sunucuya ulaşılamıyor.');
-      } else if (error.message?.includes('zaman aşımı')) {
-        setError(error.message);
+        setError('Connection error: Unable to reach the server during sign out.');
       } else {
-        setError('Çıkış sırasında bir hata oluştu. Lütfen tekrar deneyin.');
+        setError('An error occurred during sign out. Please try again.');
       }
       throw error;
     } finally {
@@ -402,7 +458,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Helper functions to check user roles
+  // Role check functions
   const isSuperAdmin = () => {
     return userProfile?.role === 'superadmin';
   };

@@ -4,19 +4,6 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Enhanced error checking with helpful messages
-if (!supabaseUrl || supabaseUrl === 'https://your-project-id.supabase.co') {
-  console.error('❌ VITE_SUPABASE_URL is missing or using placeholder value');
-  console.error('Please add your actual VITE_SUPABASE_URL to your .env file');
-  console.error('You can find this in your Supabase project dashboard under Settings > API');
-}
-
-if (!supabaseAnonKey || supabaseAnonKey === 'your-anon-key') {
-  console.error('❌ VITE_SUPABASE_ANON_KEY is missing or using placeholder value');
-  console.error('Please add your actual VITE_SUPABASE_ANON_KEY to your .env file');
-  console.error('You can find this in your Supabase project dashboard under Settings > API');
-}
-
 // Define types and context at top level
 interface SupabaseContextType {
   supabase: SupabaseClient;
@@ -63,108 +50,115 @@ if (!isConfigurationValid) {
         eq: () => ({
           single: () => Promise.resolve({ data: null, error: null }),
           maybeSingle: () => Promise.resolve({ data: null, error: null }),
-          limit: () => Promise.resolve({ data: [], error: null }),
+          limit: () => Promise.resolve({ data: null, error: null }),
           order: () => Promise.resolve({ data: [], error: null }),
         }),
-        limit: () => Promise.resolve({ data: [], error: null }),
         order: () => Promise.resolve({ data: [], error: null }),
       }),
-      insert: () => ({
-        select: () => ({
-          single: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
-        }),
-      }),
-      update: () => ({
-        eq: () => ({
-          select: () => ({
-            single: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
-          }),
-        }),
-      }),
-      delete: () => ({
-        eq: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
-      }),
+      insert: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+      update: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+      delete: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
     }),
   } as any;
   
   isConfigured = false;
 } else {
-  // Validate URL format
   try {
-    const url = new URL(supabaseUrl);
-    console.log('✅ Supabase URL format is valid:', url.origin);
-  } catch (error) {
-    console.error('❌ Invalid VITE_SUPABASE_URL format:', supabaseUrl);
-    throw new Error('Geçersiz Supabase URL formatı. Lütfen .env dosyasındaki VITE_SUPABASE_URL değerini kontrol edin.');
-  }
-
-  // Enhanced connection test with better error handling
-  const testSupabaseConnection = async () => {
-    try {
-      console.log('🔍 Testing Supabase connection...');
-      
-      // Use a more reliable connection test
-      const { data, error } = await supabaseClient.auth.getSession();
-      
-      if (error && error.message.includes('Invalid API key')) {
-        console.error('❌ Invalid Supabase API key');
-        console.error('Please check your VITE_SUPABASE_ANON_KEY in .env file');
-        return;
-      }
-      
-      // Test basic database connectivity
-      const { error: dbError } = await supabaseClient
-        .from('user_profiles')
-        .select('count')
-        .limit(0);
-      
-      if (dbError) {
-        console.warn('⚠️ Database connection test failed:', dbError.message);
-        console.warn('This might indicate RLS policies or table access issues');
-      } else {
-        console.log('✅ Supabase connection test successful');
-      }
-      
-    } catch (error) {
-      console.warn('⚠️ Supabase connection test failed:', error);
-      console.warn('This might indicate network issues or incorrect configuration');
-      console.warn('The app will still work, but database features may not function properly');
-    }
-  };
-
-  supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      storageKey: 'gainsy_auth_token',
-    },
-    global: {
-      headers: {
-        'Content-Type': 'application/json',
+    supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        storageKey: 'gainsy_auth_token',
       },
-    },
-  });
-
-  // Add connection monitoring
-  supabaseClient.auth.onAuthStateChange((event) => {
-    if (event === 'SIGNED_IN') {
-      console.log('🔐 User signed in successfully');
-    } else if (event === 'SIGNED_OUT') {
-      console.log('🚪 User signed out');
-    } else if (event === 'TOKEN_REFRESHED') {
-      console.log('🔄 Auth token refreshed');
-    }
-  });
-
-  // Run connection test in development with delay to avoid blocking app startup
-  if (import.meta.env.DEV) {
-    setTimeout(() => {
-      testSupabaseConnection();
-    }, 2000); // Increased delay to 2 seconds
+      global: {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    });
+    isConfigured = true;
+  } catch (error) {
+    console.error('❌ Error creating Supabase client:', error);
+    
+    // Fallback to mock client
+    supabaseClient = {
+      auth: {
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } }, error: null }),
+        getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+        signUp: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+        signInWithPassword: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+        signOut: () => Promise.resolve({ error: null }),
+      },
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            single: () => Promise.resolve({ data: null, error: null }),
+            maybeSingle: () => Promise.resolve({ data: null, error: null }),
+            limit: () => Promise.resolve({ data: null, error: null }),
+            order: () => Promise.resolve({ data: [], error: null }),
+          }),
+          order: () => Promise.resolve({ data: [], error: null }),
+        }),
+        insert: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+        update: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+        delete: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+      }),
+    } as any;
+    
+    isConfigured = false;
   }
-
-  isConfigured = true;
 }
+
+// Enhanced connection test function with retry logic
+export const testSupabaseConnection = async (retries = 3): Promise<boolean> => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      console.log(`🔄 Testing Supabase connection (attempt ${attempt}/${retries})...`);
+      
+      // Test with a simple health check that doesn't require authentication
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      
+      const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+        method: 'HEAD',
+        headers: {
+          'apikey': supabaseAnonKey,
+        },
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        console.log('✅ Supabase connection test successful');
+        return true;
+      } else {
+        console.warn('⚠️ Supabase connection test returned:', response.status, response.statusText);
+        console.warn('This might indicate incorrect API key or project configuration');
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        console.warn('⚠️ Supabase connection test timed out');
+        console.warn('This might indicate network issues or slow connection');
+      } else {
+        console.warn('⚠️ Supabase connection test failed:', err);
+        console.warn('This might indicate network issues or incorrect configuration');
+      }
+      
+      // If this is the last attempt, return false
+      if (attempt === retries) {
+        return false;
+      }
+      
+      // Wait before retrying
+      const delay = Math.pow(2, attempt - 1) * 1000;
+      console.log(`⏳ Waiting ${delay}ms before retry...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  return false;
+};
 
 export const SupabaseProvider: React.FC<SupabaseProviderProps> = ({ children }) => {
   return (
@@ -173,3 +167,6 @@ export const SupabaseProvider: React.FC<SupabaseProviderProps> = ({ children }) 
     </SupabaseContext.Provider>
   );
 };
+
+// Export supabase client for use in other modules
+export { supabaseClient as supabase, supabaseUrl };
