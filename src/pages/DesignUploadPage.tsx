@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Plus, Trash2, X, Check, Image as ImageIcon, FileText, Tag, BookTemplate as Template, Grid as Grid3X3, Send, Sparkles, RefreshCw, Type, Edit, ArrowRight, Pencil } from 'lucide-react';
+import { Upload, Plus, Trash2, X, Check, Image as ImageIcon, FileText, Tag, BookTemplate as Template, Grid as Grid3X3, Send, Sparkles, RefreshCw, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
+import { Card, CardContent } from '../components/ui/Card';
 
 interface DesignItem {
   id: string;
+  designType: 'upload' | 'autoText';
   blackDesign: {
     file: File | null;
     preview: string;
@@ -23,9 +24,13 @@ interface DesignItem {
   tagInput: string;
   template: string;
   mockupFolder: string;
-  designMode: 'upload' | 'autoText';
-  selectedTextTemplate: string;
-  textInputs: { [key: string]: string }; // Text inputs for the template
+  // Auto Text Design fields
+  textTemplate: string;
+  textValues: {
+    text1: string;
+    text2: string;
+    text3: string;
+  };
 }
 
 interface AIRule {
@@ -38,12 +43,6 @@ interface AIRule {
 interface TextTemplate {
   id: string;
   name: string;
-  style_settings?: {
-    texts?: Array<{
-      id: number;
-      text: string;
-    }>;
-  };
 }
 
 const MAX_TITLE_LENGTH = 140;
@@ -55,6 +54,7 @@ const DesignUploadPage: React.FC = () => {
   const [designItems, setDesignItems] = useState<DesignItem[]>([
     {
       id: '1',
+      designType: 'upload',
       blackDesign: { file: null, preview: '' },
       whiteDesign: { file: null, preview: '' },
       title: '',
@@ -64,12 +64,15 @@ const DesignUploadPage: React.FC = () => {
       tagInput: '',
       template: '',
       mockupFolder: '',
-      designMode: 'upload',
-      selectedTextTemplate: '',
-      textInputs: {}
+      textTemplate: '',
+      textValues: {
+        text1: '',
+        text2: '',
+        text3: ''
+      }
     }
   ]);
-  const [templates, setTemplates] = useState([
+  const [templates, setTemplates] = useState<{id: string, name: string}[]>([
     { id: '1', name: 'Vintage Style Template' },
     { id: '2', name: 'Modern Minimalist' },
     { id: '3', name: 'Bold Typography' },
@@ -85,6 +88,13 @@ const DesignUploadPage: React.FC = () => {
     { id: '5', name: 'Canvas Prints' },
     { id: '6', name: 'Tote Bags' },
   ]);
+  const [textTemplates, setTextTemplates] = useState<TextTemplate[]>([
+    { id: '1', name: 'Basic Text Template' },
+    { id: '2', name: 'Curved Text' },
+    { id: '3', name: 'Stacked Text' },
+    { id: '4', name: 'Minimalist Text' },
+    { id: '5', name: 'Bold Typography' },
+  ]);
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState<{[key: string]: boolean}>({});
   const [error, setError] = useState<string | null>(null);
@@ -94,11 +104,6 @@ const DesignUploadPage: React.FC = () => {
   const [titleRules, setTitleRules] = useState<AIRule[]>([]);
   const [tagRules, setTagRules] = useState<AIRule[]>([]);
   const [loadingRules, setLoadingRules] = useState(false);
-  
-  // Text Templates
-  const [textTemplates, setTextTemplates] = useState<TextTemplate[]>([]);
-  const [loadingTemplates, setLoadingTemplates] = useState(false);
-  const [selectedTemplateDetails, setSelectedTemplateDetails] = useState<{[key: string]: TextTemplate}>({});
   
   const blackFileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const whiteFileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -152,76 +157,24 @@ const DesignUploadPage: React.FC = () => {
 
   const loadTextTemplates = async () => {
     try {
-      setLoadingTemplates(true);
       console.log('🔄 Loading text templates...');
       
       const { data, error } = await supabase
         .from('auto_text_templates')
-        .select('id, name, style_settings')
-        .eq('user_id', user?.id)
-        .order('created_at', { ascending: false });
+        .select('id, name')
+        .eq('user_id', user?.id);
       
       if (error) {
         console.error('❌ Text templates loading error:', error);
         throw error;
       }
       
-      setTextTemplates(data || []);
-      console.log(`✅ Loaded ${data?.length || 0} text templates`);
+      if (data && data.length > 0) {
+        setTextTemplates(data);
+        console.log(`✅ Loaded ${data.length} text templates`);
+      }
     } catch (error: any) {
       console.error('❌ Error loading text templates:', error);
-    } finally {
-      setLoadingTemplates(false);
-    }
-  };
-
-  const loadTemplateDetails = async (templateId: string, itemIndex: number) => {
-    if (!templateId) return;
-    
-    try {
-      console.log(`🔄 Loading template details for ${templateId}...`);
-      
-      const { data, error } = await supabase
-        .from('auto_text_templates')
-        .select('*')
-        .eq('id', templateId)
-        .eq('user_id', user?.id)
-        .single();
-      
-      if (error) {
-        console.error('❌ Template details loading error:', error);
-        throw error;
-      }
-      
-      console.log('✅ Template details loaded:', data);
-      
-      // Store template details
-      setSelectedTemplateDetails(prev => ({
-        ...prev,
-        [templateId]: data
-      }));
-      
-      // Initialize text inputs for this template
-      if (data.style_settings?.texts) {
-        const initialTextInputs: { [key: string]: string } = {};
-        data.style_settings.texts.forEach((textItem: any) => {
-          initialTextInputs[`text-${textItem.id}`] = textItem.text || '';
-        });
-        
-        // Update the design item with initial text inputs
-        setDesignItems(prev => prev.map((item, idx) => {
-          if (idx === itemIndex) {
-            return {
-              ...item,
-              textInputs: initialTextInputs
-            };
-          }
-          return item;
-        }));
-      }
-      
-    } catch (error: any) {
-      console.error('❌ Error loading template details:', error);
     }
   };
 
@@ -370,37 +323,23 @@ const DesignUploadPage: React.FC = () => {
     }));
   };
 
-  const handleDesignModeChange = (value: 'upload' | 'autoText', itemIndex: number) => {
-    setDesignItems(prev => prev.map((item, idx) => {
-      if (idx === itemIndex) {
-        return { ...item, designMode: value };
-      }
-      return item;
-    }));
-  };
-
   const handleTextTemplateChange = (value: string, itemIndex: number) => {
     setDesignItems(prev => prev.map((item, idx) => {
       if (idx === itemIndex) {
-        return { ...item, selectedTextTemplate: value };
+        return { ...item, textTemplate: value };
       }
       return item;
     }));
-    
-    // Load template details if a template is selected
-    if (value) {
-      loadTemplateDetails(value, itemIndex);
-    }
   };
 
-  const handleTextInputChange = (itemIndex: number, textId: string, value: string) => {
+  const handleTextValueChange = (field: 'text1' | 'text2' | 'text3', value: string, itemIndex: number) => {
     setDesignItems(prev => prev.map((item, idx) => {
       if (idx === itemIndex) {
-        return {
-          ...item,
-          textInputs: {
-            ...item.textInputs,
-            [textId]: value
+        return { 
+          ...item, 
+          textValues: {
+            ...item.textValues,
+            [field]: value
           }
         };
       }
@@ -408,11 +347,75 @@ const DesignUploadPage: React.FC = () => {
     }));
   };
 
+  const toggleDesignType = (itemIndex: number, type: 'upload' | 'autoText') => {
+    setDesignItems(prev => prev.map((item, idx) => {
+      if (idx === itemIndex) {
+        return { 
+          ...item, 
+          designType: type,
+          // Reset design files when switching to Auto Text Design
+          ...(type === 'autoText' ? {
+            blackDesign: { file: null, preview: '' },
+            whiteDesign: { file: null, preview: '' }
+          } : {})
+        };
+      }
+      return item;
+    }));
+  };
+
+  const generateDesigns = (itemIndex: number) => {
+    const item = designItems[itemIndex];
+    
+    // Check if we have a template and text values
+    if (!item.textTemplate) {
+      setError('Lütfen bir text template seçin.');
+      return;
+    }
+    
+    if (!item.textValues.text1 && !item.textValues.text2 && !item.textValues.text3) {
+      setError('Lütfen en az bir metin alanını doldurun.');
+      return;
+    }
+    
+    // In a real implementation, this would call an API to generate designs
+    // For now, we'll simulate it with placeholder images
+    
+    // Simulate loading
+    setLoading(true);
+    
+    setTimeout(() => {
+      // Generate black and white designs
+      const blackPreview = 'https://images.pexels.com/photos/3094218/pexels-photo-3094218.jpeg?auto=compress&cs=tinysrgb&w=400';
+      const whitePreview = 'https://images.pexels.com/photos/1109354/pexels-photo-1109354.jpeg?auto=compress&cs=tinysrgb&w=400';
+      
+      setDesignItems(prev => prev.map((item, idx) => {
+        if (idx === itemIndex) {
+          return {
+            ...item,
+            blackDesign: {
+              file: null,
+              preview: blackPreview
+            },
+            whiteDesign: {
+              file: null,
+              preview: whitePreview
+            }
+          };
+        }
+        return item;
+      }));
+      
+      setLoading(false);
+    }, 1500);
+  };
+
   const addNewDesignItem = () => {
     setDesignItems(prev => [
       ...prev,
       {
         id: `${Date.now()}`,
+        designType: 'upload',
         blackDesign: { file: null, preview: '' },
         whiteDesign: { file: null, preview: '' },
         title: '',
@@ -422,9 +425,12 @@ const DesignUploadPage: React.FC = () => {
         tagInput: '',
         template: '',
         mockupFolder: '',
-        designMode: 'upload',
-        selectedTextTemplate: '',
-        textInputs: {}
+        textTemplate: '',
+        textValues: {
+          text1: '',
+          text2: '',
+          text3: ''
+        }
       }
     ]);
   };
@@ -616,16 +622,17 @@ const DesignUploadPage: React.FC = () => {
   const handleSubmit = async () => {
     // Validate inputs
     const invalidItems = designItems.filter(item => {
-      if (item.designMode === 'upload') {
+      if (item.designType === 'upload') {
         const hasBlackOrWhite = item.blackDesign.file !== null || item.whiteDesign.file !== null;
         return !item.title.trim() || item.tags.length === 0 || !hasBlackOrWhite || !item.template || !item.mockupFolder;
-      } else { // autoText mode
-        return !item.selectedTextTemplate || !item.title.trim() || item.tags.length === 0 || !item.template || !item.mockupFolder;
+      } else { // autoText
+        const hasDesigns = item.blackDesign.preview !== '' || item.whiteDesign.preview !== '';
+        return !item.title.trim() || item.tags.length === 0 || !hasDesigns || !item.template || !item.mockupFolder;
       }
     });
     
     if (invalidItems.length > 0) {
-      setError('Lütfen her öğe için tüm alanları doldurun ve gerekli seçimleri yapın.');
+      setError('Lütfen her öğe için tüm alanları doldurun ve en az bir tasarım yükleyin.');
       return;
     }
     
@@ -646,6 +653,7 @@ const DesignUploadPage: React.FC = () => {
       setDesignItems([
         {
           id: '1',
+          designType: 'upload',
           blackDesign: { file: null, preview: '' },
           whiteDesign: { file: null, preview: '' },
           title: '',
@@ -655,9 +663,12 @@ const DesignUploadPage: React.FC = () => {
           tagInput: '',
           template: '',
           mockupFolder: '',
-          designMode: 'upload',
-          selectedTextTemplate: '',
-          textInputs: {}
+          textTemplate: '',
+          textValues: {
+            text1: '',
+            text2: '',
+            text3: ''
+          }
         }
       ]);
       
@@ -697,64 +708,6 @@ const DesignUploadPage: React.FC = () => {
     }
   };
 
-  // Function to generate preview designs from text template
-  const generateDesignsFromTemplate = (itemIndex: number) => {
-    const item = designItems[itemIndex];
-    if (!item.selectedTextTemplate) {
-      setError('Lütfen önce bir text şablonu seçin.');
-      return;
-    }
-    
-    const templateDetails = selectedTemplateDetails[item.selectedTextTemplate];
-    if (!templateDetails) {
-      setError('Şablon detayları yüklenemedi. Lütfen tekrar deneyin.');
-      return;
-    }
-    
-    // In a real implementation, this would call a service to generate designs
-    // For now, we'll simulate it with placeholder images
-    
-    // Simulate processing time
-    setAiLoading(prev => ({ ...prev, [`${itemIndex}-template`]: true }));
-    
-    setTimeout(() => {
-      // Create mock designs
-      const blackPreview = 'https://images.pexels.com/photos/3094218/pexels-photo-3094218.jpeg?auto=compress&cs=tinysrgb&w=400';
-      const whitePreview = 'https://images.pexels.com/photos/1109354/pexels-photo-1109354.jpeg?auto=compress&cs=tinysrgb&w=400';
-      
-      // Update design items with previews
-      setDesignItems(prev => prev.map((item, idx) => {
-        if (idx === itemIndex) {
-          return {
-            ...item,
-            blackDesign: {
-              ...item.blackDesign,
-              preview: blackPreview
-            },
-            whiteDesign: {
-              ...item.whiteDesign,
-              preview: whitePreview
-            }
-          };
-        }
-        return item;
-      }));
-      
-      setAiLoading(prev => ({ ...prev, [`${itemIndex}-template`]: false }));
-    }, 2000);
-  };
-
-  // Get template text fields
-  const getTemplateTextFields = (itemIndex: number) => {
-    const item = designItems[itemIndex];
-    if (!item.selectedTextTemplate || !selectedTemplateDetails[item.selectedTextTemplate]) {
-      return [];
-    }
-    
-    const templateDetails = selectedTemplateDetails[item.selectedTextTemplate];
-    return templateDetails.style_settings?.texts || [];
-  };
-
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -788,7 +741,7 @@ const DesignUploadPage: React.FC = () => {
       )}
 
       {/* AI Rules Warning */}
-      {titleRules.length === 0 || tagRules.length === 0 || !titleRules.some(r => r.isDefault) || !tagRules.some(r => r.isDefault) ? (
+      {(titleRules.length === 0 || tagRules.length === 0 || !titleRules.some(r => r.isDefault) || !tagRules.some(r => r.isDefault)) && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
           <div className="flex items-start space-x-3">
             <Sparkles className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
@@ -806,14 +759,14 @@ const DesignUploadPage: React.FC = () => {
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
       {/* Design Items List */}
       <div className="space-y-8">
         {designItems.map((item, itemIndex) => (
           <Card key={item.id} className="border-2 border-gray-200 dark:border-gray-700 overflow-hidden">
-            <CardHeader className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex justify-between items-center">
+            <CardContent className="p-6">
+              <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Tasarım #{itemIndex + 1}
                 </h2>
@@ -829,172 +782,165 @@ const DesignUploadPage: React.FC = () => {
                   </Button>
                 )}
               </div>
-            </CardHeader>
-            <CardContent className="p-6">
-              {/* Design Mode Selector */}
-              <div className="flex items-center space-x-4 mb-4 border-b border-gray-200 dark:border-gray-700 pb-4">
-                <div className="flex items-center space-x-2">
+              
+              {/* Design Type Selection */}
+              <div className="mb-6 flex items-center space-x-4">
+                <label className="flex items-center space-x-2 cursor-pointer">
                   <input
                     type="radio"
-                    id={`uploadDesign-${itemIndex}`}
-                    name={`designMode-${itemIndex}`}
-                    checked={item.designMode === 'upload'}
-                    onChange={() => handleDesignModeChange('upload', itemIndex)}
-                    className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300"
+                    checked={item.designType === 'upload'}
+                    onChange={() => toggleDesignType(itemIndex, 'upload')}
+                    className="form-radio h-4 w-4 text-orange-600"
                   />
-                  <label htmlFor={`uploadDesign-${itemIndex}`} className="text-sm font-medium text-gray-900 dark:text-white">
-                    Upload Design
-                  </label>
-                </div>
+                  <span className="text-gray-900 dark:text-white">Upload Design</span>
+                </label>
                 
-                <div className="flex items-center space-x-2">
+                <label className="flex items-center space-x-2 cursor-pointer">
                   <input
                     type="radio"
-                    id={`autoTextDesign-${itemIndex}`}
-                    name={`designMode-${itemIndex}`}
-                    checked={item.designMode === 'autoText'}
-                    onChange={() => handleDesignModeChange('autoText', itemIndex)}
-                    className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300"
+                    checked={item.designType === 'autoText'}
+                    onChange={() => toggleDesignType(itemIndex, 'autoText')}
+                    className="form-radio h-4 w-4 text-orange-600"
                   />
-                  <label htmlFor={`autoTextDesign-${itemIndex}`} className="text-sm font-medium text-gray-900 dark:text-white">
-                    Auto Text Design
-                  </label>
-                </div>
+                  <span className="text-gray-900 dark:text-white">Auto Text Design</span>
+                </label>
+                
+                {/* Auto Text Design Controls */}
+                {item.designType === 'autoText' && (
+                  <div className="flex items-center space-x-2 flex-1">
+                    <select
+                      value={item.textTemplate}
+                      onChange={(e) => handleTextTemplateChange(e.target.value, itemIndex)}
+                      className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                    >
+                      <option value="">Text Template</option>
+                      {textTemplates.map(template => (
+                        <option key={template.id} value={template.id}>{template.name}</option>
+                      ))}
+                    </select>
+                    
+                    <Input
+                      placeholder="Text 1"
+                      value={item.textValues.text1}
+                      onChange={(e) => handleTextValueChange('text1', e.target.value, itemIndex)}
+                      className="w-32"
+                    />
+                    
+                    <Input
+                      placeholder="Text 2"
+                      value={item.textValues.text2}
+                      onChange={(e) => handleTextValueChange('text2', e.target.value, itemIndex)}
+                      className="w-32"
+                    />
+                    
+                    <Input
+                      placeholder="Text 3"
+                      value={item.textValues.text3}
+                      onChange={(e) => handleTextValueChange('text3', e.target.value, itemIndex)}
+                      className="w-32"
+                    />
+                    
+                    <Button
+                      onClick={() => generateDesigns(itemIndex)}
+                      disabled={!item.textTemplate || (!item.textValues.text1 && !item.textValues.text2 && !item.textValues.text3)}
+                      className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
+                    >
+                      Oluştur
+                    </Button>
+                  </div>
+                )}
               </div>
               
               <div className="grid grid-cols-12 gap-4">
                 {/* First Row - All elements side by side */}
                 <div className="col-span-12 grid grid-cols-12 gap-4">
-                  {/* Design Uploads or Text Template Selection */}
-                  <div className="col-span-2">
-                    {item.designMode === 'upload' ? (
-                      <div className="flex space-x-2">
-                        {/* Black Design */}
-                        <div className="flex-1">
-                          <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
-                            <div className="w-3 h-3 bg-black rounded-full mr-1"></div>
-                            Siyah
-                          </h3>
-                          <div className="relative">
-                            {item.blackDesign.preview ? (
-                              <div className="relative w-full h-20 bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
-                                <img 
-                                  src={item.blackDesign.preview} 
-                                  alt={`Black design ${itemIndex + 1}`} 
-                                  className="w-full h-full object-contain"
-                                />
-                                <button
-                                  onClick={() => removeDesign(itemIndex, 'black')}
-                                  className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                                  title="Tasarımı kaldır"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => blackFileInputRefs.current[itemIndex]?.click()}
-                                className="w-full h-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-white dark:bg-gray-800"
-                              >
-                                <Plus className="h-5 w-5 text-gray-400 dark:text-gray-500 mb-1" />
-                                <span className="text-xs text-gray-500 dark:text-gray-400">Yükle</span>
-                                <input
-                                  ref={el => blackFileInputRefs.current[itemIndex] = el}
-                                  type="file"
-                                  accept="image/*"
-                                  className="hidden"
-                                  onChange={(e) => handleFileSelect(e, itemIndex, 'black')}
-                                />
-                              </button>
-                            )}
+                  {/* Design Uploads - 2 columns */}
+                  <div className="col-span-2 flex space-x-2">
+                    {/* Black Design */}
+                    <div className="flex-1">
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
+                        <div className="w-3 h-3 bg-black rounded-full mr-1"></div>
+                        Siyah
+                      </h3>
+                      <div className="relative">
+                        {item.blackDesign.preview ? (
+                          <div className="relative w-full h-20 bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
+                            <img 
+                              src={item.blackDesign.preview} 
+                              alt={`Black design ${itemIndex + 1}`} 
+                              className="w-full h-full object-contain"
+                            />
+                            <button
+                              onClick={() => removeDesign(itemIndex, 'black')}
+                              className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                              title="Tasarımı kaldır"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
                           </div>
-                        </div>
-
-                        {/* White Design */}
-                        <div className="flex-1">
-                          <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
-                            <div className="w-3 h-3 bg-white border border-gray-300 rounded-full mr-1"></div>
-                            Beyaz
-                          </h3>
-                          <div className="relative">
-                            {item.whiteDesign.preview ? (
-                              <div className="relative w-full h-20 bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
-                                <img 
-                                  src={item.whiteDesign.preview} 
-                                  alt={`White design ${itemIndex + 1}`} 
-                                  className="w-full h-full object-contain"
-                                />
-                                <button
-                                  onClick={() => removeDesign(itemIndex, 'white')}
-                                  className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                                  title="Tasarımı kaldır"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => whiteFileInputRefs.current[itemIndex]?.click()}
-                                className="w-full h-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-gray-800"
-                              >
-                                <Plus className="h-5 w-5 text-gray-400 dark:text-gray-500 mb-1" />
-                                <span className="text-xs text-gray-400">Yükle</span>
-                                <input
-                                  ref={el => whiteFileInputRefs.current[itemIndex] = el}
-                                  type="file"
-                                  accept="image/*"
-                                  className="hidden"
-                                  onChange={(e) => handleFileSelect(e, itemIndex, 'white')}
-                                />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      // Auto Text Design Template Selection
-                      <div className="w-full">
-                        <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
-                          <Type className="h-4 w-4 mr-1 text-orange-500" />
-                          Text Şablonu
-                        </h3>
-                        <div className="flex flex-col space-y-2">
-                          <select
-                            value={item.selectedTextTemplate}
-                            onChange={(e) => handleTextTemplateChange(e.target.value, itemIndex)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                        ) : (
+                          <button
+                            onClick={() => item.designType === 'upload' && blackFileInputRefs.current[itemIndex]?.click()}
+                            className={`w-full h-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-white dark:bg-gray-800 ${item.designType === 'autoText' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            disabled={item.designType === 'autoText'}
                           >
-                            <option value="">Şablon seçin...</option>
-                            {textTemplates.map(template => (
-                              <option key={template.id} value={template.id}>
-                                {template.name}
-                              </option>
-                            ))}
-                          </select>
-                          <div className="flex space-x-2">
-                            <Button
-                              onClick={() => window.location.href = '/admin/templates/auto-text-to-image'}
-                              variant="secondary"
-                              size="sm"
-                              className="text-xs py-1 px-2"
-                            >
-                              <Plus className="h-3 w-3 mr-1" />
-                              <span>Yeni</span>
-                            </Button>
-                            <Button
-                              onClick={() => window.location.href = `/admin/templates/auto-text-to-image${item.selectedTextTemplate ? `?template=${item.selectedTextTemplate}` : ''}`}
-                              variant="secondary"
-                              size="sm"
-                              className="text-xs py-1 px-2"
-                              disabled={!item.selectedTextTemplate}
-                            >
-                              <Edit className="h-3 w-3 mr-1" />
-                              <span>Düzenle</span>
-                            </Button>
-                          </div>
-                        </div>
+                            <Plus className="h-5 w-5 text-gray-400 dark:text-gray-500 mb-1" />
+                            <span className="text-xs text-gray-500 dark:text-gray-400">Yükle</span>
+                            <input
+                              ref={el => blackFileInputRefs.current[itemIndex] = el}
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => handleFileSelect(e, itemIndex, 'black')}
+                              disabled={item.designType === 'autoText'}
+                            />
+                          </button>
+                        )}
                       </div>
-                    )}
+                    </div>
+
+                    {/* White Design */}
+                    <div className="flex-1">
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
+                        <div className="w-3 h-3 bg-white border border-gray-300 rounded-full mr-1"></div>
+                        Beyaz
+                      </h3>
+                      <div className="relative">
+                        {item.whiteDesign.preview ? (
+                          <div className="relative w-full h-20 bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
+                            <img 
+                              src={item.whiteDesign.preview} 
+                              alt={`White design ${itemIndex + 1}`} 
+                              className="w-full h-full object-contain"
+                            />
+                            <button
+                              onClick={() => removeDesign(itemIndex, 'white')}
+                              className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                              title="Tasarımı kaldır"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => item.designType === 'upload' && whiteFileInputRefs.current[itemIndex]?.click()}
+                            className={`w-full h-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-gray-800 ${item.designType === 'autoText' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            disabled={item.designType === 'autoText'}
+                          >
+                            <Plus className="h-5 w-5 text-gray-400 dark:text-gray-500 mb-1" />
+                            <span className="text-xs text-gray-400">Yükle</span>
+                            <input
+                              ref={el => whiteFileInputRefs.current[itemIndex] = el}
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => handleFileSelect(e, itemIndex, 'white')}
+                              disabled={item.designType === 'autoText'}
+                            />
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   {/* Title Section - 3 columns */}
@@ -1205,90 +1151,6 @@ const DesignUploadPage: React.FC = () => {
                   </div>
                 </div>
               </div>
-
-              {/* Auto Text Design Template Fields */}
-              {item.designMode === 'autoText' && item.selectedTextTemplate && (
-                <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-md font-semibold text-gray-900 dark:text-white flex items-center">
-                      <Type className="h-5 w-5 mr-2 text-orange-500" />
-                      Şablon Metinleri
-                    </h3>
-                    <Button
-                      onClick={() => generateDesignsFromTemplate(itemIndex)}
-                      className="flex items-center space-x-1"
-                      size="sm"
-                      disabled={aiLoading[`${itemIndex}-template`]}
-                    >
-                      {aiLoading[`${itemIndex}-template`] ? (
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-4 w-4" />
-                      )}
-                      <span>Tasarım Oluştur</span>
-                    </Button>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {getTemplateTextFields(itemIndex).map((textField: any) => (
-                      <div key={textField.id} className="space-y-2">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Text {textField.id}
-                        </label>
-                        <textarea
-                          value={item.textInputs[`text-${textField.id}`] || textField.text || ''}
-                          onChange={(e) => handleTextInputChange(itemIndex, `text-${textField.id}`, e.target.value)}
-                          placeholder="Metin girin..."
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 resize-none"
-                          rows={2}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {/* Preview Section */}
-                  {(item.blackDesign.preview || item.whiteDesign.preview) && (
-                    <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
-                      <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
-                        Oluşturulan Tasarımlar
-                      </h3>
-                      <div className="flex space-x-4">
-                        {item.blackDesign.preview && (
-                          <div className="flex-1">
-                            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
-                              <div className="w-3 h-3 bg-black rounded-full mr-1"></div>
-                              Siyah Tasarım
-                            </h4>
-                            <div className="relative bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600 aspect-square">
-                              <img 
-                                src={item.blackDesign.preview} 
-                                alt="Black design preview" 
-                                className="w-full h-full object-contain"
-                              />
-                            </div>
-                          </div>
-                        )}
-                        
-                        {item.whiteDesign.preview && (
-                          <div className="flex-1">
-                            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
-                              <div className="w-3 h-3 bg-white border border-gray-300 rounded-full mr-1"></div>
-                              Beyaz Tasarım
-                            </h4>
-                            <div className="relative bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600 aspect-square">
-                              <img 
-                                src={item.whiteDesign.preview} 
-                                alt="White design preview" 
-                                className="w-full h-full object-contain"
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
             </CardContent>
           </Card>
         ))}
