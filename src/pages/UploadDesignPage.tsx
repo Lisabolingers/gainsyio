@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, Trash2, Download, Search, Filter, Grid, List, RefreshCw, AlertCircle, Clock, CheckCircle, X, Image as ImageIcon, FileUp, FileDown } from 'lucide-react';
+import { Upload, Trash2, Download, Search, Filter, Grid, List, RefreshCw, AlertCircle, Clock, CheckCircle, X, Image as ImageIcon, FileUp, FileDown, Folder, Store } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
@@ -18,6 +18,19 @@ interface DesignFile {
   status: 'active' | 'used' | 'expired';
 }
 
+interface EtsyStore {
+  id: string;
+  store_name: string;
+  is_active: boolean;
+}
+
+interface StoreImageFolder {
+  id: string;
+  name: string;
+  path: string;
+  image_count: number;
+}
+
 const UploadDesignPage: React.FC = () => {
   const { user } = useAuth();
   const [designs, setDesigns] = useState<DesignFile[]>([]);
@@ -29,11 +42,19 @@ const UploadDesignPage: React.FC = () => {
   const [designType, setDesignType] = useState<'black' | 'white' | 'color'>('black');
   const [error, setError] = useState<string | null>(null);
   
+  // Yeni state'ler
+  const [stores, setStores] = useState<EtsyStore[]>([]);
+  const [selectedStore, setSelectedStore] = useState<string>('');
+  const [imageFolders, setImageFolders] = useState<StoreImageFolder[]>([]);
+  const [selectedFolder, setSelectedFolder] = useState<string>('');
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
       loadDesigns();
+      loadStores();
+      loadImageFolders();
     }
   }, [user]);
 
@@ -110,6 +131,55 @@ const UploadDesignPage: React.FC = () => {
       setError('Failed to load designs: ' + error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Mağazaları yükleme fonksiyonu
+  const loadStores = async () => {
+    try {
+      console.log('🔄 Loading Etsy stores...');
+      
+      const { data, error } = await supabase
+        .from('stores')
+        .select('id, store_name, is_active')
+        .eq('user_id', user?.id)
+        .eq('platform', 'etsy')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Store loading error:', error);
+        throw error;
+      }
+
+      console.log(`✅ ${data?.length || 0} Etsy stores loaded`);
+      setStores(data || []);
+      
+      if (data && data.length > 0) {
+        setSelectedStore(data[0].id);
+      }
+    } catch (error) {
+      console.error('❌ Store loading general error:', error);
+    }
+  };
+
+  // Görsel klasörlerini yükleme fonksiyonu
+  const loadImageFolders = async () => {
+    try {
+      console.log('🔄 Loading image folders...');
+      
+      // Mock klasör verileri
+      const mockFolders: StoreImageFolder[] = [
+        { id: '1', name: 'Logos', path: 'logos', image_count: 5 },
+        { id: '2', name: 'Banners', path: 'banners', image_count: 3 },
+        { id: '3', name: 'Backgrounds', path: 'backgrounds', image_count: 8 },
+        { id: '4', name: 'Watermarks', path: 'watermarks', image_count: 2 }
+      ];
+      
+      setImageFolders(mockFolders);
+      console.log(`✅ ${mockFolders.length} image folders loaded`);
+    } catch (error) {
+      console.error('❌ Error loading image folders:', error);
     }
   };
 
@@ -352,6 +422,87 @@ const UploadDesignPage: React.FC = () => {
               </>
             )}
           </Button>
+        </div>
+      </div>
+
+      {/* Template and Mockup Selection */}
+      <div className="space-y-8">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 border-2 overflow-hidden">
+          <div className="px-6 py-4 p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Listeleme Şablonu */}
+              <div>
+                <div className="flex items-center mb-2">
+                  <FileUp className="h-5 w-5 text-orange-500 mr-2" />
+                  <span className="text-lg font-medium text-gray-700 dark:text-gray-300">Listeleme Şablonu</span>
+                </div>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="">Şablon seçin...</option>
+                  <option value="template1">Şablon 1</option>
+                  <option value="template2">Şablon 2</option>
+                  <option value="template3">Şablon 3</option>
+                </select>
+              </div>
+
+              {/* Mockup Klasörü */}
+              <div>
+                <div className="flex items-center mb-2">
+                  <ImageIcon className="h-5 w-5 text-orange-500 mr-2" />
+                  <span className="text-lg font-medium text-gray-700 dark:text-gray-300">Mockup Klasörü</span>
+                </div>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="">Klasör seçin...</option>
+                  <option value="folder1">T-Shirt Mockups</option>
+                  <option value="folder2">Mug Mockups</option>
+                  <option value="folder3">Poster Mockups</option>
+                </select>
+              </div>
+
+              {/* Shop Images Folder - YENİ EKLENEN */}
+              <div>
+                <div className="flex items-center mb-2">
+                  <Folder className="h-5 w-5 text-orange-500 mr-2" />
+                  <span className="text-lg font-medium text-gray-700 dark:text-gray-300">Shop Images Folder</span>
+                </div>
+                <select
+                  value={selectedFolder}
+                  onChange={(e) => setSelectedFolder(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="">Klasör seçin...</option>
+                  {imageFolders.map(folder => (
+                    <option key={folder.id} value={folder.path}>
+                      {folder.name} ({folder.image_count})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Choose Shop - YENİ EKLENEN */}
+              <div>
+                <div className="flex items-center mb-2">
+                  <Store className="h-5 w-5 text-orange-500 mr-2" />
+                  <span className="text-lg font-medium text-gray-700 dark:text-gray-300">Choose Shop</span>
+                </div>
+                <select
+                  value={selectedStore}
+                  onChange={(e) => setSelectedStore(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="">Mağaza seçin</option>
+                  {stores.map(store => (
+                    <option key={store.id} value={store.id}>
+                      {store.store_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
