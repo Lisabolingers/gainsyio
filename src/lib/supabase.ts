@@ -18,6 +18,45 @@ let supabase: SupabaseClient;
 if (!isConfigValid) {
   console.warn('⚠️ Supabase configuration incomplete. Using mock client.');
   
+  // Create a comprehensive mock query builder that supports chaining
+  const createMockQueryBuilder = () => {
+    const mockQueryBuilder: any = {
+      select: () => mockQueryBuilder,
+      eq: () => mockQueryBuilder,
+      neq: () => mockQueryBuilder,
+      gt: () => mockQueryBuilder,
+      gte: () => mockQueryBuilder,
+      lt: () => mockQueryBuilder,
+      lte: () => mockQueryBuilder,
+      like: () => mockQueryBuilder,
+      ilike: () => mockQueryBuilder,
+      is: () => mockQueryBuilder,
+      in: () => mockQueryBuilder,
+      contains: () => mockQueryBuilder,
+      containedBy: () => mockQueryBuilder,
+      rangeGt: () => mockQueryBuilder,
+      rangeGte: () => mockQueryBuilder,
+      rangeLt: () => mockQueryBuilder,
+      rangeLte: () => mockQueryBuilder,
+      rangeAdjacent: () => mockQueryBuilder,
+      overlaps: () => mockQueryBuilder,
+      textSearch: () => mockQueryBuilder,
+      match: () => mockQueryBuilder,
+      not: () => mockQueryBuilder,
+      or: () => mockQueryBuilder,
+      filter: () => mockQueryBuilder,
+      order: () => mockQueryBuilder,
+      limit: () => mockQueryBuilder,
+      range: () => mockQueryBuilder,
+      abortSignal: () => mockQueryBuilder,
+      single: () => Promise.resolve({ data: null, error: null }),
+      maybeSingle: () => Promise.resolve({ data: null, error: null }),
+      then: (resolve: any) => resolve({ data: [], error: null }),
+      catch: (reject: any) => mockQueryBuilder,
+    };
+    return mockQueryBuilder;
+  };
+
   // Create a mock client to prevent app crashes
   supabase = {
     auth: {
@@ -27,31 +66,50 @@ if (!isConfigValid) {
       signInWithPassword: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
       signOut: () => Promise.resolve({ error: null }),
     },
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          single: () => Promise.resolve({ data: null, error: null }),
-          maybeSingle: () => Promise.resolve({ data: null, error: null }),
-          limit: () => Promise.resolve({ data: [], error: null }),
-          order: () => Promise.resolve({ data: [], error: null }),
-        }),
-        order: () => Promise.resolve({ data: [], error: null }),
+    from: () => {
+      const mockQueryBuilder = createMockQueryBuilder();
+      
+      // Add additional methods that return the query builder for chaining
+      mockQueryBuilder.insert = () => {
+        const insertBuilder = createMockQueryBuilder();
+        insertBuilder.select = () => insertBuilder;
+        insertBuilder.single = () => Promise.resolve({ data: null, error: null });
+        return insertBuilder;
+      };
+      
+      mockQueryBuilder.update = () => {
+        const updateBuilder = createMockQueryBuilder();
+        updateBuilder.eq = () => updateBuilder;
+        updateBuilder.select = () => updateBuilder;
+        updateBuilder.single = () => Promise.resolve({ data: null, error: null });
+        return updateBuilder;
+      };
+      
+      mockQueryBuilder.delete = () => {
+        const deleteBuilder = createMockQueryBuilder();
+        deleteBuilder.eq = () => deleteBuilder;
+        return deleteBuilder;
+      };
+      
+      mockQueryBuilder.upsert = () => {
+        const upsertBuilder = createMockQueryBuilder();
+        upsertBuilder.select = () => upsertBuilder;
+        upsertBuilder.single = () => Promise.resolve({ data: null, error: null });
+        return upsertBuilder;
+      };
+      
+      return mockQueryBuilder;
+    },
+    storage: {
+      from: () => ({
+        upload: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+        download: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+        remove: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+        list: () => Promise.resolve({ data: [], error: null }),
+        getPublicUrl: () => ({ data: { publicUrl: '' } }),
       }),
-      insert: () => ({
-        select: () => ({
-          single: () => Promise.resolve({ data: null, error: null }),
-        }),
-      }),
-      update: () => ({
-        eq: () => Promise.resolve({ data: null, error: null }),
-        select: () => ({
-          single: () => Promise.resolve({ data: null, error: null }),
-        }),
-      }),
-      delete: () => ({
-        eq: () => Promise.resolve({ data: null, error: null }),
-      }),
-    }),
+    },
+    rpc: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
   } as unknown as SupabaseClient;
 } else {
   // Validate URL format
