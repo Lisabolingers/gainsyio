@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import { Eye, EyeOff, AlertTriangle, Info } from 'lucide-react';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -9,7 +9,7 @@ const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { user, signIn, loading: authLoading, error: authError } = useAuth();
+  const { signIn, user, isDemoMode } = useAuth();
   const navigate = useNavigate();
 
   // Redirect if already logged in
@@ -31,7 +31,7 @@ const LoginPage: React.FC = () => {
       navigate('/admin');
     } catch (err: any) {
       console.error('❌ Login failed:', err);
-      setError(err.message || 'An error occurred during sign in');
+      setError(err.message || 'Giriş sırasında bir hata oluştu');
     } finally {
       setLoading(false);
     }
@@ -62,7 +62,7 @@ const LoginPage: React.FC = () => {
         {/* Login Form */}
         <div className="bg-white dark:bg-gray-800 rounded-lg p-8 shadow-xl">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">
-            Sign In to Your Account
+            Hesabınıza Giriş Yapın
           </h1>
 
           {error && (
@@ -72,17 +72,25 @@ const LoginPage: React.FC = () => {
             </div>
           )}
 
-          {authError && (
-            <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg mb-6 flex items-start">
-              <AlertTriangle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
-              <span>{authError}</span>
+          {isDemoMode && (
+            <div className="bg-blue-500/10 border border-blue-500 text-blue-400 px-4 py-3 rounded-lg mb-6 flex items-start">
+              <Info className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-medium mb-1">Demo Mode Active</p>
+                <p className="text-sm">
+                  Sample accounts:<br />
+                  <strong>User:</strong> user@example.com / password<br />
+                  <strong>Admin:</strong> admin@example.com / password<br />
+                  <strong>Super Admin:</strong> superadmin@example.com / password
+                </p>
+              </div>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Email Address
+                E-posta Adresi
               </label>
               <input
                 type="email"
@@ -90,14 +98,14 @@ const LoginPage: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                placeholder="example@email.com"
+                placeholder="ornek@email.com"
                 required
               />
             </div>
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Password
+                Şifre
               </label>
               <div className="relative">
                 <input
@@ -106,7 +114,7 @@ const LoginPage: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent pr-12"
-                  placeholder="Enter your password"
+                  placeholder="Şifrenizi girin"
                   required
                 />
                 <button
@@ -124,36 +132,26 @@ const LoginPage: React.FC = () => {
                 to="/forgot-password"
                 className="text-sm text-orange-400 hover:text-orange-300 transition-colors"
               >
-                Forgot Password?
+                Şifremi Unuttum
               </Link>
             </div>
 
             <button
               type="submit"
-              disabled={loading || authLoading}
+              disabled={loading}
               className="w-full px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading || authLoading ? 'Signing In...' : 'Sign In'}
+              {loading ? 'Giriş Yapılıyor...' : 'Giriş Yap'}
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <p className="text-gray-600 dark:text-gray-400">
-              Don't have an account?{' '}
+              Hesabınız yok mu?{' '}
               <Link to="/register" className="text-orange-400 hover:text-orange-300 transition-colors">
-                Sign Up Free
+                Ücretsiz Kaydolun
               </Link>
             </p>
-          </div>
-
-          {/* Demo Accounts Info */}
-          <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Demo Accounts:</h3>
-            <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
-              <p><strong>Admin:</strong> admin@example.com / password123</p>
-              <p><strong>Super Admin:</strong> superadmin@example.com / password123</p>
-              <p><strong>Regular User:</strong> user@example.com / password123</p>
-            </div>
           </div>
         </div>
       </div>

@@ -6,112 +6,130 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 console.log('🔧 Supabase Configuration Check:');
 console.log('URL:', supabaseUrl ? '✅ Present' : '❌ Missing');
 console.log('Key:', supabaseAnonKey ? '✅ Present' : '❌ Missing');
-console.log('URL Valid:', supabaseUrl && !supabaseUrl.includes('localhost') && supabaseUrl !== 'https://your-project-id.supabase.co' ? '✅ Valid' : '❌ Invalid');
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('❌ Missing Supabase environment variables');
-  console.error('VITE_SUPABASE_URL:', supabaseUrl || '[MISSING]');
-  console.error('VITE_SUPABASE_ANON_KEY:', supabaseAnonKey ? '[PRESENT]' : '[MISSING]');
-  throw new Error('Supabase ortam değişkenleri eksik. Lütfen .env dosyanızı kontrol edin.');
+// Check if configuration is valid
+const isConfigValid = !(!supabaseUrl || !supabaseAnonKey || 
+  supabaseUrl === 'https://your-project-id.supabase.co' || 
+  supabaseAnonKey === 'your-anon-key');
+
+// Create appropriate client based on configuration
+let supabase;
+
+if (!isConfigValid) {
+  console.warn('⚠️ Supabase configuration incomplete. Using mock client.');
+  
+  // Create a mock client to prevent app crashes
+  supabase = {
+    auth: {
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } }, error: null }),
+      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      signUp: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+      signInWithPassword: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+      signOut: () => Promise.resolve({ error: null }),
+    },
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          single: () => Promise.resolve({ data: null, error: null }),
+          maybeSingle: () => Promise.resolve({ data: null, error: null }),
+          limit: () => Promise.resolve({ data: [], error: null }),
+          order: () => Promise.resolve({ data: [], error: null }),
+        }),
+        order: () => Promise.resolve({ data: [], error: null }),
+      }),
+      insert: () => ({
+        select: () => ({
+          single: () => Promise.resolve({ data: null, error: null }),
+        }),
+      }),
+      update: () => ({
+        eq: () => Promise.resolve({ data: null, error: null }),
+        select: () => ({
+          single: () => Promise.resolve({ data: null, error: null }),
+        }),
+      }),
+      delete: () => ({
+        eq: () => Promise.resolve({ data: null, error: null }),
+      }),
+    }),
+  };
+} else {
+  // Validate URL format
+  try {
+    const url = new URL(supabaseUrl);
+    console.log('✅ Supabase URL format is valid:', url.origin);
+  } catch (error) {
+    console.error('❌ Invalid VITE_SUPABASE_URL format:', supabaseUrl);
+    throw new Error('Geçersiz Supabase URL formatı. Lütfen .env dosyasındaki VITE_SUPABASE_URL değerini kontrol edin.');
+  }
+
+  // Create real client
+  supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      storageKey: 'gainsy_auth_token',
+    },
+    global: {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    },
+    // Add timeout settings
+    fetch: (url, options) => {
+      return fetch(url, {
+        ...options,
+        signal: AbortSignal.timeout(10000), // 10 second timeout
+      });
+    },
+  });
 }
 
-// Create Supabase client with robust error handling
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-  global: {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  },
-  // Add reasonable timeouts to prevent hanging
-  realtime: {
-    timeout: 30000, // 30 seconds
-  },
-});
+// Export supabase client
+export { supabase, supabaseUrl, isConfigValid };
 
-// Export supabaseUrl for use in other modules
-export { supabaseUrl };
-
-// Robust connection test function with proper error handling
+// Enhanced connection test function with retry logic
 export const testSupabaseConnection = async (retries = 3): Promise<boolean> => {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       console.log(`🔄 Testing Supabase connection (attempt ${attempt}/${retries})...`);
       
-      // Create a timeout promise that rejects after 10 seconds
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Connection timeout')), 10000)
-      );
+      // Use a simple health check that doesn't require authentication
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
       
-      // Create a connection test promise
-      const testPromise = supabase
-        .from('user_profiles')
-        .select('count')
-        .limit(1)
-        .then(result => {
-          // Even if we get a permission error, the connection is working
-          if (result.error && result.error.code === 'PGRST301') {
-            return { success: true }; // RLS policy error means connection works
-          }
-          return result;
-        });
+      const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+        method: 'HEAD',
+        headers: {
+          'apikey': supabaseAnonKey,
+        },
+        signal: controller.signal,
+      });
       
-      // Race the promises
-      const result = await Promise.race([testPromise, timeoutPromise]) as any;
+      clearTimeout(timeoutId);
       
-      // If we got a result (even with permission error), the connection works
-      if (result && !result.error) {
+      if (response.ok) {
         console.log('✅ Supabase connection test successful');
         return true;
-      }
-      
-      if (result && result.success) {
-        console.log('✅ Supabase connection works (with permission error)');
-        return true;
-      }
-      
-      if (result && result.error) {
-        console.log(`⚠️ Supabase returned error: ${result.error.message}`);
+      } else {
+        console.warn('⚠️ Supabase connection test returned:', response.status, response.statusText);
+        console.warn('This might indicate incorrect API key or project configuration');
         
-        // If it's a permission error, the connection is working
-        if (result.error.code === 'PGRST301') {
-          console.log('✅ Supabase connection works (with permission error)');
-          return true;
-        }
-        
-        // If it's an invalid API key, fail immediately
-        if (result.error.message.includes('invalid API key')) {
-          console.error('❌ Invalid Supabase API key');
+        // If this is the last attempt, return false
+        if (attempt === retries) {
           return false;
         }
       }
-      
-      // If this is the last attempt, return false
-      if (attempt === retries) {
-        console.error('❌ All connection attempts failed');
-        return false;
-      }
-      
-      // Wait before retrying with exponential backoff
-      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
-      console.log(`⏳ Waiting ${delay}ms before retry...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      
     } catch (err: any) {
-      console.log(`⚠️ Supabase connection test error (attempt ${attempt}):`, err.message);
+      console.error(`❌ Supabase connection test error (attempt ${attempt}):`, err);
       
       // If this is the last attempt, return false
       if (attempt === retries) {
-        console.error('❌ All connection attempts failed');
         return false;
       }
       
-      // Wait before retrying with exponential backoff
-      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+      // Wait before retrying (exponential backoff)
+      const delay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s...
       console.log(`⏳ Waiting ${delay}ms before retry...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
