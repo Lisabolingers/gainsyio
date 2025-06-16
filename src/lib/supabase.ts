@@ -9,7 +9,7 @@ console.log('Key:', supabaseAnonKey ? '✅ Present' : '❌ Missing');
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('❌ Missing Supabase environment variables');
-  console.error('VITE_SUPABASE_URL:', supabaseUrl);
+  console.error('VITE_SUPABASE_URL:', supabaseUrl || '[MISSING]');
   console.error('VITE_SUPABASE_ANON_KEY:', supabaseAnonKey ? '[PRESENT]' : '[MISSING]');
   throw new Error('Missing Supabase environment variables. Please check your .env file.');
 }

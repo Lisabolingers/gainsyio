@@ -1,5 +1,5 @@
-import React from 'react';
-import { Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 interface ProtectedRouteProps {
@@ -14,6 +14,18 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requireAdmin = false
 }) => {
   const { user, userProfile, loading, error } = useAuth();
+  const navigate = useNavigate();
+
+  // Debug logging
+  useEffect(() => {
+    console.log('🔒 Protected Route Check:', {
+      user: user ? 'Exists' : 'None',
+      userProfile: userProfile ? `Role: ${userProfile.role}` : 'None',
+      loading,
+      requireSuperAdmin,
+      requireAdmin
+    });
+  }, [user, userProfile, loading, requireSuperAdmin, requireAdmin]);
 
   if (loading) {
     return (
@@ -46,19 +58,23 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Check if user is authenticated
   if (!user) {
+    console.log('❌ User not authenticated, redirecting to login');
     return <Navigate to="/login" replace />;
   }
 
   // Check for super admin access
   if (requireSuperAdmin && userProfile?.role !== 'superadmin') {
+    console.log('❌ Super admin required but user is not super admin, redirecting to admin');
     return <Navigate to="/admin" replace />;
   }
 
   // Check for admin access (admin or superadmin)
   if (requireAdmin && !['admin', 'superadmin'].includes(userProfile?.role || '')) {
+    console.log('❌ Admin required but user is not admin, redirecting to admin');
     return <Navigate to="/admin" replace />;
   }
 
+  console.log('✅ Access granted to protected route');
   return <>{children}</>;
 };
 

@@ -61,6 +61,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+    storageKey: 'gainsy_auth_token',
   },
   global: {
     headers: {

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, AlertTriangle } from 'lucide-react';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -9,8 +9,15 @@ const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { signIn } = useAuth();
+  const { signIn, user } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/admin');
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,11 +25,13 @@ const LoginPage: React.FC = () => {
     setError('');
 
     try {
+      console.log('🔐 Attempting to sign in with:', email);
       await signIn(email, password);
+      console.log('✅ Sign in successful, redirecting to admin panel');
       navigate('/admin');
     } catch (err: any) {
-      // Error is handled by the auth context
-      console.error('Login failed:', err);
+      console.error('❌ Login failed:', err);
+      setError(err.message || 'An error occurred during sign in');
     } finally {
       setLoading(false);
     }
@@ -57,8 +66,9 @@ const LoginPage: React.FC = () => {
           </h1>
 
           {error && (
-            <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg mb-6">
-              {error}
+            <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg mb-6 flex items-start">
+              <AlertTriangle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
+              <span>{error}</span>
             </div>
           )}
 

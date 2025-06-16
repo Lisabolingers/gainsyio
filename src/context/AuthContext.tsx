@@ -149,10 +149,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Ensure user profile exists in background (don't block UI)
           if (session?.user) {
             console.log('👤 User found, ensuring profile exists...');
-            ensureUserProfile(session.user).catch((error) => {
+            try {
+              await ensureUserProfile(session.user);
+              console.log('✅ Profile check completed successfully');
+            } catch (error) {
               console.error('❌ Background profile check failed:', error);
               // Don't set error state here as it would block the UI
-            });
+            }
           }
         }
       } catch (error: any) {
@@ -181,13 +184,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (session?.user) {
         // Fetch user profile when auth state changes
         try {
+          console.log('🔍 Fetching user profile after auth change for:', session.user.id);
           const { data, error } = await supabase
             .from('user_profiles')
             .select('*')
             .eq('id', session.user.id)
             .single();
             
-          if (error) throw error;
+          if (error) {
+            console.error('❌ Error fetching user profile:', error);
+            throw error;
+          }
+          
+          console.log('✅ User profile fetched successfully:', data);
           setUserProfile(data);
         } catch (error) {
           console.error('❌ Error fetching user profile:', error);
@@ -219,14 +228,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       // Fetch user profile after sign in
       if (data.user) {
+        console.log('🔍 Fetching user profile after sign in for:', data.user.id);
         const { data: profileData, error: profileError } = await supabase
           .from('user_profiles')
           .select('*')
           .eq('id', data.user.id)
           .single();
           
-        if (profileError) throw profileError;
-        setUserProfile(profileData);
+        if (profileError) {
+          console.error('❌ Error fetching user profile after sign in:', profileError);
+          
+          // If profile doesn't exist, create it
+          if (profileError.code === 'PGRST116') {
+            console.log('📝 Profile not found, creating new profile...');
+            await ensureUserProfile(data.user);
+          } else {
+            throw profileError;
+          }
+        } else {
+          console.log('✅ User profile fetched after sign in:', profileData);
+          setUserProfile(profileData);
+        }
       }
     } catch (error: any) {
       console.error('❌ Sign in error:', error);
@@ -260,10 +282,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Create user profile record if user was successfully created
       if (data.user) {
-        ensureUserProfile(data.user).catch((error) => {
-          console.error('❌ Profile creation after signup failed:', error);
+        try {
+          await ensureUserProfile(data.user);
+          console.log('✅ Profile created after signup');
+        } catch (profileError) {
+          console.error('❌ Profile creation after signup failed:', profileError);
           // Don't throw here as signup was successful
-        });
+        }
       }
     } catch (error: any) {
       console.error('❌ Sign up error:', error);
