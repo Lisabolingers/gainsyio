@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Plus, Trash2, X, Check, Image as ImageIcon, FileText, Tag, BookTemplate as Template, Grid as Grid3X3, Send, Sparkles, RefreshCw } from 'lucide-react';
+import { Upload, Plus, Trash2, X, Check, Image as ImageIcon, FileText, Tag, BookTemplate as Template, Grid as Grid3X3, Send, Sparkles, RefreshCw, Type } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
@@ -30,6 +30,11 @@ interface AIRule {
   type: 'title' | 'tags';
   name: string;
   isDefault: boolean;
+}
+
+interface TextTemplate {
+  id: string;
+  name: string;
 }
 
 const MAX_TITLE_LENGTH = 140;
@@ -78,6 +83,13 @@ const DesignUploadPage: React.FC = () => {
   const [tagRules, setTagRules] = useState<AIRule[]>([]);
   const [loadingRules, setLoadingRules] = useState(false);
   
+  // Design Mode
+  const [designMode, setDesignMode] = useState<'upload' | 'autoText'>('upload');
+  
+  // Text Templates
+  const [textTemplates, setTextTemplates] = useState<TextTemplate[]>([]);
+  const [selectedTextTemplate, setSelectedTextTemplate] = useState<string>('');
+  
   const blackFileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const whiteFileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const tagInputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -93,6 +105,7 @@ const DesignUploadPage: React.FC = () => {
   useEffect(() => {
     if (user) {
       loadAIRules();
+      loadTextTemplates();
     }
   }, [user]);
 
@@ -124,6 +137,28 @@ const DesignUploadPage: React.FC = () => {
       // Don't show error to user, just log it
     } finally {
       setLoadingRules(false);
+    }
+  };
+
+  const loadTextTemplates = async () => {
+    try {
+      console.log('🔄 Loading text templates...');
+      
+      const { data, error } = await supabase
+        .from('auto_text_templates')
+        .select('id, name')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('❌ Text templates loading error:', error);
+        throw error;
+      }
+      
+      setTextTemplates(data || []);
+      console.log(`✅ Loaded ${data?.length || 0} text templates`);
+    } catch (error: any) {
+      console.error('❌ Error loading text templates:', error);
     }
   };
 
@@ -583,8 +618,39 @@ const DesignUploadPage: React.FC = () => {
         </div>
       )}
 
+      {/* Design Mode Selector */}
+      <div className="flex items-center space-x-4 border-b border-gray-200 dark:border-gray-700 pb-4">
+        <div className="flex items-center space-x-2">
+          <input
+            type="radio"
+            id="uploadDesign"
+            name="designMode"
+            checked={designMode === 'upload'}
+            onChange={() => setDesignMode('upload')}
+            className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300"
+          />
+          <label htmlFor="uploadDesign" className="text-sm font-medium text-gray-900 dark:text-white">
+            Upload Design
+          </label>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <input
+            type="radio"
+            id="autoTextDesign"
+            name="designMode"
+            checked={designMode === 'autoText'}
+            onChange={() => setDesignMode('autoText')}
+            className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300"
+          />
+          <label htmlFor="autoTextDesign" className="text-sm font-medium text-gray-900 dark:text-white">
+            Auto Text Design
+          </label>
+        </div>
+      </div>
+
       {/* AI Rules Warning */}
-      {(titleRules.length === 0 || tagRules.length === 0 || !titleRules.some(r => r.isDefault) || !tagRules.some(r => r.isDefault)) && (
+      {designMode === 'upload' && (titleRules.length === 0 || tagRules.length === 0 || !titleRules.some(r => r.isDefault) || !tagRules.some(r => r.isDefault)) && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
           <div className="flex items-start space-x-3">
             <Sparkles className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
@@ -600,6 +666,56 @@ const DesignUploadPage: React.FC = () => {
                 {tagRules.length > 0 && !tagRules.some(r => r.isDefault) && <span className="block mt-1">• Bir etiket kuralını varsayılan olarak ayarlamanız gerekiyor</span>}
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auto Text Design Templates */}
+      {designMode === 'autoText' && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+          <div className="flex flex-wrap gap-3 items-center">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Text Templates:
+            </label>
+            
+            <select
+              value={selectedTextTemplate}
+              onChange={(e) => setSelectedTextTemplate(e.target.value)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+            >
+              <option value="">Şablon seçin...</option>
+              {textTemplates.map(template => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+            
+            <Button
+              onClick={() => window.location.href = '/admin/templates/auto-text-to-image'}
+              variant="secondary"
+              className="flex items-center space-x-2"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Yeni Şablon</span>
+            </Button>
+            
+            <Button
+              onClick={() => window.location.href = `/admin/templates/auto-text-to-image${selectedTextTemplate ? `?template=${selectedTextTemplate}` : ''}`}
+              variant="secondary"
+              className="flex items-center space-x-2"
+              disabled={!selectedTextTemplate}
+            >
+              <Type className="h-4 w-4" />
+              <span>Şablonu Düzenle</span>
+            </Button>
+            
+            <Button
+              className="ml-auto"
+              disabled={!selectedTextTemplate}
+            >
+              Oluştur
+            </Button>
           </div>
         </div>
       )}
