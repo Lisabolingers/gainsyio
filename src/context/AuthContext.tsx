@@ -142,13 +142,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.error('❌ Error getting session:', sessionError);
           setError(`Session error: ${sessionError.message}`);
         } else {
-          console.log('✅ Session retrieved successfully');
+          console.log('✅ Session retrieved successfully', session);
           setSession(session);
           setUser(session?.user ?? null);
           
           // Ensure user profile exists in background (don't block UI)
           if (session?.user) {
-            console.log('👤 User found, ensuring profile exists...');
+            console.log('👤 User found, ensuring profile exists...', session.user);
             try {
               await ensureUserProfile(session.user);
               console.log('✅ Profile check completed successfully');
@@ -177,7 +177,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔄 Auth state changed:', event);
+      console.log('🔄 Auth state changed:', event, session);
       setSession(session);
       setUser(session?.user ?? null);
       
@@ -224,7 +224,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       
       if (error) throw error;
-      console.log('✅ Sign in successful');
+      console.log('✅ Sign in successful', data);
       
       // Fetch user profile after sign in
       if (data.user) {
@@ -278,7 +278,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       
       if (error) throw error;
-      console.log('✅ Sign up successful');
+      console.log('✅ Sign up successful', data);
 
       // Create user profile record if user was successfully created
       if (data.user) {

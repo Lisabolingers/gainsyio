@@ -15,6 +15,7 @@ const LoginPage: React.FC = () => {
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
+      console.log('✅ User already logged in, redirecting to admin panel');
       navigate('/admin');
     }
   }, [user, navigate]);
