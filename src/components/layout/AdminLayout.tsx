@@ -33,7 +33,7 @@ const AdminLayout: React.FC = () => {
       ]
     },
     { 
-      name: 'Research', 
+      name: 'Listing', 
       href: '/admin/listing', 
       icon: PlusCircle,
       hasSubmenu: true,
