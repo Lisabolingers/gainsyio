@@ -895,7 +895,7 @@ const AIAgentPage: React.FC = () => {
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   <Info className="h-3 w-3 inline mr-1" />
-                  <code>{{'{{'}}product{{'}}'}}</code> yer tutucusu, ürün bilgisiyle değiştirilecektir.
+                  <code>&lbrace;&lbrace;product&rbrace;&rbrace;</code> yer tutucusu, ürün bilgisiyle değiştirilecektir.
                 </p>
               </div>
               
