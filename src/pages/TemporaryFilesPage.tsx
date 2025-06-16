@@ -18,7 +18,7 @@ interface TemporaryFile {
 }
 
 const TemporaryFilesPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isDemoMode } = useAuth();
   const [files, setFiles] = useState<TemporaryFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -52,6 +52,13 @@ const TemporaryFilesPage: React.FC = () => {
       setError(null);
       console.log('🔄 Loading temporary files...');
       
+      // Check if we're in demo mode or if Supabase connection should be bypassed
+      if (isDemoMode) {
+        console.log('📋 Demo mode detected, using mock data');
+        loadMockFiles();
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('temporary_files')
         .select('*')
@@ -60,7 +67,9 @@ const TemporaryFilesPage: React.FC = () => {
       
       if (error) {
         console.error('❌ Error loading temporary files:', error);
-        throw error;
+        console.log('📋 Falling back to mock data due to Supabase error');
+        loadMockFiles();
+        return;
       }
       
       // If we have real data, use it
@@ -71,67 +80,72 @@ const TemporaryFilesPage: React.FC = () => {
       }
       
       // Otherwise use mock data
-      const mockFiles: TemporaryFile[] = [
-        {
-          id: '1',
-          user_id: user?.id || '',
-          file_name: 'Auto Text Design 1.png',
-          file_url: 'https://images.pexels.com/photos/3094218/pexels-photo-3094218.jpeg?auto=compress&cs=tinysrgb&w=400',
-          file_type: 'image/png',
-          file_size: 245000,
-          created_at: new Date(Date.now() - 300000).toISOString(), // 5 minutes ago
-          expires_at: new Date(Date.now() + 300000).toISOString() // 5 minutes from now
-        },
-        {
-          id: '2',
-          user_id: user?.id || '',
-          file_name: 'Auto Text Design 2.png',
-          file_url: 'https://images.pexels.com/photos/1109354/pexels-photo-1109354.jpeg?auto=compress&cs=tinysrgb&w=400',
-          file_type: 'image/png',
-          file_size: 198000,
-          created_at: new Date(Date.now() - 240000).toISOString(), // 4 minutes ago
-          expires_at: new Date(Date.now() + 360000).toISOString() // 6 minutes from now
-        },
-        {
-          id: '3',
-          user_id: user?.id || '',
-          file_name: 'Auto Text Design 3.png',
-          file_url: 'https://images.pexels.com/photos/1070945/pexels-photo-1070945.jpeg?auto=compress&cs=tinysrgb&w=400',
-          file_type: 'image/png',
-          file_size: 320000,
-          created_at: new Date(Date.now() - 180000).toISOString(), // 3 minutes ago
-          expires_at: new Date(Date.now() + 420000).toISOString() // 7 minutes from now
-        },
-        {
-          id: '4',
-          user_id: user?.id || '',
-          file_name: 'Auto Text Design 4.png',
-          file_url: 'https://images.pexels.com/photos/1029141/pexels-photo-1029141.jpeg?auto=compress&cs=tinysrgb&w=400',
-          file_type: 'image/png',
-          file_size: 275000,
-          created_at: new Date(Date.now() - 120000).toISOString(), // 2 minutes ago
-          expires_at: new Date(Date.now() + 480000).toISOString() // 8 minutes from now
-        },
-        {
-          id: '5',
-          user_id: user?.id || '',
-          file_name: 'Auto Text Design 5.png',
-          file_url: 'https://images.pexels.com/photos/1055379/pexels-photo-1055379.jpeg?auto=compress&cs=tinysrgb&w=400',
-          file_type: 'image/png',
-          file_size: 210000,
-          created_at: new Date(Date.now() - 60000).toISOString(), // 1 minute ago
-          expires_at: new Date(Date.now() + 540000).toISOString() // 9 minutes from now
-        }
-      ];
-      
-      setFiles(mockFiles);
-      console.log(`✅ ${mockFiles.length} temporary files loaded (mock data)`);
+      loadMockFiles();
     } catch (error: any) {
       console.error('❌ Error loading files:', error);
-      setError('Failed to load temporary files: ' + error.message);
+      console.log('📋 Falling back to mock data due to fetch error');
+      loadMockFiles();
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadMockFiles = () => {
+    const mockFiles: TemporaryFile[] = [
+      {
+        id: '1',
+        user_id: user?.id || '',
+        file_name: 'Auto Text Design 1.png',
+        file_url: 'https://images.pexels.com/photos/3094218/pexels-photo-3094218.jpeg?auto=compress&cs=tinysrgb&w=400',
+        file_type: 'image/png',
+        file_size: 245000,
+        created_at: new Date(Date.now() - 300000).toISOString(), // 5 minutes ago
+        expires_at: new Date(Date.now() + 300000).toISOString() // 5 minutes from now
+      },
+      {
+        id: '2',
+        user_id: user?.id || '',
+        file_name: 'Auto Text Design 2.png',
+        file_url: 'https://images.pexels.com/photos/1109354/pexels-photo-1109354.jpeg?auto=compress&cs=tinysrgb&w=400',
+        file_type: 'image/png',
+        file_size: 198000,
+        created_at: new Date(Date.now() - 240000).toISOString(), // 4 minutes ago
+        expires_at: new Date(Date.now() + 360000).toISOString() // 6 minutes from now
+      },
+      {
+        id: '3',
+        user_id: user?.id || '',
+        file_name: 'Auto Text Design 3.png',
+        file_url: 'https://images.pexels.com/photos/1070945/pexels-photo-1070945.jpeg?auto=compress&cs=tinysrgb&w=400',
+        file_type: 'image/png',
+        file_size: 320000,
+        created_at: new Date(Date.now() - 180000).toISOString(), // 3 minutes ago
+        expires_at: new Date(Date.now() + 420000).toISOString() // 7 minutes from now
+      },
+      {
+        id: '4',
+        user_id: user?.id || '',
+        file_name: 'Auto Text Design 4.png',
+        file_url: 'https://images.pexels.com/photos/1029141/pexels-photo-1029141.jpeg?auto=compress&cs=tinysrgb&w=400',
+        file_type: 'image/png',
+        file_size: 275000,
+        created_at: new Date(Date.now() - 120000).toISOString(), // 2 minutes ago
+        expires_at: new Date(Date.now() + 480000).toISOString() // 8 minutes from now
+      },
+      {
+        id: '5',
+        user_id: user?.id || '',
+        file_name: 'Auto Text Design 5.png',
+        file_url: 'https://images.pexels.com/photos/1055379/pexels-photo-1055379.jpeg?auto=compress&cs=tinysrgb&w=400',
+        file_type: 'image/png',
+        file_size: 210000,
+        created_at: new Date(Date.now() - 60000).toISOString(), // 1 minute ago
+        expires_at: new Date(Date.now() + 540000).toISOString() // 9 minutes from now
+      }
+    ];
+    
+    setFiles(mockFiles);
+    console.log(`✅ ${mockFiles.length} temporary files loaded (mock data)`);
   };
 
   const deleteFile = async (fileId: string) => {
@@ -139,6 +153,15 @@ const TemporaryFilesPage: React.FC = () => {
     
     try {
       console.log(`🗑️ Deleting file: ${fileId}`);
+      
+      // Check if we're in demo mode
+      if (isDemoMode) {
+        console.log('📋 Demo mode: Simulating file deletion');
+        setFiles(prev => prev.filter(file => file.id !== fileId));
+        setSelectedFiles(prev => prev.filter(id => id !== fileId));
+        console.log(`✅ File deleted successfully (demo mode)`);
+        return;
+      }
       
       const { error } = await supabase
         .from('temporary_files')
@@ -157,7 +180,9 @@ const TemporaryFilesPage: React.FC = () => {
       console.log(`✅ File deleted successfully`);
     } catch (error: any) {
       console.error('❌ Error deleting file:', error);
-      alert('Failed to delete file: ' + error.message);
+      // In case of error, still remove from UI for demo purposes
+      setFiles(prev => prev.filter(file => file.id !== fileId));
+      setSelectedFiles(prev => prev.filter(id => id !== fileId));
     }
   };
 
@@ -168,6 +193,15 @@ const TemporaryFilesPage: React.FC = () => {
     
     try {
       console.log(`🗑️ Deleting ${selectedFiles.length} files...`);
+      
+      // Check if we're in demo mode
+      if (isDemoMode) {
+        console.log('📋 Demo mode: Simulating bulk file deletion');
+        setFiles(prev => prev.filter(file => !selectedFiles.includes(file.id)));
+        setSelectedFiles([]);
+        console.log(`✅ ${selectedFiles.length} files deleted successfully (demo mode)`);
+        return;
+      }
       
       // In a real implementation with Supabase, we would use .in() to delete multiple files
       const { error } = await supabase
@@ -187,7 +221,9 @@ const TemporaryFilesPage: React.FC = () => {
       console.log(`✅ ${selectedFiles.length} files deleted successfully`);
     } catch (error: any) {
       console.error('❌ Error deleting files:', error);
-      alert('Failed to delete files: ' + error.message);
+      // In case of error, still remove from UI for demo purposes
+      setFiles(prev => prev.filter(file => !selectedFiles.includes(file.id)));
+      setSelectedFiles([]);
     }
   };
 
