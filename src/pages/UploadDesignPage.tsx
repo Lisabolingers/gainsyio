@@ -441,76 +441,184 @@ const UploadDesignPage: React.FC = () => {
         </div>
       )}
 
-      {/* Template and Mockup Selection */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <div className="flex items-center mb-2">
-            <div className="text-orange-500 mr-2">📋</div>
-            <span className="text-gray-700 dark:text-gray-300 font-medium">Listeleme Şablonu</span>
+      {/* Design Area */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 border-2 overflow-hidden">
+        <div className="px-6 py-4 p-6">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tasarım #1</h2>
+            
+            {/* Design Type Selection */}
+            <div className="flex items-center space-x-4 mb-4">
+              <label className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  name="designType"
+                  checked={true}
+                  className="text-orange-600 focus:ring-orange-500"
+                />
+                <span className="text-gray-700 dark:text-gray-300">Upload Design</span>
+              </label>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  name="designType"
+                  checked={false}
+                  className="text-orange-600 focus:ring-orange-500"
+                />
+                <span className="text-gray-700 dark:text-gray-300">Auto Text Design</span>
+              </label>
+            </div>
+            
+            {/* Color Selection */}
+            <div className="flex items-center space-x-4 mb-4">
+              <label className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  name="colorType"
+                  checked={true}
+                  className="text-orange-600 focus:ring-orange-500"
+                />
+                <span className="text-gray-700 dark:text-gray-300">Siyah</span>
+              </label>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  name="colorType"
+                  checked={false}
+                  className="text-orange-600 focus:ring-orange-500"
+                />
+                <span className="text-gray-700 dark:text-gray-300">Beyaz</span>
+              </label>
+            </div>
+            
+            {/* Upload Buttons and Input Fields */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              <div className="border border-gray-300 dark:border-gray-600 border-dashed rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
+                <div className="text-gray-400 mb-2">+</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Yükle</div>
+              </div>
+              
+              <div className="bg-gray-800 border border-gray-700 border-dashed rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-700">
+                <div className="text-gray-400 mb-2">+</div>
+                <div className="text-xs text-gray-400">Yükle</div>
+              </div>
+              
+              <div className="col-span-2">
+                <div className="mb-2 flex items-center">
+                  <span className="text-orange-500 mr-2">📝</span>
+                  <span className="text-gray-700 dark:text-gray-300 text-sm">Başlık</span>
+                  <span className="text-gray-400 text-xs ml-auto">0/140</span>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Ürün başlığını girin..."
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+                <button className="mt-2 px-3 py-1 bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 rounded-lg text-sm flex items-center">
+                  <span className="mr-1">🔥</span>
+                  AI Öner
+                </button>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <div className="mb-2 flex items-center">
+                  <span className="text-orange-500 mr-2">🏷️</span>
+                  <span className="text-gray-700 dark:text-gray-300 text-sm">Etiketler</span>
+                  <span className="text-gray-400 text-xs ml-auto">0/13</span>
+                </div>
+                <textarea
+                  placeholder="Etiketleri virgülle ayırarak girin..."
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+                  rows={4}
+                ></textarea>
+                <button className="mt-2 px-3 py-1 bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 rounded-lg text-sm flex items-center">
+                  <span className="mr-1">🔥</span>
+                  AI Öner
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                {/* Listeleme Şablonu */}
+                <div>
+                  <div className="flex items-center mb-2">
+                    <span className="text-orange-500 mr-2">📋</span>
+                    <span className="text-gray-700 dark:text-gray-300 text-sm">Listeleme Şablonu</span>
+                  </div>
+                  <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <option value="">Şablon seçin...</option>
+                    <option value="1">Vintage Poster Template</option>
+                    <option value="2">Modern Typography Template</option>
+                    <option value="3">Botanical Illustration Template</option>
+                  </select>
+                </div>
+                
+                {/* Mockup Klasörü */}
+                <div>
+                  <div className="flex items-center mb-2">
+                    <span className="text-orange-500 mr-2">🖼️</span>
+                    <span className="text-gray-700 dark:text-gray-300 text-sm">Mockup Klasörü</span>
+                  </div>
+                  <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <option value="">Klasör seçin...</option>
+                    <option value="1">T-Shirts</option>
+                    <option value="2">Mugs</option>
+                    <option value="3">Posters</option>
+                    <option value="4">Canvas Prints</option>
+                  </select>
+                </div>
+                
+                {/* Store Images Folder - YENİ EKLENEN */}
+                <div>
+                  <div className="flex items-center mb-2">
+                    <span className="text-orange-500 mr-2">🗂️</span>
+                    <span className="text-gray-700 dark:text-gray-300 text-sm">Store Images Folder</span>
+                  </div>
+                  <select 
+                    value={selectedFolder}
+                    onChange={(e) => setSelectedFolder(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="">Klasör seçin...</option>
+                    {folders.map(folder => (
+                      <option key={folder.id} value={folder.path}>{folder.name}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Choose Shop - YENİ EKLENEN */}
+                <div>
+                  <div className="flex items-center mb-2">
+                    <span className="text-orange-500 mr-2">🏪</span>
+                    <span className="text-gray-700 dark:text-gray-300 text-sm">Choose Shop</span>
+                  </div>
+                  <select
+                    value={selectedStore}
+                    onChange={(e) => setSelectedStore(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="">Mağaza seçin</option>
+                    {stores.map(store => (
+                      <option key={store.id} value={store.id}>{store.store_name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
-          <select
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-          >
-            <option value="">Şablon seçin...</option>
-            <option value="1">Vintage Poster Template</option>
-            <option value="2">Modern Typography Template</option>
-            <option value="3">Botanical Illustration Template</option>
-          </select>
-        </div>
-        
-        <div>
-          <div className="flex items-center mb-2">
-            <div className="text-orange-500 mr-2">🖼️</div>
-            <span className="text-gray-700 dark:text-gray-300 font-medium">Mockup Klasörü</span>
-          </div>
-          <select
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-          >
-            <option value="">Klasör seçin...</option>
-            <option value="1">T-Shirts</option>
-            <option value="2">Mugs</option>
-            <option value="3">Posters</option>
-            <option value="4">Canvas Prints</option>
-          </select>
         </div>
       </div>
 
-      {/* Store Images Folder and Shop Selection */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <div className="flex items-center mb-2">
-            <div className="text-orange-500 mr-2">🗂️</div>
-            <span className="text-gray-700 dark:text-gray-300 font-medium">Store Images Folder</span>
-          </div>
-          <select
-            value={selectedFolder}
-            onChange={(e) => setSelectedFolder(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-          >
-            <option value="">Klasör seçin...</option>
-            {folders.map(folder => (
-              <option key={folder.id} value={folder.path}>{folder.name}</option>
-            ))}
-          </select>
-        </div>
-        
-        <div>
-          <div className="flex items-center mb-2">
-            <div className="text-orange-500 mr-2">🏪</div>
-            <span className="text-gray-700 dark:text-gray-300 font-medium">Choose Shop</span>
-          </div>
-          <select
-            value={selectedStore}
-            onChange={(e) => setSelectedStore(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-          >
-            <option value="">Mağaza seçin</option>
-            {stores.map(store => (
-              <option key={store.id} value={store.id}>{store.store_name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+      {/* Hidden File Input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/jpg"
+        multiple
+        onChange={handleFileSelect}
+        className="hidden"
+      />
 
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-4 items-center">
@@ -562,16 +670,6 @@ const UploadDesignPage: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Hidden File Input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/jpg"
-        multiple
-        onChange={handleFileSelect}
-        className="hidden"
-      />
 
       {/* Designs Display */}
       {filteredDesigns.length === 0 ? (
