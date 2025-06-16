@@ -229,7 +229,7 @@ const DesignUploadPage: React.FC = () => {
               <br />
               <strong>Süre:</strong> Bu dosyalar 10 dakika sonra otomatik olarak silinir.
               <br />
-              <strong>Erişim:</strong> Oluşturulan tasarımları <a href="/admin/temporary-files" className="underline font-medium">Temporary Files</a> sayfasından görüntüleyebilir ve indirebilirsiniz.
+              <strong>Erişim:</strong> Oluşturulan tasarımları <a href="/admin/temporary-files" className=\"underline font-medium">Temporary Files</a> sayfasından görüntüleyebilir ve indirebilirsiniz.
             </p>
           </div>
         </div>
