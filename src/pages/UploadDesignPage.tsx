@@ -426,82 +426,78 @@ const UploadDesignPage: React.FC = () => {
       </div>
 
       {/* Template and Mockup Selection */}
-      <div className="space-y-8">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 border-2 overflow-hidden">
-          <div className="px-6 py-4 p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Listeleme Şablonu */}
-              <div>
-                <div className="flex items-center mb-2">
-                  <FileUp className="h-5 w-5 text-orange-500 mr-2" />
-                  <span className="text-lg font-medium text-gray-700 dark:text-gray-300">Listeleme Şablonu</span>
-                </div>
-                <select
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-                >
-                  <option value="">Şablon seçin...</option>
-                  <option value="template1">Şablon 1</option>
-                  <option value="template2">Şablon 2</option>
-                  <option value="template3">Şablon 3</option>
-                </select>
-              </div>
-
-              {/* Mockup Klasörü */}
-              <div>
-                <div className="flex items-center mb-2">
-                  <ImageIcon className="h-5 w-5 text-orange-500 mr-2" />
-                  <span className="text-lg font-medium text-gray-700 dark:text-gray-300">Mockup Klasörü</span>
-                </div>
-                <select
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-                >
-                  <option value="">Klasör seçin...</option>
-                  <option value="folder1">T-Shirt Mockups</option>
-                  <option value="folder2">Mug Mockups</option>
-                  <option value="folder3">Poster Mockups</option>
-                </select>
-              </div>
-
-              {/* Shop Images Folder - YENİ EKLENEN */}
-              <div>
-                <div className="flex items-center mb-2">
-                  <Folder className="h-5 w-5 text-orange-500 mr-2" />
-                  <span className="text-lg font-medium text-gray-700 dark:text-gray-300">Shop Images Folder</span>
-                </div>
-                <select
-                  value={selectedFolder}
-                  onChange={(e) => setSelectedFolder(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-                >
-                  <option value="">Klasör seçin...</option>
-                  {imageFolders.map(folder => (
-                    <option key={folder.id} value={folder.path}>
-                      {folder.name} ({folder.image_count})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Choose Shop - YENİ EKLENEN */}
-              <div>
-                <div className="flex items-center mb-2">
-                  <Store className="h-5 w-5 text-orange-500 mr-2" />
-                  <span className="text-lg font-medium text-gray-700 dark:text-gray-300">Choose Shop</span>
-                </div>
-                <select
-                  value={selectedStore}
-                  onChange={(e) => setSelectedStore(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-                >
-                  <option value="">Mağaza seçin</option>
-                  {stores.map(store => (
-                    <option key={store.id} value={store.id}>
-                      {store.store_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Listeleme Şablonu */}
+          <div>
+            <div className="flex items-center mb-2">
+              <FileUp className="h-5 w-5 text-orange-500 mr-2" />
+              <span className="text-lg font-medium text-gray-700 dark:text-gray-300">Listeleme Şablonu</span>
             </div>
+            <select
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+            >
+              <option value="">Şablon seçin...</option>
+              <option value="template1">Şablon 1</option>
+              <option value="template2">Şablon 2</option>
+              <option value="template3">Şablon 3</option>
+            </select>
+          </div>
+
+          {/* Mockup Klasörü */}
+          <div>
+            <div className="flex items-center mb-2">
+              <ImageIcon className="h-5 w-5 text-orange-500 mr-2" />
+              <span className="text-lg font-medium text-gray-700 dark:text-gray-300">Mockup Klasörü</span>
+            </div>
+            <select
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+            >
+              <option value="">Klasör seçin...</option>
+              <option value="folder1">T-Shirt Mockups</option>
+              <option value="folder2">Mug Mockups</option>
+              <option value="folder3">Poster Mockups</option>
+            </select>
+          </div>
+
+          {/* Store Images Folder - YENİ EKLENEN */}
+          <div>
+            <div className="flex items-center mb-2">
+              <Folder className="h-5 w-5 text-orange-500 mr-2" />
+              <span className="text-lg font-medium text-gray-700 dark:text-gray-300">Store Images Folder</span>
+            </div>
+            <select
+              value={selectedFolder}
+              onChange={(e) => setSelectedFolder(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+            >
+              <option value="">Klasör seçin...</option>
+              {imageFolders.map(folder => (
+                <option key={folder.id} value={folder.path}>
+                  {folder.name} ({folder.image_count})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Choose Shop - YENİ EKLENEN */}
+          <div>
+            <div className="flex items-center mb-2">
+              <Store className="h-5 w-5 text-orange-500 mr-2" />
+              <span className="text-lg font-medium text-gray-700 dark:text-gray-300">Choose Shop</span>
+            </div>
+            <select
+              value={selectedStore}
+              onChange={(e) => setSelectedStore(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+            >
+              <option value="">Mağaza seçin</option>
+              {stores.map(store => (
+                <option key={store.id} value={store.id}>
+                  {store.store_name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
