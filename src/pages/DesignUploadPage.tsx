@@ -23,6 +23,8 @@ interface DesignItem {
   tagInput: string;
   template: string;
   mockupFolder: string;
+  designMode: 'upload' | 'autoText';
+  selectedTextTemplate: string;
 }
 
 interface AIRule {
@@ -54,7 +56,9 @@ const DesignUploadPage: React.FC = () => {
       aiTags: [],
       tagInput: '',
       template: '',
-      mockupFolder: ''
+      mockupFolder: '',
+      designMode: 'upload',
+      selectedTextTemplate: ''
     }
   ]);
   const [templates, setTemplates] = useState([
@@ -83,12 +87,8 @@ const DesignUploadPage: React.FC = () => {
   const [tagRules, setTagRules] = useState<AIRule[]>([]);
   const [loadingRules, setLoadingRules] = useState(false);
   
-  // Design Mode
-  const [designMode, setDesignMode] = useState<'upload' | 'autoText'>('upload');
-  
   // Text Templates
   const [textTemplates, setTextTemplates] = useState<TextTemplate[]>([]);
-  const [selectedTextTemplate, setSelectedTextTemplate] = useState<string>('');
   
   const blackFileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const whiteFileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -307,6 +307,24 @@ const DesignUploadPage: React.FC = () => {
     }));
   };
 
+  const handleDesignModeChange = (value: 'upload' | 'autoText', itemIndex: number) => {
+    setDesignItems(prev => prev.map((item, idx) => {
+      if (idx === itemIndex) {
+        return { ...item, designMode: value };
+      }
+      return item;
+    }));
+  };
+
+  const handleTextTemplateChange = (value: string, itemIndex: number) => {
+    setDesignItems(prev => prev.map((item, idx) => {
+      if (idx === itemIndex) {
+        return { ...item, selectedTextTemplate: value };
+      }
+      return item;
+    }));
+  };
+
   const addNewDesignItem = () => {
     setDesignItems(prev => [
       ...prev,
@@ -320,7 +338,9 @@ const DesignUploadPage: React.FC = () => {
         aiTags: [],
         tagInput: '',
         template: '',
-        mockupFolder: ''
+        mockupFolder: '',
+        designMode: 'upload',
+        selectedTextTemplate: ''
       }
     ]);
   };
@@ -512,12 +532,16 @@ const DesignUploadPage: React.FC = () => {
   const handleSubmit = async () => {
     // Validate inputs
     const invalidItems = designItems.filter(item => {
-      const hasBlackOrWhite = item.blackDesign.file !== null || item.whiteDesign.file !== null;
-      return !item.title.trim() || item.tags.length === 0 || !hasBlackOrWhite || !item.template || !item.mockupFolder;
+      if (item.designMode === 'upload') {
+        const hasBlackOrWhite = item.blackDesign.file !== null || item.whiteDesign.file !== null;
+        return !item.title.trim() || item.tags.length === 0 || !hasBlackOrWhite || !item.template || !item.mockupFolder;
+      } else { // autoText mode
+        return !item.selectedTextTemplate || !item.title.trim() || item.tags.length === 0 || !item.template || !item.mockupFolder;
+      }
     });
     
     if (invalidItems.length > 0) {
-      setError('Lütfen her öğe için tüm alanları doldurun ve en az bir tasarım yükleyin.');
+      setError('Lütfen her öğe için tüm alanları doldurun ve gerekli seçimleri yapın.');
       return;
     }
     
@@ -546,7 +570,9 @@ const DesignUploadPage: React.FC = () => {
           aiTags: [],
           tagInput: '',
           template: '',
-          mockupFolder: ''
+          mockupFolder: '',
+          designMode: 'upload',
+          selectedTextTemplate: ''
         }
       ]);
       
@@ -618,39 +644,8 @@ const DesignUploadPage: React.FC = () => {
         </div>
       )}
 
-      {/* Design Mode Selector */}
-      <div className="flex items-center space-x-4 border-b border-gray-200 dark:border-gray-700 pb-4">
-        <div className="flex items-center space-x-2">
-          <input
-            type="radio"
-            id="uploadDesign"
-            name="designMode"
-            checked={designMode === 'upload'}
-            onChange={() => setDesignMode('upload')}
-            className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300"
-          />
-          <label htmlFor="uploadDesign" className="text-sm font-medium text-gray-900 dark:text-white">
-            Upload Design
-          </label>
-        </div>
-        
-        <div className="flex items-center space-x-2">
-          <input
-            type="radio"
-            id="autoTextDesign"
-            name="designMode"
-            checked={designMode === 'autoText'}
-            onChange={() => setDesignMode('autoText')}
-            className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300"
-          />
-          <label htmlFor="autoTextDesign" className="text-sm font-medium text-gray-900 dark:text-white">
-            Auto Text Design
-          </label>
-        </div>
-      </div>
-
       {/* AI Rules Warning */}
-      {designMode === 'upload' && (titleRules.length === 0 || tagRules.length === 0 || !titleRules.some(r => r.isDefault) || !tagRules.some(r => r.isDefault)) && (
+      {titleRules.length === 0 || tagRules.length === 0 || !titleRules.some(r => r.isDefault) || !tagRules.some(r => r.isDefault) ? (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
           <div className="flex items-start space-x-3">
             <Sparkles className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
@@ -668,57 +663,7 @@ const DesignUploadPage: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Auto Text Design Templates */}
-      {designMode === 'autoText' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex flex-wrap gap-3 items-center">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Text Templates:
-            </label>
-            
-            <select
-              value={selectedTextTemplate}
-              onChange={(e) => setSelectedTextTemplate(e.target.value)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-            >
-              <option value="">Şablon seçin...</option>
-              {textTemplates.map(template => (
-                <option key={template.id} value={template.id}>
-                  {template.name}
-                </option>
-              ))}
-            </select>
-            
-            <Button
-              onClick={() => window.location.href = '/admin/templates/auto-text-to-image'}
-              variant="secondary"
-              className="flex items-center space-x-2"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Yeni Şablon</span>
-            </Button>
-            
-            <Button
-              onClick={() => window.location.href = `/admin/templates/auto-text-to-image${selectedTextTemplate ? `?template=${selectedTextTemplate}` : ''}`}
-              variant="secondary"
-              className="flex items-center space-x-2"
-              disabled={!selectedTextTemplate}
-            >
-              <Type className="h-4 w-4" />
-              <span>Şablonu Düzenle</span>
-            </Button>
-            
-            <Button
-              className="ml-auto"
-              disabled={!selectedTextTemplate}
-            >
-              Oluştur
-            </Button>
-          </div>
-        </div>
-      )}
+      ) : null}
 
       {/* Design Items List */}
       <div className="space-y-8">
@@ -742,92 +687,170 @@ const DesignUploadPage: React.FC = () => {
                 )}
               </div>
               
+              {/* Design Mode Selector */}
+              <div className="flex items-center space-x-4 mb-4 border-b border-gray-200 dark:border-gray-700 pb-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    id={`uploadDesign-${itemIndex}`}
+                    name={`designMode-${itemIndex}`}
+                    checked={item.designMode === 'upload'}
+                    onChange={() => handleDesignModeChange('upload', itemIndex)}
+                    className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300"
+                  />
+                  <label htmlFor={`uploadDesign-${itemIndex}`} className="text-sm font-medium text-gray-900 dark:text-white">
+                    Upload Design
+                  </label>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    id={`autoTextDesign-${itemIndex}`}
+                    name={`designMode-${itemIndex}`}
+                    checked={item.designMode === 'autoText'}
+                    onChange={() => handleDesignModeChange('autoText', itemIndex)}
+                    className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300"
+                  />
+                  <label htmlFor={`autoTextDesign-${itemIndex}`} className="text-sm font-medium text-gray-900 dark:text-white">
+                    Auto Text Design
+                  </label>
+                </div>
+              </div>
+              
               <div className="grid grid-cols-12 gap-4">
                 {/* First Row - All elements side by side */}
                 <div className="col-span-12 grid grid-cols-12 gap-4">
-                  {/* Design Uploads - 2 columns */}
+                  {/* Design Uploads or Text Template Selection */}
                   <div className="col-span-2 flex space-x-2">
-                    {/* Black Design */}
-                    <div className="flex-1">
-                      <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
-                        <div className="w-3 h-3 bg-black rounded-full mr-1"></div>
-                        Siyah
-                      </h3>
-                      <div className="relative">
-                        {item.blackDesign.preview ? (
-                          <div className="relative w-full h-20 bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
-                            <img 
-                              src={item.blackDesign.preview} 
-                              alt={`Black design ${itemIndex + 1}`} 
-                              className="w-full h-full object-contain"
-                            />
-                            <button
-                              onClick={() => removeDesign(itemIndex, 'black')}
-                              className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                              title="Tasarımı kaldır"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
+                    {item.designMode === 'upload' ? (
+                      <>
+                        {/* Black Design */}
+                        <div className="flex-1">
+                          <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
+                            <div className="w-3 h-3 bg-black rounded-full mr-1"></div>
+                            Siyah
+                          </h3>
+                          <div className="relative">
+                            {item.blackDesign.preview ? (
+                              <div className="relative w-full h-20 bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
+                                <img 
+                                  src={item.blackDesign.preview} 
+                                  alt={`Black design ${itemIndex + 1}`} 
+                                  className="w-full h-full object-contain"
+                                />
+                                <button
+                                  onClick={() => removeDesign(itemIndex, 'black')}
+                                  className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                                  title="Tasarımı kaldır"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => blackFileInputRefs.current[itemIndex]?.click()}
+                                className="w-full h-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-white dark:bg-gray-800"
+                              >
+                                <Plus className="h-5 w-5 text-gray-400 dark:text-gray-500 mb-1" />
+                                <span className="text-xs text-gray-500 dark:text-gray-400">Yükle</span>
+                                <input
+                                  ref={el => blackFileInputRefs.current[itemIndex] = el}
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => handleFileSelect(e, itemIndex, 'black')}
+                                />
+                              </button>
+                            )}
                           </div>
-                        ) : (
-                          <button
-                            onClick={() => blackFileInputRefs.current[itemIndex]?.click()}
-                            className="w-full h-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-white dark:bg-gray-800"
-                          >
-                            <Plus className="h-5 w-5 text-gray-400 dark:text-gray-500 mb-1" />
-                            <span className="text-xs text-gray-500 dark:text-gray-400">Yükle</span>
-                            <input
-                              ref={el => blackFileInputRefs.current[itemIndex] = el}
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => handleFileSelect(e, itemIndex, 'black')}
-                            />
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                        </div>
 
-                    {/* White Design */}
-                    <div className="flex-1">
-                      <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
-                        <div className="w-3 h-3 bg-white border border-gray-300 rounded-full mr-1"></div>
-                        Beyaz
-                      </h3>
-                      <div className="relative">
-                        {item.whiteDesign.preview ? (
-                          <div className="relative w-full h-20 bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
-                            <img 
-                              src={item.whiteDesign.preview} 
-                              alt={`White design ${itemIndex + 1}`} 
-                              className="w-full h-full object-contain"
-                            />
-                            <button
-                              onClick={() => removeDesign(itemIndex, 'white')}
-                              className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                              title="Tasarımı kaldır"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
+                        {/* White Design */}
+                        <div className="flex-1">
+                          <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
+                            <div className="w-3 h-3 bg-white border border-gray-300 rounded-full mr-1"></div>
+                            Beyaz
+                          </h3>
+                          <div className="relative">
+                            {item.whiteDesign.preview ? (
+                              <div className="relative w-full h-20 bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600">
+                                <img 
+                                  src={item.whiteDesign.preview} 
+                                  alt={`White design ${itemIndex + 1}`} 
+                                  className="w-full h-full object-contain"
+                                />
+                                <button
+                                  onClick={() => removeDesign(itemIndex, 'white')}
+                                  className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                                  title="Tasarımı kaldır"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => whiteFileInputRefs.current[itemIndex]?.click()}
+                                className="w-full h-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-gray-800"
+                              >
+                                <Plus className="h-5 w-5 text-gray-400 dark:text-gray-500 mb-1" />
+                                <span className="text-xs text-gray-400">Yükle</span>
+                                <input
+                                  ref={el => whiteFileInputRefs.current[itemIndex] = el}
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => handleFileSelect(e, itemIndex, 'white')}
+                                />
+                              </button>
+                            )}
                           </div>
-                        ) : (
-                          <button
-                            onClick={() => whiteFileInputRefs.current[itemIndex]?.click()}
-                            className="w-full h-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-gray-800"
+                        </div>
+                      </>
+                    ) : (
+                      // Auto Text Design Template Selection
+                      <div className="col-span-2 w-full">
+                        <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
+                          <Type className="h-4 w-4 mr-1 text-orange-500" />
+                          Text Şablonu
+                        </h3>
+                        <div className="flex flex-col space-y-2">
+                          <select
+                            value={item.selectedTextTemplate}
+                            onChange={(e) => handleTextTemplateChange(e.target.value, itemIndex)}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
                           >
-                            <Plus className="h-5 w-5 text-gray-400 dark:text-gray-500 mb-1" />
-                            <span className="text-xs text-gray-400">Yükle</span>
-                            <input
-                              ref={el => whiteFileInputRefs.current[itemIndex] = el}
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => handleFileSelect(e, itemIndex, 'white')}
-                            />
-                          </button>
-                        )}
+                            <option value="">Şablon seçin...</option>
+                            {textTemplates.map(template => (
+                              <option key={template.id} value={template.id}>
+                                {template.name}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="flex space-x-2">
+                            <Button
+                              onClick={() => window.location.href = '/admin/templates/auto-text-to-image'}
+                              variant="secondary"
+                              size="sm"
+                              className="text-xs py-1 px-2"
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              <span>Yeni</span>
+                            </Button>
+                            <Button
+                              onClick={() => window.location.href = `/admin/templates/auto-text-to-image${item.selectedTextTemplate ? `?template=${item.selectedTextTemplate}` : ''}`}
+                              variant="secondary"
+                              size="sm"
+                              className="text-xs py-1 px-2"
+                              disabled={!item.selectedTextTemplate}
+                            >
+                              <Type className="h-3 w-3 mr-1" />
+                              <span>Düzenle</span>
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   {/* Title Section - 3 columns */}
