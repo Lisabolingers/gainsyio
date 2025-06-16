@@ -17,14 +17,40 @@ if (!supabaseAnonKey || supabaseAnonKey === 'your-anon-key') {
   console.error('You can find this in your Supabase project dashboard under Settings > API');
 }
 
-// Only proceed if we have valid configuration
-if (!supabaseUrl || !supabaseAnonKey || 
-    supabaseUrl === 'https://your-project-id.supabase.co' || 
-    supabaseAnonKey === 'your-anon-key') {
+// Define types and context at top level
+interface SupabaseContextType {
+  supabase: SupabaseClient;
+  isConfigured: boolean;
+}
+
+const SupabaseContext = createContext<SupabaseContextType | undefined>(undefined);
+
+export const useSupabase = () => {
+  const context = useContext(SupabaseContext);
+  if (context === undefined) {
+    throw new Error('useSupabase must be used within a SupabaseProvider');
+  }
+  return context;
+};
+
+interface SupabaseProviderProps {
+  children: ReactNode;
+}
+
+// Determine if configuration is valid
+const isConfigurationValid = !(!supabaseUrl || !supabaseAnonKey || 
+  supabaseUrl === 'https://your-project-id.supabase.co' || 
+  supabaseAnonKey === 'your-anon-key');
+
+// Create appropriate client based on configuration
+let supabaseClient: SupabaseClient;
+let isConfigured: boolean;
+
+if (!isConfigurationValid) {
   console.warn('⚠️ Supabase configuration incomplete. Using mock client.');
   
   // Create a mock client to prevent app crashes
-  const mockSupabase = {
+  supabaseClient = {
     auth: {
       onAuthStateChange: () => ({ data: { subscription: null }, error: null }),
       getSession: () => Promise.resolve({ data: { session: null }, error: null }),
@@ -39,33 +65,8 @@ if (!supabaseUrl || !supabaseAnonKey ||
       delete: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
     }),
   } as any;
-
-  interface SupabaseContextType {
-    supabase: SupabaseClient;
-    isConfigured: boolean;
-  }
-
-  const SupabaseContext = createContext<SupabaseContextType | undefined>(undefined);
-
-  export const useSupabase = () => {
-    const context = useContext(SupabaseContext);
-    if (context === undefined) {
-      throw new Error('useSupabase must be used within a SupabaseProvider');
-    }
-    return context;
-  };
-
-  interface SupabaseProviderProps {
-    children: ReactNode;
-  }
-
-  export const SupabaseProvider: React.FC<SupabaseProviderProps> = ({ children }) => {
-    return (
-      <SupabaseContext.Provider value={{ supabase: mockSupabase, isConfigured: false }}>
-        {children}
-      </SupabaseContext.Provider>
-    );
-  };
+  
+  isConfigured = false;
 } else {
   // Validate URL format
   try {
@@ -111,7 +112,7 @@ if (!supabaseUrl || !supabaseAnonKey ||
     }
   };
 
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
@@ -125,7 +126,7 @@ if (!supabaseUrl || !supabaseAnonKey ||
   });
 
   // Add connection monitoring
-  supabase.auth.onAuthStateChange((event) => {
+  supabaseClient.auth.onAuthStateChange((event) => {
     if (event === 'SIGNED_IN') {
       console.log('🔐 User signed in successfully');
     } else if (event === 'SIGNED_OUT') {
@@ -142,30 +143,13 @@ if (!supabaseUrl || !supabaseAnonKey ||
     }, 1000);
   }
 
-  interface SupabaseContextType {
-    supabase: SupabaseClient;
-    isConfigured: boolean;
-  }
-
-  const SupabaseContext = createContext<SupabaseContextType | undefined>(undefined);
-
-  export const useSupabase = () => {
-    const context = useContext(SupabaseContext);
-    if (context === undefined) {
-      throw new Error('useSupabase must be used within a SupabaseProvider');
-    }
-    return context;
-  };
-
-  interface SupabaseProviderProps {
-    children: ReactNode;
-  }
-
-  export const SupabaseProvider: React.FC<SupabaseProviderProps> = ({ children }) => {
-    return (
-      <SupabaseContext.Provider value={{ supabase, isConfigured: true }}>
-        {children}
-      </SupabaseContext.Provider>
-    );
-  };
+  isConfigured = true;
 }
+
+export const SupabaseProvider: React.FC<SupabaseProviderProps> = ({ children }) => {
+  return (
+    <SupabaseContext.Provider value={{ supabase: supabaseClient, isConfigured }}>
+      {children}
+    </SupabaseContext.Provider>
+  );
+};
