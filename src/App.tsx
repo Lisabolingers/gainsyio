@@ -81,10 +81,13 @@ function App() {
                 <Route path="templates/mockup" element={<MockupTemplatesPage />} />
                 <Route path="templates/update" element={<UpdateTemplatesPage />} />
                 <Route path="listing" element={<ListingPage />} />
+                {/* Upload Design artık Listing alt menüsü olarak yapılandırıldı */}
+                <Route path="listing/upload-design" element={<DesignUploadPage />} />
                 <Route path="library" element={<LibraryPage />} />
                 <Route path="store-images" element={<StoreImagesPage />} />
                 <Route path="my-font" element={<MyFontPage />} />
-                <Route path="upload-design" element={<DesignUploadPage />} />
+                {/* Eski yol için yönlendirme ekleyelim */}
+                <Route path="upload-design" element={<Navigate to="/admin/listing/upload-design" replace />} />
                 <Route path="temporary-files" element={<TemporaryFilesPage />} />
                 <Route path="ai-agent" element={<AIAgentPage />} />
               </Route>

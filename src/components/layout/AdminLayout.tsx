@@ -8,6 +8,7 @@ const AdminLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [templatesExpanded, setTemplatesExpanded] = useState(false);
+  const [listingExpanded, setListingExpanded] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, userProfile, signOut, isAdminOrSuperAdmin, isSuperAdmin } = useAuth();
@@ -31,11 +32,19 @@ const AdminLayout: React.FC = () => {
         { name: 'Store Images', href: '/admin/store-images', icon: Image },
       ]
     },
+    { 
+      name: 'Listing', 
+      href: '/admin/listing', 
+      icon: PlusCircle,
+      hasSubmenu: true,
+      submenu: [
+        { name: 'Create Listing', href: '/admin/listing', icon: PlusCircle },
+        { name: 'Upload Design', href: '/admin/listing/upload-design', icon: Upload },
+      ]
+    },
     { name: 'Auto Text to Image', href: '/admin/templates/auto-text-to-image', icon: PlusCircle },
     { name: 'My Fonts', href: '/admin/my-font', icon: Type },
-    { name: 'Listing', href: '/admin/listing', icon: PlusCircle },
     { name: 'Library', href: '/admin/library', icon: Library },
-    { name: 'Upload Design', href: '/admin/upload-design', icon: Upload },
     { name: 'Temporary Files', href: '/admin/temporary-files', icon: Clock },
     { name: 'AI Agent', href: '/admin/ai-agent', icon: Brain },
   ];
@@ -52,7 +61,11 @@ const AdminLayout: React.FC = () => {
     if (location.pathname === '/admin/templates') {
       setTemplatesExpanded(true);
     }
-    // Diğer durumlarda menüyü kapalı bırak (kullanıcı manuel olarak açmadıysa)
+    
+    // Listing alt menüsü için kontrol
+    if (location.pathname === '/admin/listing') {
+      setListingExpanded(true);
+    }
   }, [location.pathname]);
 
   const handleSignOut = async () => {
@@ -74,6 +87,11 @@ const AdminLayout: React.FC = () => {
       return location.pathname === '/admin/templates';
     }
     
+    // For listing main page
+    if (href === '/admin/listing') {
+      return location.pathname === '/admin/listing';
+    }
+    
     // For other routes, check if current path starts with the href
     return location.pathname.startsWith(href);
   };
@@ -83,9 +101,13 @@ const AdminLayout: React.FC = () => {
     setTemplatesExpanded(!templatesExpanded);
   };
 
+  // CRITICAL: Listing submenu toggle - kullanıcı kontrolü
+  const toggleListingSubmenu = () => {
+    setListingExpanded(!listingExpanded);
+  };
+
   // CRITICAL: Submenu item'ına tıklandığında menüyü açık tut
   const handleSubmenuClick = () => {
-    setTemplatesExpanded(true);
     setSidebarOpen(false);
   };
 
@@ -139,7 +161,7 @@ const AdminLayout: React.FC = () => {
                 {item.hasSubmenu ? (
                   <button
                     type="button"
-                    onClick={toggleTemplatesSubmenu}
+                    onClick={item.name === 'Templates' ? toggleTemplatesSubmenu : toggleListingSubmenu}
                     className={`
                       group flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-lg transition-colors
                       ${isActive(item.href)
@@ -159,7 +181,7 @@ const AdminLayout: React.FC = () => {
                       {item.name}
                     </div>
                     <div className={`transition-transform duration-200 ${
-                      templatesExpanded ? 'rotate-180' : 'rotate-0'
+                      (item.name === 'Templates' && templatesExpanded) || (item.name === 'Listing' && listingExpanded) ? 'rotate-180' : 'rotate-0'
                     }`}>
                       <ChevronDown className="h-4 w-4 text-gray-400" />
                     </div>
@@ -187,8 +209,37 @@ const AdminLayout: React.FC = () => {
                   </Link>
                 )}
 
-                {/* Submenu items - SADECE kullanıcı açtığında görünür */}
-                {item.hasSubmenu && templatesExpanded && (
+                {/* Templates Submenu items */}
+                {item.name === 'Templates' && templatesExpanded && (
+                  <div className="ml-6 mt-1 space-y-1">
+                    {item.submenu?.map((subItem) => (
+                      <Link
+                        key={subItem.name}
+                        to={subItem.href}
+                        className={`
+                          group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors
+                          ${isActive(subItem.href)
+                            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400'
+                            : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
+                          }
+                        `}
+                        onClick={handleSubmenuClick}
+                      >
+                        <subItem.icon className={`
+                          mr-3 h-4 w-4 flex-shrink-0
+                          ${isActive(subItem.href)
+                            ? 'text-orange-500'
+                            : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
+                          }
+                        `} />
+                        {subItem.name}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+
+                {/* Listing Submenu items */}
+                {item.name === 'Listing' && listingExpanded && (
                   <div className="ml-6 mt-1 space-y-1">
                     {item.submenu?.map((subItem) => (
                       <Link
