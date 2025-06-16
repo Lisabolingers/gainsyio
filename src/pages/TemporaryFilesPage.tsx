@@ -52,8 +52,25 @@ const TemporaryFilesPage: React.FC = () => {
       setError(null);
       console.log('🔄 Loading temporary files...');
       
-      // In a real implementation, this would fetch from Supabase
-      // For now, we'll use mock data
+      const { data, error } = await supabase
+        .from('temporary_files')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('❌ Error loading temporary files:', error);
+        throw error;
+      }
+      
+      // If we have real data, use it
+      if (data && data.length > 0) {
+        setFiles(data);
+        console.log(`✅ ${data.length} temporary files loaded`);
+        return;
+      }
+      
+      // Otherwise use mock data
       const mockFiles: TemporaryFile[] = [
         {
           id: '1',
@@ -108,7 +125,7 @@ const TemporaryFilesPage: React.FC = () => {
       ];
       
       setFiles(mockFiles);
-      console.log(`✅ ${mockFiles.length} temporary files loaded`);
+      console.log(`✅ ${mockFiles.length} temporary files loaded (mock data)`);
     } catch (error: any) {
       console.error('❌ Error loading files:', error);
       setError('Failed to load temporary files: ' + error.message);
@@ -123,8 +140,16 @@ const TemporaryFilesPage: React.FC = () => {
     try {
       console.log(`🗑️ Deleting file: ${fileId}`);
       
-      // In a real implementation, this would delete from Supabase
-      // For now, we'll just remove from state
+      const { error } = await supabase
+        .from('temporary_files')
+        .delete()
+        .eq('id', fileId)
+        .eq('user_id', user?.id);
+      
+      if (error) {
+        console.error('❌ Error deleting file:', error);
+        throw error;
+      }
       
       setFiles(prev => prev.filter(file => file.id !== fileId));
       setSelectedFiles(prev => prev.filter(id => id !== fileId));
@@ -144,8 +169,17 @@ const TemporaryFilesPage: React.FC = () => {
     try {
       console.log(`🗑️ Deleting ${selectedFiles.length} files...`);
       
-      // In a real implementation, this would delete from Supabase
-      // For now, we'll just remove from state
+      // In a real implementation with Supabase, we would use .in() to delete multiple files
+      const { error } = await supabase
+        .from('temporary_files')
+        .delete()
+        .in('id', selectedFiles)
+        .eq('user_id', user?.id);
+      
+      if (error) {
+        console.error('❌ Error deleting files:', error);
+        throw error;
+      }
       
       setFiles(prev => prev.filter(file => !selectedFiles.includes(file.id)));
       setSelectedFiles([]);
@@ -357,7 +391,7 @@ const TemporaryFilesPage: React.FC = () => {
           </p>
           {!searchTerm && (
             <Button
-              onClick={() => window.location.href = '/admin/templates/auto-text-to-image'}
+              onClick={() => window.location.href = '/admin/listing/upload-design'}
               className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
             >
               <FileUp className="h-4 w-4" />

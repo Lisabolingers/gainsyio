@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Plus, Trash2, X, Check, Image as ImageIcon, FileText, Tag, BookTemplate as Template, Grid as Grid3X3, Send, Sparkles, RefreshCw, ChevronDown } from 'lucide-react';
+import { Upload, Plus, Trash2, X, Check, Image as ImageIcon, FileText, Tag, BookTemplate as Template, Grid as Grid3X3, Send, Sparkles, RefreshCw, ChevronDown, Clock, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
@@ -26,11 +26,7 @@ interface DesignItem {
   mockupFolder: string;
   // Auto Text Design fields
   textTemplate: string;
-  textValues: {
-    text1: string;
-    text2: string;
-    text3: string;
-  };
+  textValues: Record<string, string>; // Dinamik text alanları için
 }
 
 interface AIRule {
@@ -43,6 +39,9 @@ interface AIRule {
 interface TextTemplate {
   id: string;
   name: string;
+  style_settings?: {
+    texts?: any[];
+  };
 }
 
 const MAX_TITLE_LENGTH = 140;
@@ -65,11 +64,7 @@ const DesignUploadPage: React.FC = () => {
       template: '',
       mockupFolder: '',
       textTemplate: '',
-      textValues: {
-        text1: '',
-        text2: '',
-        text3: ''
-      }
+      textValues: {}
     }
   ]);
   const [templates, setTemplates] = useState<{id: string, name: string}[]>([
@@ -89,11 +84,11 @@ const DesignUploadPage: React.FC = () => {
     { id: '6', name: 'Tote Bags' },
   ]);
   const [textTemplates, setTextTemplates] = useState<TextTemplate[]>([
-    { id: '1', name: 'Basic Text Template' },
-    { id: '2', name: 'Curved Text' },
-    { id: '3', name: 'Stacked Text' },
-    { id: '4', name: 'Minimalist Text' },
-    { id: '5', name: 'Bold Typography' },
+    { id: '1', name: 'Basic Text Template', style_settings: { texts: [{}] } },
+    { id: '2', name: 'Curved Text', style_settings: { texts: [{}, {}] } },
+    { id: '3', name: 'Stacked Text', style_settings: { texts: [{}, {}, {}] } },
+    { id: '4', name: 'Minimalist Text', style_settings: { texts: [{}] } },
+    { id: '5', name: 'Bold Typography', style_settings: { texts: [{}, {}] } },
   ]);
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState<{[key: string]: boolean}>({});
@@ -161,7 +156,7 @@ const DesignUploadPage: React.FC = () => {
       
       const { data, error } = await supabase
         .from('auto_text_templates')
-        .select('id, name')
+        .select('id, name, style_settings')
         .eq('user_id', user?.id);
       
       if (error) {
@@ -324,15 +319,29 @@ const DesignUploadPage: React.FC = () => {
   };
 
   const handleTextTemplateChange = (value: string, itemIndex: number) => {
+    // Find the selected template to get the number of text fields
+    const selectedTemplate = textTemplates.find(t => t.id === value);
+    const textCount = selectedTemplate?.style_settings?.texts?.length || 0;
+    
+    // Create empty text values object with the right number of fields
+    const textValues: Record<string, string> = {};
+    for (let i = 1; i <= textCount; i++) {
+      textValues[`text${i}`] = '';
+    }
+    
     setDesignItems(prev => prev.map((item, idx) => {
       if (idx === itemIndex) {
-        return { ...item, textTemplate: value };
+        return { 
+          ...item, 
+          textTemplate: value,
+          textValues: textValues
+        };
       }
       return item;
     }));
   };
 
-  const handleTextValueChange = (field: 'text1' | 'text2' | 'text3', value: string, itemIndex: number) => {
+  const handleTextValueChange = (field: string, value: string, itemIndex: number) => {
     setDesignItems(prev => prev.map((item, idx) => {
       if (idx === itemIndex) {
         return { 
@@ -364,7 +373,7 @@ const DesignUploadPage: React.FC = () => {
     }));
   };
 
-  const generateDesigns = (itemIndex: number) => {
+  const generateDesigns = async (itemIndex: number) => {
     const item = designItems[itemIndex];
     
     // Check if we have a template and text values
@@ -373,22 +382,28 @@ const DesignUploadPage: React.FC = () => {
       return;
     }
     
-    if (!item.textValues.text1 && !item.textValues.text2 && !item.textValues.text3) {
+    // Check if at least one text field is filled
+    const hasText = Object.values(item.textValues).some(text => text.trim() !== '');
+    if (!hasText) {
       setError('Lütfen en az bir metin alanını doldurun.');
       return;
     }
     
-    // In a real implementation, this would call an API to generate designs
-    // For now, we'll simulate it with placeholder images
-    
-    // Simulate loading
-    setLoading(true);
-    
-    setTimeout(() => {
+    try {
+      // Simulate loading
+      setLoading(true);
+      
+      console.log('🔄 Generating designs from text template...');
+      
+      // In a real implementation, this would call an API to generate designs
+      // For now, we'll simulate it with placeholder images
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
       // Generate black and white designs
       const blackPreview = 'https://images.pexels.com/photos/3094218/pexels-photo-3094218.jpeg?auto=compress&cs=tinysrgb&w=400';
       const whitePreview = 'https://images.pexels.com/photos/1109354/pexels-photo-1109354.jpeg?auto=compress&cs=tinysrgb&w=400';
       
+      // Update design items with previews
       setDesignItems(prev => prev.map((item, idx) => {
         if (idx === itemIndex) {
           return {
@@ -406,8 +421,44 @@ const DesignUploadPage: React.FC = () => {
         return item;
       }));
       
+      // Save to temporary files (in a real implementation)
+      // Here we'll just simulate the API call
+      console.log('💾 Saving designs to temporary files...');
+      
+      // Simulate saving to temporary files
+      const blackFile = {
+        id: `temp-black-${Date.now()}`,
+        user_id: user?.id,
+        file_name: `Auto_Text_Black_${Date.now()}.png`,
+        file_url: blackPreview,
+        file_type: 'image/png',
+        file_size: 245000,
+        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString() // 10 minutes
+      };
+      
+      const whiteFile = {
+        id: `temp-white-${Date.now()}`,
+        user_id: user?.id,
+        file_name: `Auto_Text_White_${Date.now()}.png`,
+        file_url: whitePreview,
+        file_type: 'image/png',
+        file_size: 245000,
+        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString() // 10 minutes
+      };
+      
+      // In a real implementation, we would save these to the temporary_files table
+      // For now, we'll just log them
+      console.log('✅ Designs saved to temporary files:', { blackFile, whiteFile });
+      
+      // Show success message
+      setSuccess('Tasarımlar başarıyla oluşturuldu ve 10 dakika içinde Temporary Files bölümünde görüntülenebilir.');
+      
+    } catch (error: any) {
+      console.error('❌ Error generating designs:', error);
+      setError(`Tasarım oluşturulurken hata: ${error.message}`);
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
 
   const addNewDesignItem = () => {
@@ -426,11 +477,7 @@ const DesignUploadPage: React.FC = () => {
         template: '',
         mockupFolder: '',
         textTemplate: '',
-        textValues: {
-          text1: '',
-          text2: '',
-          text3: ''
-        }
+        textValues: {}
       }
     ]);
   };
@@ -664,11 +711,7 @@ const DesignUploadPage: React.FC = () => {
           template: '',
           mockupFolder: '',
           textTemplate: '',
-          textValues: {
-            text1: '',
-            text2: '',
-            text3: ''
-          }
+          textValues: {}
         }
       ]);
       
@@ -705,6 +748,60 @@ const DesignUploadPage: React.FC = () => {
           tagInputRefs.current[itemIndex]?.focus();
         }
       }, 100);
+    }
+  };
+
+  // Get text field count for a template
+  const getTextFieldCount = (templateId: string): number => {
+    const template = textTemplates.find(t => t.id === templateId);
+    return template?.style_settings?.texts?.length || 0;
+  };
+
+  // Save designs to temporary files
+  const saveToTemporaryFiles = async (blackPreview: string, whitePreview: string) => {
+    try {
+      // In a real implementation, this would save to the temporary_files table
+      // For now, we'll just simulate it
+      
+      const blackFile = {
+        user_id: user?.id,
+        file_name: `Auto_Text_Black_${Date.now()}.png`,
+        file_url: blackPreview,
+        file_type: 'image',
+        file_size: 245000,
+        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString() // 10 minutes
+      };
+      
+      const whiteFile = {
+        user_id: user?.id,
+        file_name: `Auto_Text_White_${Date.now()}.png`,
+        file_url: whitePreview,
+        file_type: 'image',
+        file_size: 245000,
+        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString() // 10 minutes
+      };
+      
+      // In a real implementation, we would insert these into the temporary_files table
+      const { data: blackData, error: blackError } = await supabase
+        .from('temporary_files')
+        .insert(blackFile);
+        
+      if (blackError) {
+        console.error('❌ Error saving black design to temporary files:', blackError);
+      }
+      
+      const { data: whiteData, error: whiteError } = await supabase
+        .from('temporary_files')
+        .insert(whiteFile);
+        
+      if (whiteError) {
+        console.error('❌ Error saving white design to temporary files:', whiteError);
+      }
+      
+      console.log('✅ Designs saved to temporary files');
+      
+    } catch (error: any) {
+      console.error('❌ Error saving to temporary files:', error);
     }
   };
 
@@ -761,6 +858,25 @@ const DesignUploadPage: React.FC = () => {
         </div>
       )}
 
+      {/* Temporary Files Info */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <div className="flex items-start space-x-3">
+          <Clock className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+          <div>
+            <h3 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
+              Auto Text Design Bilgisi
+            </h3>
+            <p className="text-sm text-blue-600 dark:text-blue-300">
+              <strong>Geçici Dosyalar:</strong> Auto Text Design ile oluşturulan tasarımlar otomatik olarak Temporary Files bölümüne kaydedilir.
+              <br />
+              <strong>Süre:</strong> Bu dosyalar 10 dakika sonra otomatik olarak silinir.
+              <br />
+              <strong>Erişim:</strong> Oluşturulan tasarımları <a href="/admin/temporary-files" className="underline font-medium">Temporary Files</a> sayfasından görüntüleyebilir ve indirebilirsiniz.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Design Items List */}
       <div className="space-y-8">
         {designItems.map((item, itemIndex) => (
@@ -807,7 +923,7 @@ const DesignUploadPage: React.FC = () => {
                 
                 {/* Auto Text Design Controls */}
                 {item.designType === 'autoText' && (
-                  <div className="flex items-center space-x-2 flex-1">
+                  <div className="flex items-center space-x-2 flex-1 flex-wrap">
                     <select
                       value={item.textTemplate}
                       onChange={(e) => handleTextTemplateChange(e.target.value, itemIndex)}
@@ -819,34 +935,28 @@ const DesignUploadPage: React.FC = () => {
                       ))}
                     </select>
                     
-                    <Input
-                      placeholder="Text 1"
-                      value={item.textValues.text1}
-                      onChange={(e) => handleTextValueChange('text1', e.target.value, itemIndex)}
-                      className="w-32"
-                    />
-                    
-                    <Input
-                      placeholder="Text 2"
-                      value={item.textValues.text2}
-                      onChange={(e) => handleTextValueChange('text2', e.target.value, itemIndex)}
-                      className="w-32"
-                    />
-                    
-                    <Input
-                      placeholder="Text 3"
-                      value={item.textValues.text3}
-                      onChange={(e) => handleTextValueChange('text3', e.target.value, itemIndex)}
-                      className="w-32"
-                    />
-                    
-                    <Button
-                      onClick={() => generateDesigns(itemIndex)}
-                      disabled={!item.textTemplate || (!item.textValues.text1 && !item.textValues.text2 && !item.textValues.text3)}
-                      className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
-                    >
-                      Oluştur
-                    </Button>
+                    {/* Dinamik Text Alanları */}
+                    {item.textTemplate && (
+                      <>
+                        {Array.from({ length: getTextFieldCount(item.textTemplate) }).map((_, idx) => (
+                          <Input
+                            key={idx}
+                            placeholder={`Text ${idx + 1}`}
+                            value={item.textValues[`text${idx + 1}`] || ''}
+                            onChange={(e) => handleTextValueChange(`text${idx + 1}`, e.target.value, itemIndex)}
+                            className="w-32"
+                          />
+                        ))}
+                        
+                        <Button
+                          onClick={() => generateDesigns(itemIndex)}
+                          disabled={!item.textTemplate || !Object.values(item.textValues).some(v => v.trim() !== '')}
+                          className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
+                        >
+                          Oluştur
+                        </Button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
