@@ -18,7 +18,7 @@ if (!supabaseAnonKey) {
 }
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables. Please check your .env file and ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.');
+  throw new Error('Supabase ortam değişkenleri eksik. Lütfen .env dosyanızı kontrol edin ve VITE_SUPABASE_URL ve VITE_SUPABASE_ANON_KEY değerlerinin ayarlandığından emin olun.');
 }
 
 // Validate URL format
@@ -27,7 +27,7 @@ try {
   console.log('✅ Supabase URL format is valid:', url.origin);
 } catch (error) {
   console.error('❌ Invalid VITE_SUPABASE_URL format:', supabaseUrl);
-  throw new Error('Invalid Supabase URL format. Please check your VITE_SUPABASE_URL in the .env file.');
+  throw new Error('Geçersiz Supabase URL formatı. Lütfen .env dosyasındaki VITE_SUPABASE_URL değerini kontrol edin.');
 }
 
 // Test if URL is reachable (basic check)
@@ -66,15 +66,6 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: {
     headers: {
       'Content-Type': 'application/json',
-    },
-  },
-  // Add retry configuration for better error handling
-  db: {
-    schema: 'public',
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 10,
     },
   },
 });

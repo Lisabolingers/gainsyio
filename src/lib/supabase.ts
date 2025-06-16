@@ -11,16 +11,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error('❌ Missing Supabase environment variables');
   console.error('VITE_SUPABASE_URL:', supabaseUrl || '[MISSING]');
   console.error('VITE_SUPABASE_ANON_KEY:', supabaseAnonKey ? '[PRESENT]' : '[MISSING]');
-  throw new Error('Missing Supabase environment variables. Please check your .env file.');
-}
-
-// Validate URL format
-try {
-  const url = new URL(supabaseUrl);
-  console.log('✅ Supabase URL format is valid:', url.origin);
-} catch (error) {
-  console.error('❌ Invalid VITE_SUPABASE_URL format:', supabaseUrl);
-  throw new Error('Invalid Supabase URL format. Please check your VITE_SUPABASE_URL in the .env file.');
+  throw new Error('Supabase ortam değişkenleri eksik. Lütfen .env dosyanızı kontrol edin.');
 }
 
 // Create Supabase client with enhanced error handling
@@ -28,13 +19,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    storageKey: 'gainsy_auth_token',
+    detectSessionInUrl: true, // Detect session from URL hash
   },
   global: {
     headers: {
       'Content-Type': 'application/json',
     },
-  },
+  }
 });
 
 // Export supabaseUrl for use in other modules
@@ -155,6 +146,10 @@ export interface MockupTemplate {
   text_areas: any[];
   logo_area?: any;
   store_id?: string;
+  design_type: 'black' | 'white' | 'color';
+  product_category: string;
+  folder_path?: string;
+  folder_name?: string;
   is_default: boolean;
   created_at: string;
   updated_at: string;

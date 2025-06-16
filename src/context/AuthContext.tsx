@@ -72,7 +72,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         .from('user_profiles')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
       if (fetchError && fetchError.code !== 'PGRST116') {
         // PGRST116 is "not found" error, which is expected if profile doesn't exist
@@ -193,18 +193,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             
           if (error) {
             console.error('❌ Error fetching user profile:', error);
-            
-            // If profile doesn't exist, create it
-            if (error.code === 'PGRST116') {
-              console.log('📝 Profile not found, creating new profile...');
-              await ensureUserProfile(session.user);
-            } else {
-              throw error;
-            }
-          } else {
-            console.log('✅ User profile fetched successfully:', data);
-            setUserProfile(data);
+            throw error;
           }
+          
+          console.log('✅ User profile fetched successfully:', data);
+          setUserProfile(data);
         } catch (error) {
           console.error('❌ Error fetching user profile:', error);
           // Don't set error state here as it would block the UI
@@ -223,7 +216,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setError(null);
       setLoading(true);
-      console.log('🔐 Attempting sign in...');
+      console.log('🔐 Attempting sign in with:', email);
       
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -325,7 +318,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('❌ Sign out error:', error);
       
       if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-        setError('Bağlantı hatası: Çıkış sırasında sunucuya ulaşılamadı.');
+        setError('Bağlantı hatası: Çıkış sırasında sunucuya ulaşılamıyor.');
       } else {
         setError('Çıkış sırasında bir hata oluştu. Lütfen tekrar deneyin.');
       }

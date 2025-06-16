@@ -9,22 +9,18 @@ const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { signIn, user, loading: authLoading } = useAuth();
+  const { signIn, user } = useAuth();
   const navigate = useNavigate();
 
   // Redirect if already logged in
   useEffect(() => {
-    if (user && !authLoading) {
-      console.log('✅ User already logged in, redirecting to admin panel');
+    if (user) {
       navigate('/admin');
     }
-  }, [user, authLoading, navigate]);
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (loading) return;
-    
     setLoading(true);
     setError('');
 
@@ -40,18 +36,6 @@ const LoginPage: React.FC = () => {
       setLoading(false);
     }
   };
-
-  // If auth is still loading, show a loading indicator
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black dark:from-black dark:to-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-white">Yükleniyor...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black dark:from-black dark:to-gray-900 flex items-center justify-center px-6">
@@ -101,7 +85,6 @@ const LoginPage: React.FC = () => {
                 className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 placeholder="ornek@email.com"
                 required
-                disabled={loading}
               />
             </div>
 
@@ -118,13 +101,11 @@ const LoginPage: React.FC = () => {
                   className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent pr-12"
                   placeholder="Şifrenizi girin"
                   required
-                  disabled={loading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                  disabled={loading}
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
