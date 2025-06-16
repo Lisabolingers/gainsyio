@@ -112,9 +112,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           return;
         }
 
-        // Try to get session from Supabase with timeout
+        // Try to get session from Supabase with increased timeout
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Connection timeout')), 5000)
+          setTimeout(() => reject(new Error('Connection timeout')), 15000)
         );
         
         const sessionPromise = supabase.auth.getSession();
@@ -131,7 +131,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setError(null); // Clear any previous errors
         }
       } catch (err: any) {
-        console.error('❌ Error checking Supabase connection:', err.message);
+        console.log('⚠️ Error checking Supabase connection:', err.message);
         setError(`Connection timeout: Unable to reach Supabase server. Please check your internet connection and Supabase configuration. Using local authentication mode.`);
         setUseLocalAuth(true);
       } finally {
@@ -174,9 +174,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         try {
           console.log('🚀 Initializing Supabase authentication...');
           
-          // Add timeout to prevent hanging
+          // Add increased timeout to prevent hanging
           const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Authentication timeout')), 10000)
+            setTimeout(() => reject(new Error('Authentication timeout')), 20000)
           );
           
           const sessionPromise = supabase.auth.getSession();
@@ -184,7 +184,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const { data: { session }, error: sessionError } = await Promise.race([sessionPromise, timeoutPromise]) as any;
           
           if (sessionError) {
-            console.error('❌ Error getting session:', sessionError);
+            console.log('⚠️ Error getting session:', sessionError);
             setError(`Session error: ${sessionError.message}. Falling back to local authentication.`);
             // Fall back to local auth on session error
             setUseLocalAuth(true);
@@ -196,25 +196,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             // Fetch user profile if user exists
             if (session?.user) {
               try {
-                const { data, error } = await supabase
+                const profileTimeoutPromise = new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('Profile fetch timeout')), 10000)
+                );
+                
+                const profilePromise = supabase
                   .from('user_profiles')
                   .select('*')
                   .eq('id', session.user.id)
                   .single();
                   
+                const { data, error } = await Promise.race([profilePromise, profileTimeoutPromise]) as any;
+                
                 if (error) {
-                  console.error('❌ Error fetching user profile:', error);
+                  console.log('⚠️ Error fetching user profile:', error);
                 } else {
                   console.log('✅ User profile fetched successfully');
                   setUserProfile(data);
                 }
               } catch (error) {
-                console.error('❌ Error fetching user profile:', error);
+                console.log('⚠️ Error fetching user profile:', error);
               }
             }
           }
         } catch (error: any) {
-          console.error('❌ Error initializing auth:', error);
+          console.log('⚠️ Error initializing auth:', error);
           if (error.message.includes('timeout') || error.message.includes('Failed to fetch')) {
             setError('Connection timeout: Unable to reach the Supabase server. Using offline mode.');
             setUseLocalAuth(true);
@@ -245,12 +251,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               .single();
               
             if (error) {
-              console.error('❌ Error fetching user profile:', error);
+              console.log('⚠️ Error fetching user profile:', error);
             } else {
               setUserProfile(data);
             }
           } catch (error) {
-            console.error('❌ Error fetching user profile:', error);
+            console.log('⚠️ Error fetching user profile:', error);
           }
         } else {
           setUserProfile(null);
@@ -291,11 +297,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         console.log('✅ Local sign in successful');
       } else {
-        // Supabase authentication with timeout
+        // Supabase authentication with increased timeout
         console.log('🔐 Attempting Supabase sign in with:', email);
         
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Sign in timeout')), 10000)
+          setTimeout(() => reject(new Error('Sign in timeout')), 15000)
         );
         
         const signInPromise = supabase.auth.signInWithPassword({
@@ -317,7 +323,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             .single();
             
           if (profileError) {
-            console.error('❌ Error fetching user profile after sign in:', profileError);
+            console.log('⚠️ Error fetching user profile after sign in:', profileError);
           } else {
             console.log('✅ User profile fetched after sign in:', profileData);
             setUserProfile(profileData);
@@ -325,7 +331,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       }
     } catch (error: any) {
-      console.error('❌ Sign in error:', error);
+      console.log('⚠️ Sign in error:', error);
       
       if (error.message?.includes('Failed to fetch') || error.message?.includes('timeout') || error.name === 'TypeError') {
         setError('Connection error: Unable to reach the server. Please check your internet connection.');
@@ -411,11 +417,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         console.log('✅ Local sign up successful');
       } else {
-        // Supabase authentication with timeout
+        // Supabase authentication with increased timeout
         console.log('📝 Attempting Supabase sign up...');
         
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Sign up timeout')), 10000)
+          setTimeout(() => reject(new Error('Sign up timeout')), 15000)
         );
         
         const signUpPromise = supabase.auth.signUp({
@@ -442,7 +448,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               });
               
             if (profileError) {
-              console.error('❌ Error creating user profile:', profileError);
+              console.log('⚠️ Error creating user profile:', profileError);
             } else {
               console.log('✅ User profile created successfully');
               
@@ -456,12 +462,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               setUserProfile(profileData);
             }
           } catch (profileError) {
-            console.error('❌ Profile creation failed:', profileError);
+            console.log('⚠️ Profile creation failed:', profileError);
           }
         }
       }
     } catch (error: any) {
-      console.error('❌ Sign up error:', error);
+      console.log('⚠️ Sign up error:', error);
       
       if (error.message?.includes('Failed to fetch') || error.message?.includes('timeout') || error.name === 'TypeError') {
         setError('Connection error: Unable to reach the server. Please check your internet connection.');
@@ -507,7 +513,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUserProfile(null);
       }
     } catch (error: any) {
-      console.error('❌ Sign out error:', error);
+      console.log('⚠️ Sign out error:', error);
       
       if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
         setError('Connection error: Unable to reach the server during sign out.');

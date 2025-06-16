@@ -123,7 +123,7 @@ if (!isConfigurationValid) {
   }
 }
 
-// Enhanced connection test function with retry logic
+// Enhanced connection test function with retry logic and increased timeouts
 export const testSupabaseConnection = async (retries = 3): Promise<boolean> => {
   if (!isConfigured) {
     console.log('⚠️ Supabase not configured, skipping connection test');
@@ -134,9 +134,9 @@ export const testSupabaseConnection = async (retries = 3): Promise<boolean> => {
     try {
       console.log(`🔄 Testing Supabase connection (attempt ${attempt}/${retries})...`);
       
-      // Test with auth session check with timeout
+      // Test with auth session check with increased timeout
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Connection timeout')), 8000)
+        setTimeout(() => reject(new Error('Connection timeout')), 15000)
       );
       
       const sessionPromise = supabaseClient.auth.getSession();
@@ -150,16 +150,16 @@ export const testSupabaseConnection = async (retries = 3): Promise<boolean> => {
       console.log('✅ Supabase connection test successful');
       return true;
     } catch (err: any) {
-      console.warn(`⚠️ Supabase connection test failed (attempt ${attempt}):`, err.message);
+      console.log(`⚠️ Supabase connection test failed (attempt ${attempt}):`, err.message);
       
       // If this is the last attempt, return false
       if (attempt === retries) {
-        console.error('❌ All connection attempts failed');
+        console.log('⚠️ All connection attempts failed');
         return false;
       }
       
-      // Wait before retrying
-      const delay = Math.pow(2, attempt - 1) * 1000;
+      // Wait before retrying with exponential backoff
+      const delay = Math.pow(2, attempt - 1) * 2000;
       console.log(`⏳ Waiting ${delay}ms before retry...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }

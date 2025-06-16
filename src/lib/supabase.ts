@@ -46,15 +46,15 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 // Export supabaseUrl for use in other modules
 export { supabaseUrl };
 
-// Enhanced connection test function with better error handling
+// Enhanced connection test function with better error handling and increased timeouts
 export const testSupabaseConnection = async (retries = 2): Promise<boolean> => {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       console.log(`🔄 Testing Supabase connection (attempt ${attempt}/${retries})...`);
       
-      // Add timeout to prevent hanging
+      // Add increased timeout to prevent hanging
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Connection timeout')), 8000)
+        setTimeout(() => reject(new Error('Connection timeout')), 15000)
       );
       
       // Use auth session check instead of direct fetch
@@ -80,14 +80,14 @@ export const testSupabaseConnection = async (retries = 2): Promise<boolean> => {
       const { error: dbError } = await Promise.race([dbPromise, timeoutPromise]) as any;
       
       if (dbError && !dbError.message.includes('RLS')) {
-        console.error(`❌ Supabase database test failed (attempt ${attempt}):`, dbError);
+        console.log(`⚠️ Supabase database test failed (attempt ${attempt}):`, dbError);
         
         if (attempt === retries) {
           return false;
         }
         
-        // Wait before retrying
-        const delay = 1000 * attempt;
+        // Wait before retrying with exponential backoff
+        const delay = 2000 * attempt;
         console.log(`⏳ Waiting ${delay}ms before retry...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
@@ -96,14 +96,14 @@ export const testSupabaseConnection = async (retries = 2): Promise<boolean> => {
       console.log('✅ Supabase connection test successful');
       return true;
     } catch (err: any) {
-      console.error(`❌ Supabase connection test error (attempt ${attempt}):`, err.message);
+      console.log(`⚠️ Supabase connection test error (attempt ${attempt}):`, err.message);
       
       if (attempt === retries) {
         return false;
       }
       
-      // Wait before retrying
-      const delay = 1000 * attempt;
+      // Wait before retrying with exponential backoff
+      const delay = 2000 * attempt;
       console.log(`⏳ Waiting ${delay}ms before retry...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
