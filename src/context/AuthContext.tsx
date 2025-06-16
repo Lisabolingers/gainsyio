@@ -103,6 +103,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Check Supabase connection first
   useEffect(() => {
     const checkConnection = async () => {
+      // First check if config is valid
       if (!isConfigValid) {
         console.warn('⚠️ Supabase configuration is invalid. Using demo mode.');
         setIsDemoMode(true);
@@ -113,18 +114,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       try {
         console.log('🔍 Checking Supabase connection...');
-        const connectionOk = await testSupabaseConnection();
+        
+        // Test connection with shorter timeout for initial check
+        const connectionOk = await Promise.race([
+          testSupabaseConnection(),
+          new Promise<boolean>((resolve) => {
+            setTimeout(() => resolve(false), 8000); // 8 second timeout
+          })
+        ]);
         
         if (!connectionOk) {
-          console.error('❌ Error checking Supabase connection: Connection timeout');
-          setError('Connection timeout. Using demo mode with sample accounts.');
+          console.warn('⚠️ Supabase connection failed or timed out. Using demo mode.');
           setIsDemoMode(true);
         } else {
           console.log('✅ Supabase connection is working');
+          setIsDemoMode(false);
         }
       } catch (error: any) {
-        console.error('❌ Error checking Supabase connection:', error);
-        setError(`Connection error: ${error.message}. Using demo mode with sample accounts.`);
+        console.warn('⚠️ Error checking Supabase connection:', error.message);
         setIsDemoMode(true);
       } finally {
         setConnectionChecked(true);
@@ -149,14 +156,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const initializeAuth = async () => {
       try {
         console.log('🚀 Initializing authentication...');
-        console.log('📍 Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
         
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
           console.error('❌ Error getting session:', sessionError);
-          setError(`Authentication timeout. Using demo mode with sample accounts.`);
-          setIsDemoMode(true);
+          // Don't switch to demo mode here, just log the error
+          setError(`Authentication error: ${sessionError.message}`);
         } else {
           console.log('✅ Session retrieved successfully');
           setSession(session);
@@ -176,13 +182,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       } catch (error: any) {
         console.error('❌ Error initializing auth:', error);
-        
-        if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-          setError('Authentication timeout. Using demo mode with sample accounts.');
-          setIsDemoMode(true);
-        } else {
-          setError(error.message || 'Kimlik doğrulama başlatılamadı');
-        }
+        setError(`Authentication initialization failed: ${error.message}`);
       } finally {
         setLoading(false);
       }
@@ -311,6 +311,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const signIn = async (email: string, password: string) => {
+    setError(null); // Clear any previous errors
+    
     // Demo mode sign in
     if (isDemoMode) {
       const demoAccount = DEMO_ACCOUNTS.find(account => account.email === email && account.password === password);
@@ -331,13 +333,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUserProfile(demoAccount.profile as UserProfile);
         return;
       } else {
-        throw new Error('Geçersiz e-posta veya şifre. Lütfen bilgilerinizi kontrol edin.');
+        throw new Error('Geçersiz e-posta veya şifre. Demo hesapları: user@example.com, admin@example.com, superadmin@example.com (şifre: password)');
       }
     }
     
     // Real sign in
     try {
-      setError(null);
       setLoading(true);
       console.log('🔐 Attempting sign in with:', email);
       
@@ -346,50 +347,68 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         password,
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Supabase auth error:', error);
+        
+        // Handle specific error cases
+        if (error.message?.includes('Invalid login credentials')) {
+          throw new Error('Geçersiz e-posta veya şifre. Lütfen bilgilerinizi kontrol edin.');
+        } else if (error.message?.includes('Email not confirmed')) {
+          throw new Error('E-posta adresiniz henüz doğrulanmamış. Lütfen e-posta kutunuzu kontrol edin.');
+        } else if (error.message?.includes('Too many requests')) {
+          throw new Error('Çok fazla deneme yapıldı. Lütfen birkaç dakika bekleyip tekrar deneyin.');
+        } else {
+          throw new Error(`Giriş hatası: ${error.message}`);
+        }
+      }
+      
       console.log('✅ Sign in successful');
       
       // Fetch user profile after sign in
       if (data.user) {
         console.log('🔍 Fetching user profile after sign in for:', data.user.id);
-        const { data: profileData, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .single();
-          
-        if (profileError) {
-          console.error('❌ Error fetching user profile after sign in:', profileError);
-          
-          // If profile doesn't exist, create it
-          if (profileError.code === 'PGRST116') {
-            console.log('📝 Profile not found, creating new profile...');
-            await ensureUserProfile(data.user);
+        try {
+          const { data: profileData, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
+            
+          if (profileError) {
+            console.error('❌ Error fetching user profile after sign in:', profileError);
+            
+            // If profile doesn't exist, create it
+            if (profileError.code === 'PGRST116') {
+              console.log('📝 Profile not found, creating new profile...');
+              await ensureUserProfile(data.user);
+            } else {
+              console.warn('⚠️ Profile fetch failed but continuing with login:', profileError.message);
+            }
           } else {
-            throw profileError;
+            console.log('✅ User profile fetched after sign in:', profileData);
+            setUserProfile(profileData);
           }
-        } else {
-          console.log('✅ User profile fetched after sign in:', profileData);
-          setUserProfile(profileData);
+        } catch (profileError) {
+          console.warn('⚠️ Profile handling failed but login successful:', profileError);
+          // Don't throw here, login was successful
         }
       }
     } catch (error: any) {
       console.error('❌ Sign in error:', error);
       
       if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-        setError('Bağlantı hatası: Sunucuya ulaşılamıyor. Lütfen internet bağlantınızı kontrol edin.');
-      } else if (error.message?.includes('Invalid login credentials')) {
-        setError('Geçersiz e-posta veya şifre. Lütfen bilgilerinizi kontrol edin.');
+        throw new Error('Bağlantı hatası: Sunucuya ulaşılamıyor. Lütfen internet bağlantınızı kontrol edin.');
       } else {
-        setError(error.message || 'Giriş sırasında bir hata oluştu. Lütfen tekrar deneyin.');
+        throw error; // Re-throw the error with the original message
       }
-      throw error;
     } finally {
       setLoading(false);
     }
   };
 
   const signUp = async (email: string, password: string) => {
+    setError(null); // Clear any previous errors
+    
     // Demo mode sign up
     if (isDemoMode) {
       console.log('🎭 Demo mode: Creating new demo account');
@@ -424,7 +443,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     // Real sign up
     try {
-      setError(null);
       setLoading(true);
       console.log('📝 Attempting sign up...');
       
@@ -450,17 +468,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('❌ Sign up error:', error);
       
       if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-        setError('Bağlantı hatası: Sunucuya ulaşılamıyor. Lütfen internet bağlantınızı kontrol edin.');
+        throw new Error('Bağlantı hatası: Sunucuya ulaşılamıyor. Lütfen internet bağlantınızı kontrol edin.');
       } else {
-        setError(error.message || 'Kayıt sırasında bir hata oluştu. Lütfen tekrar deneyin.');
+        throw new Error(error.message || 'Kayıt sırasında bir hata oluştu. Lütfen tekrar deneyin.');
       }
-      throw error;
     } finally {
       setLoading(false);
     }
   };
 
   const signOut = async () => {
+    setError(null); // Clear any previous errors
+    
     // Demo mode sign out
     if (isDemoMode) {
       console.log('🎭 Demo mode: Signing out');
@@ -471,7 +490,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     // Real sign out
     try {
-      setError(null);
       setLoading(true);
       console.log('🚪 Attempting sign out...');
       
@@ -483,11 +501,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('❌ Sign out error:', error);
       
       if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-        setError('Bağlantı hatası: Çıkış sırasında sunucuya ulaşılamıyor.');
+        throw new Error('Bağlantı hatası: Çıkış sırasında sunucuya ulaşılamıyor.');
       } else {
-        setError('Çıkış sırasında bir hata oluştu. Lütfen tekrar deneyin.');
+        throw new Error('Çıkış sırasında bir hata oluştu. Lütfen tekrar deneyin.');
       }
-      throw error;
     } finally {
       setLoading(false);
     }
