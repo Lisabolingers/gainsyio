@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { TrendingUp, TrendingDown, DollarSign, Package, Eye, Heart, ShoppingCart, Store, Plus, ArrowUpRight, Calendar, BarChart3, BookTemplate as FileTemplate, ChevronDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Package, Eye, Heart, ShoppingCart, Store, Plus, ArrowUpRight, Calendar, BarChart3, BookTemplate as FileTemplate, ChevronDown, AlertCircle } from 'lucide-react';
 
 interface DashboardStats {
   totalStores: number;
@@ -41,8 +41,9 @@ const AdminDashboardPage: React.FC = () => {
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [stores, setStores] = useState<EtsyStore[]>([]);
   const [selectedStore, setSelectedStore] = useState<string>('all');
-  const [selectedPeriod, setSelectedPeriod] = useState('last7days'); // Changed from 'today' to 'last7days'
+  const [selectedPeriod, setSelectedPeriod] = useState('last7days');
   const [loading, setLoading] = useState(true);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   // Time period options
   const timePeriods = [
@@ -56,7 +57,25 @@ const AdminDashboardPage: React.FC = () => {
     { value: 'alltime', label: 'All time' }
   ];
 
+  // Check if Supabase is properly configured
+  const isSupabaseConfigured = () => {
+    const url = import.meta.env.VITE_SUPABASE_URL;
+    const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    return url && 
+           key && 
+           url !== 'https://your-project-id.supabase.co' && 
+           key !== 'your-anon-key' &&
+           url.includes('supabase.co');
+  };
+
   useEffect(() => {
+    if (!isSupabaseConfigured()) {
+      setConnectionError('Supabase configuration is missing or invalid. Please check your .env file.');
+      setLoading(false);
+      return;
+    }
+
     if (user) {
       loadStores();
       fetchDashboardData();
@@ -77,19 +96,34 @@ const AdminDashboardPage: React.FC = () => {
 
       if (error) {
         console.error('❌ Store loading error:', error);
+        if (error.message.includes('Failed to fetch')) {
+          setConnectionError('Unable to connect to database. Please check your Supabase configuration.');
+          return;
+        }
         throw error;
       }
 
       console.log(`✅ ${data?.length || 0} Etsy stores loaded for dashboard`);
       setStores(data || []);
-    } catch (error) {
+      setConnectionError(null);
+    } catch (error: any) {
       console.error('❌ Store loading general error:', error);
+      if (error.message?.includes('Failed to fetch')) {
+        setConnectionError('Database connection failed. Please verify your Supabase credentials.');
+      }
     }
   };
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
+      setConnectionError(null);
+
+      // Test connection first
+      if (!isSupabaseConfigured()) {
+        setConnectionError('Supabase is not properly configured. Please update your .env file.');
+        return;
+      }
 
       // Fetch stores count
       let storesQuery = supabase
@@ -101,7 +135,16 @@ const AdminDashboardPage: React.FC = () => {
         storesQuery = storesQuery.eq('id', selectedStore);
       }
 
-      const { count: storesCount } = await storesQuery;
+      const { count: storesCount, error: storesError } = await storesQuery;
+
+      if (storesError) {
+        console.error('❌ Stores query error:', storesError);
+        if (storesError.message.includes('Failed to fetch')) {
+          setConnectionError('Database connection failed. Please check your Supabase configuration.');
+          return;
+        }
+        throw storesError;
+      }
 
       // Fetch products count
       let productsQuery = supabase
@@ -113,7 +156,16 @@ const AdminDashboardPage: React.FC = () => {
         productsQuery = productsQuery.eq('store_id', selectedStore);
       }
 
-      const { count: productsCount } = await productsQuery;
+      const { count: productsCount, error: productsError } = await productsQuery;
+
+      if (productsError) {
+        console.error('❌ Products query error:', productsError);
+        if (productsError.message.includes('Failed to fetch')) {
+          setConnectionError('Database connection failed. Please check your Supabase configuration.');
+          return;
+        }
+        throw productsError;
+      }
 
       // Calculate date range based on selected period
       const dateRange = getDateRange(selectedPeriod);
@@ -144,7 +196,17 @@ const AdminDashboardPage: React.FC = () => {
         analyticsQuery = analyticsQuery.lte('date', dateRange.end);
       }
 
-      const { data: analyticsData } = await analyticsQuery;
+      const { data: analyticsData, error: analyticsError } = await analyticsQuery;
+
+      if (analyticsError) {
+        console.error('❌ Analytics query error:', analyticsError);
+        if (analyticsError.message.includes('Failed to fetch')) {
+          setConnectionError('Database connection failed. Please check your Supabase configuration.');
+          return;
+        }
+        // Don't throw error for analytics as it's not critical
+        console.warn('Analytics data unavailable, using defaults');
+      }
 
       // Calculate totals
       const totals = analyticsData?.reduce(
@@ -199,8 +261,15 @@ const AdminDashboardPage: React.FC = () => {
         },
       ]);
 
-    } catch (error) {
+      setConnectionError(null);
+
+    } catch (error: any) {
       console.error('Error fetching dashboard data:', error);
+      if (error.message?.includes('Failed to fetch')) {
+        setConnectionError('Unable to connect to the database. Please verify your Supabase configuration.');
+      } else {
+        setConnectionError(`Database error: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -354,6 +423,46 @@ const AdminDashboardPage: React.FC = () => {
     return period ? period.label : 'Last 7 days';
   };
 
+  // Show connection error if Supabase is not configured
+  if (connectionError) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+          <div className="flex items-start space-x-3">
+            <AlertCircle className="h-6 w-6 text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-red-700 dark:text-red-400 mb-2">
+                Database Connection Error
+              </h3>
+              <p className="text-red-600 dark:text-red-300 mb-4">
+                {connectionError}
+              </p>
+              <div className="bg-red-100 dark:bg-red-900/40 rounded-lg p-4 mb-4">
+                <h4 className="font-medium text-red-800 dark:text-red-200 mb-2">
+                  To fix this issue:
+                </h4>
+                <ol className="list-decimal list-inside space-y-1 text-sm text-red-700 dark:text-red-300">
+                  <li>Go to <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800 dark:hover:text-red-200">Supabase Dashboard</a></li>
+                  <li>Select your project or create a new one</li>
+                  <li>Go to Settings → API</li>
+                  <li>Copy your Project URL and Anon Key</li>
+                  <li>Update the .env file with your credentials</li>
+                  <li>Restart the development server</li>
+                </ol>
+              </div>
+              <button
+                onClick={() => window.location.reload()}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                Retry Connection
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="p-6">
@@ -424,7 +533,7 @@ const AdminDashboardPage: React.FC = () => {
       </div>
 
       {/* No Store Warning */}
-      {stores.length === 0 && (
+      {stores.length === 0 && !connectionError && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
           <div className="flex items-center space-x-3">
             <Store className="h-5 w-5 text-yellow-500" />
