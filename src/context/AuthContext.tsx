@@ -250,6 +250,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUserProfile(profileData);
         }
       }
+      
+      // Important: Set loading to false here to allow redirect to happen
+      setLoading(false);
+      
     } catch (error: any) {
       console.error('❌ Sign in error:', error);
       
@@ -260,9 +264,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } else {
         setError(error.message || 'An error occurred during sign in. Please try again.');
       }
-      throw error;
-    } finally {
       setLoading(false);
+      throw error;
     }
   };
 
@@ -290,6 +293,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Don't throw here as signup was successful
         }
       }
+      
+      // Important: Set loading to false here to allow redirect to happen
+      setLoading(false);
+      
     } catch (error: any) {
       console.error('❌ Sign up error:', error);
       
@@ -298,9 +305,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } else {
         setError(error.message || 'An error occurred during registration. Please try again.');
       }
-      throw error;
-    } finally {
       setLoading(false);
+      throw error;
     }
   };
 

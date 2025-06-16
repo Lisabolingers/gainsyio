@@ -27,7 +27,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     });
   }, [user, userProfile, loading, requireSuperAdmin, requireAdmin]);
 
+  // Show loading state
   if (loading) {
+    console.log('⏳ Auth is still loading, showing loading screen...');
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
@@ -38,7 +40,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
+  // Show error state
   if (error) {
+    console.error('❌ Auth error in protected route:', error);
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
