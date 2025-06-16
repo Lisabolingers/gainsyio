@@ -50,15 +50,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Add timeout wrapper for Supabase calls
+  const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number = 10000): Promise<T> => {
+    let timeoutId: NodeJS.Timeout;
+    
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error('İstek zaman aşımına uğradı. Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin.'));
+      }, timeoutMs);
+    });
+    
+    try {
+      const result = await Promise.race([promise, timeoutPromise]);
+      clearTimeout(timeoutId!);
+      return result as T;
+    } catch (error) {
+      clearTimeout(timeoutId!);
+      throw error;
+    }
+  };
+
   const ensureUserProfile = async (user: User) => {
     try {
       console.log('🔍 Checking user profile for:', user.id);
       
       // Test basic connectivity first
-      const { error: testError } = await supabase
-        .from('user_profiles')
-        .select('count')
-        .limit(1);
+      const { error: testError } = await withTimeout(
+        supabase
+          .from('user_profiles')
+          .select('count')
+          .limit(1),
+        5000
+      );
       
       if (testError) {
         console.error('❌ Supabase connectivity test failed:', testError);
@@ -68,11 +91,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('✅ Supabase connectivity test passed');
 
       // Check if user profile exists
-      const { data: existingProfile, error: fetchError } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
+      const { data: existingProfile, error: fetchError } = await withTimeout(
+        supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle(),
+        8000
+      );
 
       if (fetchError && fetchError.code !== 'PGRST116') {
         // PGRST116 is "not found" error, which is expected if profile doesn't exist
@@ -83,17 +109,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // If profile doesn't exist, create it
       if (!existingProfile) {
         console.log('📝 Creating new user profile...');
-        const { data, error: insertError } = await supabase
-          .from('user_profiles')
-          .insert({
-            id: user.id,
-            email: user.email || '',
-            subscription_plan: 'free',
-            subscription_status: 'active',
-            role: 'user' // Default role is 'user'
-          })
-          .select()
-          .single();
+        const { data, error: insertError } = await withTimeout(
+          supabase
+            .from('user_profiles')
+            .insert({
+              id: user.id,
+              email: user.email || '',
+              subscription_plan: 'free',
+              subscription_status: 'active',
+              role: 'user' // Default role is 'user'
+            })
+            .select()
+            .single(),
+          8000
+        );
 
         if (insertError) {
           console.error('❌ Error creating user profile:', insertError);
@@ -123,6 +152,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw new Error(corsError);
       }
       
+      // Check if it's a timeout error
+      if (error.message?.includes('zaman aşımı')) {
+        setError(error.message);
+        throw error;
+      }
+      
       // Generic error
       setError(`Kullanıcı profili hatası: ${error.message}`);
       throw error;
@@ -136,7 +171,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.log('🚀 Initializing authentication...');
         console.log('📍 Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
         
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        const { data: { session }, error: sessionError } = await withTimeout(
+          supabase.auth.getSession(),
+          8000
+        );
         
         if (sessionError) {
           console.error('❌ Error getting session:', sessionError);
@@ -163,11 +201,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
           setError('Bağlantı hatası: Sunucuya ulaşılamıyor. Lütfen internet bağlantınızı kontrol edin.');
+        } else if (error.message?.includes('zaman aşımı')) {
+          setError(error.message);
         } else {
           setError(error.message || 'Kimlik doğrulama başlatılamadı');
         }
       } finally {
+        // Always set loading to false after 15 seconds maximum
+        const maxLoadingTimeout = setTimeout(() => {
+          if (loading) {
+            console.log('⚠️ Auth loading timed out after 15 seconds');
+            setLoading(false);
+            if (!error) {
+              setError('Kimlik doğrulama zaman aşımına uğradı. Lütfen sayfayı yenileyip tekrar deneyin.');
+            }
+          }
+        }, 15000);
+        
         setLoading(false);
+        return () => clearTimeout(maxLoadingTimeout);
       }
     };
 
@@ -185,11 +237,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Fetch user profile when auth state changes
         try {
           console.log('🔍 Fetching user profile after auth change for:', session.user.id);
-          const { data, error } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
+          const { data, error } = await withTimeout(
+            supabase
+              .from('user_profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single(),
+            8000
+          );
             
           if (error) {
             console.error('❌ Error fetching user profile:', error);
@@ -218,10 +273,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true);
       console.log('🔐 Attempting sign in with:', email);
       
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data, error } = await withTimeout(
+        supabase.auth.signInWithPassword({
+          email,
+          password,
+        }),
+        10000
+      );
       
       if (error) throw error;
       console.log('✅ Sign in successful');
@@ -229,11 +287,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Fetch user profile after sign in
       if (data.user) {
         console.log('🔍 Fetching user profile after sign in for:', data.user.id);
-        const { data: profileData, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .single();
+        const { data: profileData, error: profileError } = await withTimeout(
+          supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .single(),
+          8000
+        );
           
         if (profileError) {
           console.error('❌ Error fetching user profile after sign in:', profileError);
@@ -257,6 +318,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setError('Bağlantı hatası: Sunucuya ulaşılamıyor. Lütfen internet bağlantınızı kontrol edin.');
       } else if (error.message?.includes('Invalid login credentials')) {
         setError('Geçersiz e-posta veya şifre. Lütfen bilgilerinizi kontrol edin.');
+      } else if (error.message?.includes('zaman aşımı')) {
+        setError(error.message);
       } else {
         setError(error.message || 'Giriş sırasında bir hata oluştu. Lütfen tekrar deneyin.');
       }
@@ -272,10 +335,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true);
       console.log('📝 Attempting sign up...');
       
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
+      const { data, error } = await withTimeout(
+        supabase.auth.signUp({
+          email,
+          password,
+        }),
+        10000
+      );
       
       if (error) throw error;
       console.log('✅ Sign up successful');
@@ -295,6 +361,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
         setError('Bağlantı hatası: Sunucuya ulaşılamıyor. Lütfen internet bağlantınızı kontrol edin.');
+      } else if (error.message?.includes('zaman aşımı')) {
+        setError(error.message);
       } else {
         setError(error.message || 'Kayıt sırasında bir hata oluştu. Lütfen tekrar deneyin.');
       }
@@ -310,7 +378,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true);
       console.log('🚪 Attempting sign out...');
       
-      const { error } = await supabase.auth.signOut();
+      const { error } = await withTimeout(
+        supabase.auth.signOut(),
+        8000
+      );
+      
       if (error) throw error;
       console.log('✅ Sign out successful');
       setUserProfile(null);
@@ -319,6 +391,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
         setError('Bağlantı hatası: Çıkış sırasında sunucuya ulaşılamıyor.');
+      } else if (error.message?.includes('zaman aşımı')) {
+        setError(error.message);
       } else {
         setError('Çıkış sırasında bir hata oluştu. Lütfen tekrar deneyin.');
       }
