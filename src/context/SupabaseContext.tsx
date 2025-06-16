@@ -27,14 +27,18 @@ interface SupabaseProviderProps {
 // Determine if configuration is valid
 const isConfigurationValid = !(!supabaseUrl || !supabaseAnonKey || 
   supabaseUrl === 'https://your-project-id.supabase.co' || 
-  supabaseAnonKey === 'your-anon-key');
+  supabaseAnonKey === 'your-anon-key' ||
+  supabaseUrl.includes('localhost'));
 
 // Create appropriate client based on configuration
 let supabaseClient: SupabaseClient;
 let isConfigured: boolean;
 
 if (!isConfigurationValid) {
-  console.warn('⚠️ Supabase configuration incomplete. Using mock client.');
+  console.warn('⚠️ Supabase configuration incomplete or invalid. Using mock client.');
+  console.warn('Current URL:', supabaseUrl);
+  console.warn('URL valid:', supabaseUrl && !supabaseUrl.includes('localhost') && supabaseUrl !== 'https://your-project-id.supabase.co');
+  console.warn('Key valid:', supabaseAnonKey && supabaseAnonKey !== 'your-anon-key');
   
   // Create a mock client to prevent app crashes
   supabaseClient = {
@@ -64,6 +68,7 @@ if (!isConfigurationValid) {
   isConfigured = false;
 } else {
   try {
+    console.log('✅ Creating Supabase client with URL:', supabaseUrl);
     supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
@@ -77,6 +82,7 @@ if (!isConfigurationValid) {
       },
     });
     isConfigured = true;
+    console.log('✅ Supabase client created successfully');
   } catch (error) {
     console.error('❌ Error creating Supabase client:', error);
     
@@ -85,8 +91,8 @@ if (!isConfigurationValid) {
       auth: {
         onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } }, error: null }),
         getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-        signUp: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
-        signInWithPassword: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+        signUp: () => Promise.resolve({ data: null, error: new Error('Supabase client creation failed') }),
+        signInWithPassword: () => Promise.resolve({ data: null, error: new Error('Supabase client creation failed') }),
         signOut: () => Promise.resolve({ error: null }),
       },
       from: () => ({
@@ -99,9 +105,9 @@ if (!isConfigurationValid) {
           }),
           order: () => Promise.resolve({ data: [], error: null }),
         }),
-        insert: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
-        update: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
-        delete: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+        insert: () => Promise.resolve({ data: null, error: new Error('Supabase client creation failed') }),
+        update: () => Promise.resolve({ data: null, error: new Error('Supabase client creation failed') }),
+        delete: () => Promise.resolve({ data: null, error: new Error('Supabase client creation failed') }),
       }),
     } as any;
     
@@ -111,42 +117,30 @@ if (!isConfigurationValid) {
 
 // Enhanced connection test function with retry logic
 export const testSupabaseConnection = async (retries = 3): Promise<boolean> => {
+  if (!isConfigured) {
+    console.log('⚠️ Supabase not configured, skipping connection test');
+    return false;
+  }
+
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       console.log(`🔄 Testing Supabase connection (attempt ${attempt}/${retries})...`);
       
-      // Test with a simple health check that doesn't require authentication
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      // Test with auth session check instead of direct fetch to avoid CORS issues
+      const { data, error } = await supabaseClient.auth.getSession();
       
-      const response = await fetch(`${supabaseUrl}/rest/v1/`, {
-        method: 'HEAD',
-        headers: {
-          'apikey': supabaseAnonKey,
-        },
-        signal: controller.signal,
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (response.ok) {
-        console.log('✅ Supabase connection test successful');
-        return true;
-      } else {
-        console.warn('⚠️ Supabase connection test returned:', response.status, response.statusText);
-        console.warn('This might indicate incorrect API key or project configuration');
+      if (error && error.message.includes('Failed to fetch')) {
+        throw new Error('Network connection failed');
       }
+      
+      console.log('✅ Supabase connection test successful');
+      return true;
     } catch (err: any) {
-      if (err?.name === 'AbortError') {
-        console.warn('⚠️ Supabase connection test timed out');
-        console.warn('This might indicate network issues or slow connection');
-      } else {
-        console.warn('⚠️ Supabase connection test failed:', err);
-        console.warn('This might indicate network issues or incorrect configuration');
-      }
+      console.warn(`⚠️ Supabase connection test failed (attempt ${attempt}):`, err.message);
       
       // If this is the last attempt, return false
       if (attempt === retries) {
+        console.error('❌ All connection attempts failed');
         return false;
       }
       

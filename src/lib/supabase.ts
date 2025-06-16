@@ -6,12 +6,19 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 console.log('🔧 Supabase Configuration Check:');
 console.log('URL:', supabaseUrl ? '✅ Present' : '❌ Missing');
 console.log('Key:', supabaseAnonKey ? '✅ Present' : '❌ Missing');
+console.log('URL Valid:', supabaseUrl && !supabaseUrl.includes('localhost') && supabaseUrl !== 'https://your-project-id.supabase.co' ? '✅ Valid' : '❌ Invalid');
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('❌ Missing Supabase environment variables');
   console.error('VITE_SUPABASE_URL:', supabaseUrl || '[MISSING]');
   console.error('VITE_SUPABASE_ANON_KEY:', supabaseAnonKey ? '[PRESENT]' : '[MISSING]');
   throw new Error('Supabase ortam değişkenleri eksik. Lütfen .env dosyanızı kontrol edin.');
+}
+
+if (supabaseUrl.includes('localhost')) {
+  console.error('❌ Invalid Supabase URL - contains localhost');
+  console.error('Current URL:', supabaseUrl);
+  throw new Error('Supabase URL geçersiz. Localhost URL\'i kullanılamaz.');
 }
 
 // Create Supabase client with enhanced error handling
@@ -37,19 +44,32 @@ export const testSupabaseConnection = async (retries = 2): Promise<boolean> => {
     try {
       console.log(`🔄 Testing Supabase connection (attempt ${attempt}/${retries})...`);
       
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Connection timeout')), 5000)
+      );
+      
       // Use auth session check instead of direct fetch
-      const { data, error } = await supabase.auth.getSession();
+      const sessionPromise = supabase.auth.getSession();
+      
+      const { data, error } = await Promise.race([sessionPromise, timeoutPromise]) as any;
       
       if (error && error.message.includes('Invalid API key')) {
         console.error('❌ Invalid Supabase API key');
         return false;
       }
       
+      if (error && error.message.includes('Failed to fetch')) {
+        throw new Error('Network connection failed');
+      }
+      
       // Test basic database connectivity with a simple query
-      const { error: dbError } = await supabase
+      const dbPromise = supabase
         .from('user_profiles')
         .select('count')
         .limit(0);
+      
+      const { error: dbError } = await Promise.race([dbPromise, timeoutPromise]) as any;
       
       if (dbError && !dbError.message.includes('RLS')) {
         console.error(`❌ Supabase database test failed (attempt ${attempt}):`, dbError);
@@ -68,7 +88,7 @@ export const testSupabaseConnection = async (retries = 2): Promise<boolean> => {
       console.log('✅ Supabase connection test successful');
       return true;
     } catch (err: any) {
-      console.error(`❌ Supabase connection test error (attempt ${attempt}):`, err);
+      console.error(`❌ Supabase connection test error (attempt ${attempt}):`, err.message);
       
       if (attempt === retries) {
         return false;

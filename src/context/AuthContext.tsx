@@ -111,18 +111,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           return;
         }
 
-        // Try to get session from Supabase
-        const { data, error } = await supabase.auth.getSession();
+        // Try to get session from Supabase with timeout
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Connection timeout')), 5000)
+        );
         
-        if (error || !data.session) {
-          console.log('⚠️ Supabase connection failed, using local auth');
+        const sessionPromise = supabase.auth.getSession();
+        
+        const { data, error } = await Promise.race([sessionPromise, timeoutPromise]) as any;
+        
+        if (error || !data) {
+          console.log('⚠️ Supabase connection failed, using local auth:', error?.message);
           setUseLocalAuth(true);
         } else {
           console.log('✅ Supabase connection successful');
           setUseLocalAuth(false);
         }
-      } catch (err) {
-        console.error('❌ Error checking Supabase connection:', err);
+      } catch (err: any) {
+        console.error('❌ Error checking Supabase connection:', err.message);
         setUseLocalAuth(true);
       } finally {
         setLoading(false);
@@ -164,11 +170,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         try {
           console.log('🚀 Initializing Supabase authentication...');
           
-          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          // Add timeout to prevent hanging
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Authentication timeout')), 10000)
+          );
+          
+          const sessionPromise = supabase.auth.getSession();
+          
+          const { data: { session }, error: sessionError } = await Promise.race([sessionPromise, timeoutPromise]) as any;
           
           if (sessionError) {
             console.error('❌ Error getting session:', sessionError);
             setError(`Session error: ${sessionError.message}`);
+            // Fall back to local auth on session error
+            setUseLocalAuth(true);
           } else {
             console.log('✅ Session retrieved successfully');
             setSession(session);
@@ -196,7 +211,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
         } catch (error: any) {
           console.error('❌ Error initializing auth:', error);
-          setError('Connection error: Unable to reach the server. Please check your internet connection.');
+          if (error.message.includes('timeout') || error.message.includes('Failed to fetch')) {
+            setError('Connection timeout: Unable to reach the server. Using offline mode.');
+            setUseLocalAuth(true);
+          } else {
+            setError('Connection error: Unable to reach the server. Please check your internet connection.');
+          }
         } finally {
           setLoading(false);
         }
@@ -267,13 +287,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         console.log('✅ Local sign in successful');
       } else {
-        // Supabase authentication
+        // Supabase authentication with timeout
         console.log('🔐 Attempting Supabase sign in with:', email);
         
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Sign in timeout')), 10000)
+        );
+        
+        const signInPromise = supabase.auth.signInWithPassword({
           email,
           password,
         });
+        
+        const { data, error } = await Promise.race([signInPromise, timeoutPromise]) as any;
         
         if (error) throw error;
         console.log('✅ Supabase sign in successful');
@@ -297,8 +323,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error: any) {
       console.error('❌ Sign in error:', error);
       
-      if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('timeout') || error.name === 'TypeError') {
         setError('Connection error: Unable to reach the server. Please check your internet connection.');
+        // Switch to local auth on connection error
+        if (!useLocalAuth) {
+          console.log('🔄 Switching to local auth due to connection error');
+          setUseLocalAuth(true);
+          // Retry with local auth
+          const user = MOCK_USERS.find(u => u.email === email && u.password === password);
+          if (user) {
+            localStorage.setItem('local_auth_user', JSON.stringify(user));
+            setUser({
+              id: user.id,
+              email: user.email,
+              app_metadata: {},
+              user_metadata: {},
+              aud: 'local',
+              created_at: user.profile.created_at
+            } as User);
+            setUserProfile(user.profile);
+            console.log('✅ Fallback to local sign in successful');
+            return;
+          }
+        }
       } else if (error.message?.includes('Invalid login credentials')) {
         setError('Invalid email or password. Please check your credentials.');
       } else {
@@ -360,13 +407,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         console.log('✅ Local sign up successful');
       } else {
-        // Supabase authentication
+        // Supabase authentication with timeout
         console.log('📝 Attempting Supabase sign up...');
         
-        const { data, error } = await supabase.auth.signUp({
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Sign up timeout')), 10000)
+        );
+        
+        const signUpPromise = supabase.auth.signUp({
           email,
           password,
         });
+        
+        const { data, error } = await Promise.race([signUpPromise, timeoutPromise]) as any;
         
         if (error) throw error;
         console.log('✅ Supabase sign up successful');
@@ -406,8 +459,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error: any) {
       console.error('❌ Sign up error:', error);
       
-      if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('timeout') || error.name === 'TypeError') {
         setError('Connection error: Unable to reach the server. Please check your internet connection.');
+        // Switch to local auth on connection error
+        if (!useLocalAuth) {
+          console.log('🔄 Switching to local auth due to connection error');
+          setUseLocalAuth(true);
+        }
       } else {
         setError(error.message || 'An error occurred during registration. Please try again.');
       }
