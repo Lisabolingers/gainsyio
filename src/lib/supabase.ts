@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -13,7 +13,7 @@ const isConfigValid = !(!supabaseUrl || !supabaseAnonKey ||
   supabaseAnonKey === 'your-anon-key');
 
 // Create appropriate client based on configuration
-let supabase;
+let supabase: SupabaseClient;
 
 if (!isConfigValid) {
   console.warn('⚠️ Supabase configuration incomplete. Using mock client.');
@@ -52,7 +52,7 @@ if (!isConfigValid) {
         eq: () => Promise.resolve({ data: null, error: null }),
       }),
     }),
-  };
+  } as SupabaseClient;
 } else {
   // Validate URL format
   try {
@@ -74,13 +74,13 @@ if (!isConfigValid) {
       headers: {
         'Content-Type': 'application/json',
       },
-    },
-    // Add timeout settings
-    fetch: (url, options) => {
-      return fetch(url, {
-        ...options,
-        signal: AbortSignal.timeout(10000), // 10 second timeout
-      });
+      // Add timeout settings
+      fetch: (url: RequestInfo, options?: RequestInit) => {
+        return fetch(url, {
+          ...options,
+          signal: AbortSignal.timeout(10000), // 10 second timeout
+        });
+      },
     },
   });
 }
