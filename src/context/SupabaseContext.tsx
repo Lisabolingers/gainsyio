@@ -80,7 +80,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 // Add connection monitoring
-supabase.auth.onAuthStateChange((event, session) => {
+supabase.auth.onAuthStateChange((event) => {
   if (event === 'SIGNED_IN') {
     console.log('🔐 User signed in successfully');
   } else if (event === 'SIGNED_OUT') {
