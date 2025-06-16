@@ -55,7 +55,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('🔍 Checking user profile for:', user.id);
       
       // Test basic connectivity first
-      const { data: testData, error: testError } = await supabase
+      const { data: _, error: testError } = await supabase
         .from('user_profiles')
         .select('count')
         .limit(1);

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { TrendingUp, TrendingDown, DollarSign, Package, Eye, Heart, ShoppingCart, Store, Plus, ArrowUpRight, Calendar, Filter, BarChart3, BookTemplate as FileTemplate, ChevronDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Package, Eye, Heart, ShoppingCart, Store, Plus, ArrowUpRight, Calendar, BarChart3, BookTemplate as FileTemplate, ChevronDown } from 'lucide-react';
 
 interface DashboardStats {
   totalStores: number;
