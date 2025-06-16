@@ -263,7 +263,7 @@ const ListingPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
             <Globe className="h-6 w-6 mr-2 text-orange-500" />
-            Etsy Araştırma & Listeleme
+            Etsy Research
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
             Etsy API kullanarak ürün araştırması yapın ve mağazanıza ekleyin

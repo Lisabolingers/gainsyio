@@ -33,7 +33,7 @@ const AdminLayout: React.FC = () => {
       ]
     },
     { 
-      name: 'Listing', 
+      name: 'Research', 
       href: '/admin/listing', 
       icon: PlusCircle,
       hasSubmenu: true,
@@ -141,7 +141,7 @@ const AdminLayout: React.FC = () => {
               <rect x="459.65" y="534.9" width="250.62" height="250.61" fill="#f15a29"/>
               <rect x="1113.09" y="1378.46" width="250.64" height="250.62" fill="#f15a29"/>
             </svg>
-            <span className="text-xl font-bold text-gray-900 dark:text-white">Gainsy</span>
+            <span className="text-2xl font-bold text-gray-900 dark:text-white">Gainsy</span>
           </Link>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -238,8 +238,8 @@ const AdminLayout: React.FC = () => {
                   </div>
                 )}
 
-                {/* Listing Submenu items */}
-                {item.name === 'Listing' && listingExpanded && (
+                {/* Research Submenu items */}
+                {item.name === 'Research' && listingExpanded && (
                   <div className="ml-6 mt-1 space-y-1">
                     {item.submenu?.map((subItem) => (
                       <Link
