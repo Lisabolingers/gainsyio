@@ -108,7 +108,7 @@ const StoresPage: React.FC = () => {
           .eq('user_id', user?.id)
           .eq('platform', 'etsy')
           .order('created_at', { ascending: false }),
-        20000, // Increased timeout from 8000 to 20000 milliseconds (20 seconds)
+        30000, // Increased timeout from 20000 to 30000 milliseconds (30 seconds)
         2 // 2 retries
       );
 
@@ -359,7 +359,7 @@ const StoresPage: React.FC = () => {
           .insert(storeData)
           .select()
           .single(),
-        20000, // Increased timeout from 10000 to 20000 milliseconds (20 seconds)
+        30000, // Increased timeout from 20000 to 30000 milliseconds (30 seconds)
         2 // 2 retries
       );
 
@@ -408,7 +408,7 @@ const StoresPage: React.FC = () => {
           })
           .eq('id', storeId)
           .eq('user_id', user?.id),
-        20000, // Increased timeout from 10000 to 20000 milliseconds (20 seconds)
+        30000, // Increased timeout from 20000 to 30000 milliseconds (30 seconds)
         2 // 2 retries
       );
 
@@ -442,7 +442,7 @@ const StoresPage: React.FC = () => {
           .delete()
           .eq('id', storeId)
           .eq('user_id', user?.id),
-        20000, // Increased timeout from 10000 to 20000 milliseconds (20 seconds)
+        30000, // Increased timeout from 20000 to 30000 milliseconds (30 seconds)
         2 // 2 retries
       );
 
@@ -477,7 +477,7 @@ const StoresPage: React.FC = () => {
           })
           .eq('id', storeId)
           .eq('user_id', user?.id),
-        20000, // Increased timeout from 10000 to 20000 milliseconds (20 seconds)
+        30000, // Increased timeout from 20000 to 30000 milliseconds (30 seconds)
         2 // 2 retries
       );
 
@@ -521,7 +521,7 @@ const StoresPage: React.FC = () => {
           })
           .eq('id', storeId)
           .eq('user_id', user?.id),
-        20000, // Increased timeout from 10000 to 20000 milliseconds (20 seconds)
+        30000, // Increased timeout from 20000 to 30000 milliseconds (30 seconds)
         2 // 2 retries
       );
 
