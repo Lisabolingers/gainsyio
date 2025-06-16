@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { useSupabase } from './SupabaseContext';
-import { testSupabaseConnection } from '../lib/supabase';
 
 interface UserProfile {
   id: string;
@@ -56,9 +55,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('🔍 Checking user profile for:', user.id);
       
       // Test basic connectivity first
-      const connectionOk = await testSupabaseConnection();
-      if (!connectionOk) {
-        throw new Error('Database connection failed. Please check your internet connection and try again.');
+      const { data: testData, error: testError } = await supabase
+        .from('user_profiles')
+        .select('count')
+        .limit(1);
+      
+      if (testError) {
+        console.error('❌ Supabase connectivity test failed:', testError);
+        throw new Error(`Database connection failed: ${testError.message}`);
       }
       
       console.log('✅ Supabase connectivity test passed');
@@ -107,20 +111,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       // Check if it's a network error
       if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-        const networkError = 'Bağlantı hatası: Sunucuya erişilemiyor. İnternet bağlantınızı kontrol edin ve tekrar deneyin.';
+        const networkError = 'Connection error: Unable to reach the server. Please check your internet connection and try again.';
         setError(networkError);
         throw new Error(networkError);
       }
       
       // Check if it's a CORS error
       if (error.message?.includes('CORS') || error.message?.includes('Access-Control')) {
-        const corsError = 'CORS hatası: Sunucu yapılandırma sorunu. Lütfen daha sonra tekrar deneyin.';
+        const corsError = 'CORS error: Server configuration issue. Please try again later.';
         setError(corsError);
         throw new Error(corsError);
       }
       
       // Generic error
-      setError(`Kullanıcı profili hatası: ${error.message}`);
+      setError(`User profile error: ${error.message}`);
       throw error;
     }
   };
@@ -136,7 +140,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         if (sessionError) {
           console.error('❌ Error getting session:', sessionError);
-          setError(`Oturum hatası: ${sessionError.message}`);
+          setError(`Session error: ${sessionError.message}`);
         } else {
           console.log('✅ Session retrieved successfully');
           setSession(session);
@@ -155,9 +159,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.error('❌ Error initializing auth:', error);
         
         if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-          setError('Bağlantı hatası: Sunucuya erişilemiyor. İnternet bağlantınızı kontrol edin.');
+          setError('Connection error: Unable to reach the server. Please check your internet connection.');
         } else {
-          setError(error.message || 'Kimlik doğrulama başlatılamadı');
+          setError(error.message || 'Failed to initialize authentication');
         }
       } finally {
         setLoading(false);
@@ -205,12 +209,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true);
       console.log('🔐 Attempting sign in...');
       
-      // Test connection before attempting sign in
-      const connectionOk = await testSupabaseConnection();
-      if (!connectionOk) {
-        throw new Error('Veritabanı bağlantısı kurulamadı. Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin.');
-      }
-      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -234,11 +232,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('❌ Sign in error:', error);
       
       if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-        setError('Bağlantı hatası: Sunucuya erişilemiyor. İnternet bağlantınızı kontrol edin.');
+        setError('Connection error: Unable to reach the server. Please check your internet connection.');
       } else if (error.message?.includes('Invalid login credentials')) {
-        setError('Geçersiz e-posta veya şifre. Lütfen bilgilerinizi kontrol edin.');
+        setError('Invalid email or password. Please check your credentials.');
       } else {
-        setError(error.message || 'Giriş sırasında bir hata oluştu. Lütfen tekrar deneyin.');
+        setError(error.message || 'An error occurred during sign in. Please try again.');
       }
       throw error;
     } finally {
@@ -252,18 +250,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true);
       console.log('📝 Attempting sign up...');
       
-      // Test connection before attempting sign up
-      const connectionOk = await testSupabaseConnection();
-      if (!connectionOk) {
-        throw new Error('Veritabanı bağlantısı kurulamadı. Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin.');
-      }
-      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/login`
-        }
       });
       
       if (error) throw error;
@@ -280,11 +269,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('❌ Sign up error:', error);
       
       if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-        setError('Bağlantı hatası: Sunucuya erişilemiyor. İnternet bağlantınızı kontrol edin.');
-      } else if (error.message?.includes('already registered')) {
-        setError('Bu e-posta adresi zaten kayıtlı. Lütfen giriş yapmayı deneyin veya farklı bir e-posta adresi kullanın.');
+        setError('Connection error: Unable to reach the server. Please check your internet connection.');
       } else {
-        setError(error.message || 'Kayıt sırasında bir hata oluştu. Lütfen tekrar deneyin.');
+        setError(error.message || 'An error occurred during registration. Please try again.');
       }
       throw error;
     } finally {
@@ -306,9 +293,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('❌ Sign out error:', error);
       
       if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-        setError('Bağlantı hatası: Çıkış yapılırken sunucuya erişilemiyor.');
+        setError('Connection error: Unable to reach the server during sign out.');
       } else {
-        setError('Çıkış yapılırken bir hata oluştu. Lütfen tekrar deneyin.');
+        setError('An error occurred during sign out. Please try again.');
       }
       throw error;
     } finally {
