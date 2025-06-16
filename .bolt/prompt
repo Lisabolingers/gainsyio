@@ -5,4 +5,6 @@ By default, this template supports JSX syntax with Tailwind CSS classes, React h
 Use icons from lucide-react for logos.
 The website will be in English.
 
-Follow the steps correctly to avoid unnecessary token usage by doing the same process over and over again.
+Follow the steps correctly to avoid unnecessary token usage by doing the same process over and over again. 
+
+Do not make any changes to the .env file.
