@@ -79,27 +79,13 @@ if (!isConfigurationValid) {
         headers: {
           'Content-Type': 'application/json',
         },
-        fetch: (url, options = {}) => {
-          // Add timeout and better error handling
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000);
-          
-          return fetch(url, {
-            ...options,
-            signal: controller.signal,
-            headers: {
-              ...options.headers,
-              'Access-Control-Allow-Origin': '*',
-            },
-          }).catch(error => {
-            console.error('Fetch error:', error);
-            if (error.name === 'AbortError') {
-              throw new Error('Request timeout');
-            }
-            throw error;
-          }).finally(() => {
-            clearTimeout(timeoutId);
-          });
+      },
+      db: {
+        schema: 'public',
+      },
+      realtime: {
+        params: {
+          eventsPerSecond: 10,
         },
       },
     });
@@ -157,7 +143,7 @@ export const testSupabaseConnection = async (retries = 3): Promise<boolean> => {
       
       const { data, error } = await Promise.race([sessionPromise, timeoutPromise]) as any;
       
-      if (error && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
+      if (error && error.message.includes('Failed to fetch')) {
         throw new Error('Network connection failed');
       }
       
