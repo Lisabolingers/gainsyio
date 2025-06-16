@@ -498,7 +498,7 @@ const AIAgentPage: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-500 dark:text-gray-400">API Anahtarı:</span>
                       <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        ••••••••{provider.apiKey.substring(provider.apiKey.length - 4)}
+                        ••••••••{provider.apiKey && provider.apiKey.substring(provider.apiKey.length - 4)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -895,7 +895,7 @@ const AIAgentPage: React.FC = () => {
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   <Info className="h-3 w-3 inline mr-1" />
-                  <code>&lbrace;&lbrace;product&rbrace;&rbrace;</code> yer tutucusu, ürün bilgisiyle değiştirilecektir.
+                  <code>{'{{product}}'}</code> yer tutucusu, ürün bilgisiyle değiştirilecektir.
                 </p>
               </div>
               
