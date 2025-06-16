@@ -53,7 +53,6 @@ const AdminDashboardPage: React.FC = () => {
     { value: 'last30days', label: 'Last 30 days' },
     { value: 'thismonth', label: 'This month' },
     { value: 'thisyear', label: 'This year' },
-    { value: 'lastyear', label: 'Last year' },
     { value: 'alltime', label: 'All time' }
   ];
 
@@ -66,13 +65,13 @@ const AdminDashboardPage: React.FC = () => {
            key && 
            url !== 'https://your-project-id.supabase.co' && 
            key !== 'your-anon-key' &&
-           url.includes('supabase.co');
+           !url.includes('localhost');
   };
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
-      setConnectionError('Supabase configuration is missing or invalid. Please check your .env file.');
-      setLoading(false);
+      setConnectionError('Supabase configuration is missing or invalid. Using demo data.');
+      loadDemoData();
       return;
     }
 
@@ -81,6 +80,60 @@ const AdminDashboardPage: React.FC = () => {
       fetchDashboardData();
     }
   }, [user, selectedStore, selectedPeriod]);
+
+  const loadDemoData = () => {
+    // Load demo stores
+    const demoStores: EtsyStore[] = [
+      { id: 'store1', store_name: 'Demo Etsy Store', is_active: true },
+      { id: 'store2', store_name: 'Demo Craft Shop', is_active: true }
+    ];
+    setStores(demoStores);
+    
+    // Load demo stats
+    setStats({
+      totalStores: 2,
+      totalProducts: 45,
+      totalViews: 2547,
+      totalSales: 87,
+      totalRevenue: 1245.99,
+      totalFavorites: 356
+    });
+    
+    // Load demo activity
+    setRecentActivity([
+      {
+        id: '1',
+        type: 'product_created',
+        title: 'New product added',
+        description: 'Vintage Poster Design',
+        timestamp: '2 hours ago',
+      },
+      {
+        id: '2',
+        type: 'sale',
+        title: 'Sale completed',
+        description: 'Minimalist Logo Design',
+        timestamp: '4 hours ago',
+        amount: 25.99,
+      },
+      {
+        id: '3',
+        type: 'favorite',
+        title: 'Product favorited',
+        description: 'Modern Typography Poster',
+        timestamp: '6 hours ago',
+      },
+      {
+        id: '4',
+        type: 'view',
+        title: 'Product viewed',
+        description: 'Abstract Art Print',
+        timestamp: '8 hours ago',
+      },
+    ]);
+    
+    setLoading(false);
+  };
 
   const loadStores = async () => {
     try {
@@ -97,7 +150,8 @@ const AdminDashboardPage: React.FC = () => {
       if (error) {
         console.error('❌ Store loading error:', error);
         if (error.message.includes('Failed to fetch')) {
-          setConnectionError('Unable to connect to database. Please check your Supabase configuration.');
+          setConnectionError('Unable to connect to database. Using demo data.');
+          loadDemoData();
           return;
         }
         throw error;
@@ -109,7 +163,8 @@ const AdminDashboardPage: React.FC = () => {
     } catch (error: any) {
       console.error('❌ Store loading general error:', error);
       if (error.message?.includes('Failed to fetch')) {
-        setConnectionError('Database connection failed. Please verify your Supabase credentials.');
+        setConnectionError('Database connection failed. Using demo data.');
+        loadDemoData();
       }
     }
   };
@@ -121,9 +176,15 @@ const AdminDashboardPage: React.FC = () => {
 
       // Test connection first
       if (!isSupabaseConfigured()) {
-        setConnectionError('Supabase is not properly configured. Please update your .env file.');
+        setConnectionError('Supabase is not properly configured. Using demo data.');
+        loadDemoData();
         return;
       }
+
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database query timeout')), 10000)
+      );
 
       // Fetch stores count
       let storesQuery = supabase
@@ -135,15 +196,31 @@ const AdminDashboardPage: React.FC = () => {
         storesQuery = storesQuery.eq('id', selectedStore);
       }
 
-      const { count: storesCount, error: storesError } = await storesQuery;
+      const storesPromise = storesQuery;
+      let storesCount;
 
-      if (storesError) {
-        console.error('❌ Stores query error:', storesError);
-        if (storesError.message.includes('Failed to fetch')) {
-          setConnectionError('Database connection failed. Please check your Supabase configuration.');
+      try {
+        const { count, error } = await Promise.race([storesPromise, timeoutPromise]) as any;
+        
+        if (error) {
+          console.error('❌ Stores query error:', error);
+          if (error.message.includes('Failed to fetch')) {
+            setConnectionError('Database connection failed. Using demo data.');
+            loadDemoData();
+            return;
+          }
+          throw error;
+        }
+        
+        storesCount = count;
+      } catch (error: any) {
+        console.error('❌ Stores query error:', error);
+        if (error.message.includes('timeout') || error.message.includes('Failed to fetch')) {
+          setConnectionError('Database query timed out. Using demo data.');
+          loadDemoData();
           return;
         }
-        throw storesError;
+        throw error;
       }
 
       // Fetch products count
@@ -156,15 +233,31 @@ const AdminDashboardPage: React.FC = () => {
         productsQuery = productsQuery.eq('store_id', selectedStore);
       }
 
-      const { count: productsCount, error: productsError } = await productsQuery;
+      const productsPromise = productsQuery;
+      let productsCount;
 
-      if (productsError) {
-        console.error('❌ Products query error:', productsError);
-        if (productsError.message.includes('Failed to fetch')) {
-          setConnectionError('Database connection failed. Please check your Supabase configuration.');
+      try {
+        const { count, error } = await Promise.race([productsPromise, timeoutPromise]) as any;
+        
+        if (error) {
+          console.error('❌ Products query error:', error);
+          if (error.message.includes('Failed to fetch')) {
+            setConnectionError('Database connection failed. Using demo data.');
+            loadDemoData();
+            return;
+          }
+          throw error;
+        }
+        
+        productsCount = count;
+      } catch (error: any) {
+        console.error('❌ Products query error:', error);
+        if (error.message.includes('timeout') || error.message.includes('Failed to fetch')) {
+          setConnectionError('Database query timed out. Using demo data.');
+          loadDemoData();
           return;
         }
-        throw productsError;
+        throw error;
       }
 
       // Calculate date range based on selected period
@@ -196,16 +289,34 @@ const AdminDashboardPage: React.FC = () => {
         analyticsQuery = analyticsQuery.lte('date', dateRange.end);
       }
 
-      const { data: analyticsData, error: analyticsError } = await analyticsQuery;
+      const analyticsPromise = analyticsQuery;
+      let analyticsData;
 
-      if (analyticsError) {
-        console.error('❌ Analytics query error:', analyticsError);
-        if (analyticsError.message.includes('Failed to fetch')) {
-          setConnectionError('Database connection failed. Please check your Supabase configuration.');
-          return;
+      try {
+        const { data, error } = await Promise.race([analyticsPromise, timeoutPromise]) as any;
+        
+        if (error) {
+          console.error('❌ Analytics query error:', error);
+          if (error.message.includes('Failed to fetch')) {
+            setConnectionError('Database connection failed. Using demo data.');
+            loadDemoData();
+            return;
+          }
+          // Don't throw error for analytics as it's not critical
+          console.warn('Analytics data unavailable, using defaults');
+          analyticsData = [];
+        } else {
+          analyticsData = data;
         }
-        // Don't throw error for analytics as it's not critical
-        console.warn('Analytics data unavailable, using defaults');
+      } catch (error: any) {
+        console.error('❌ Analytics query error:', error);
+        if (error.message.includes('timeout') || error.message.includes('Failed to fetch')) {
+          // Don't throw error for analytics as it's not critical
+          console.warn('Analytics data unavailable, using defaults');
+          analyticsData = [];
+        } else {
+          throw error;
+        }
       }
 
       // Calculate totals
@@ -265,10 +376,12 @@ const AdminDashboardPage: React.FC = () => {
 
     } catch (error: any) {
       console.error('Error fetching dashboard data:', error);
-      if (error.message?.includes('Failed to fetch')) {
-        setConnectionError('Unable to connect to the database. Please verify your Supabase configuration.');
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('timeout')) {
+        setConnectionError('Unable to connect to the database. Using demo data.');
+        loadDemoData();
       } else {
         setConnectionError(`Database error: ${error.message}`);
+        loadDemoData();
       }
     } finally {
       setLoading(false);
@@ -427,36 +540,122 @@ const AdminDashboardPage: React.FC = () => {
   if (connectionError) {
     return (
       <div className="p-6">
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6">
           <div className="flex items-start space-x-3">
-            <AlertCircle className="h-6 w-6 text-red-500 flex-shrink-0 mt-0.5" />
+            <AlertCircle className="h-6 w-6 text-yellow-500 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-red-700 dark:text-red-400 mb-2">
-                Database Connection Error
+              <h3 className="text-lg font-semibold text-yellow-700 dark:text-yellow-400 mb-2">
+                Database Connection Notice
               </h3>
-              <p className="text-red-600 dark:text-red-300 mb-4">
+              <p className="text-yellow-600 dark:text-yellow-300 mb-4">
                 {connectionError}
               </p>
-              <div className="bg-red-100 dark:bg-red-900/40 rounded-lg p-4 mb-4">
-                <h4 className="font-medium text-red-800 dark:text-red-200 mb-2">
-                  To fix this issue:
+              <div className="bg-yellow-100 dark:bg-yellow-900/40 rounded-lg p-4 mb-4">
+                <h4 className="font-medium text-yellow-800 dark:text-yellow-200 mb-2">
+                  Using Demo Data
                 </h4>
-                <ol className="list-decimal list-inside space-y-1 text-sm text-red-700 dark:text-red-300">
-                  <li>Go to <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800 dark:hover:text-red-200">Supabase Dashboard</a></li>
-                  <li>Select your project or create a new one</li>
-                  <li>Go to Settings → API</li>
-                  <li>Copy your Project URL and Anon Key</li>
-                  <li>Update the .env file with your credentials</li>
-                  <li>Restart the development server</li>
-                </ol>
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                  The dashboard is currently displaying demo data. To use real data, please configure your Supabase connection.
+                </p>
               </div>
               <button
                 onClick={() => window.location.reload()}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
               >
                 Retry Connection
               </button>
             </div>
+          </div>
+        </div>
+        
+        {/* Continue showing the dashboard with demo data */}
+        <div className="mt-6">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Dashboard (Demo Mode)
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
+            {getSelectedStoreName()} • {getSelectedPeriodLabel()}
+          </p>
+        </div>
+        
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+          {statCards.map((stat, index) => (
+            <div
+              key={index}
+              className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    {stat.title}
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                    {stat.value}
+                  </p>
+                </div>
+                <div className={`p-3 rounded-lg ${stat.color}`}>
+                  <stat.icon className="h-6 w-6 text-white" />
+                </div>
+              </div>
+              <div className="flex items-center mt-4">
+                {stat.changeType === 'increase' ? (
+                  <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
+                ) : (
+                  <TrendingDown className="h-4 w-4 text-red-500 mr-1" />
+                )}
+                <span className={`text-sm font-medium ${
+                  stat.changeType === 'increase' ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {stat.change}
+                </span>
+                <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
+                  vs previous period
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        {/* Recent Activity */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700 mt-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Recent Activities (Demo)
+            </h3>
+            <Link 
+              to="/admin/analytics"
+              className="text-orange-600 hover:text-orange-700 text-sm font-medium"
+            >
+              View All
+            </Link>
+          </div>
+          <div className="space-y-4">
+            {recentActivity.map((activity) => (
+              <div key={activity.id} className="flex items-start space-x-3">
+                <div className={`p-2 rounded-lg ${getActivityColor(activity.type)}`}>
+                  {getActivityIcon(activity.type)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    {activity.title}
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {activity.description}
+                  </p>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-xs text-gray-400">
+                      {activity.timestamp}
+                    </p>
+                    {activity.amount && (
+                      <p className="text-xs font-medium text-green-600">
+                        +${activity.amount}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

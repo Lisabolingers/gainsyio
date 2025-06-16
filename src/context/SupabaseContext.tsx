@@ -4,6 +4,19 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Enhanced error checking with helpful messages
+if (!supabaseUrl || supabaseUrl === 'https://your-project-id.supabase.co') {
+  console.error('❌ VITE_SUPABASE_URL is missing or using placeholder value');
+  console.error('Please add your actual VITE_SUPABASE_URL to your .env file');
+  console.error('You can find this in your Supabase project dashboard under Settings > API');
+}
+
+if (!supabaseAnonKey || supabaseAnonKey === 'your-anon-key') {
+  console.error('❌ VITE_SUPABASE_ANON_KEY is missing or using placeholder value');
+  console.error('Please add your actual VITE_SUPABASE_ANON_KEY to your .env file');
+  console.error('You can find this in your Supabase project dashboard under Settings > API');
+}
+
 // Define types and context at top level
 interface SupabaseContextType {
   supabase: SupabaseClient;
@@ -27,18 +40,14 @@ interface SupabaseProviderProps {
 // Determine if configuration is valid
 const isConfigurationValid = !(!supabaseUrl || !supabaseAnonKey || 
   supabaseUrl === 'https://your-project-id.supabase.co' || 
-  supabaseAnonKey === 'your-anon-key' ||
-  supabaseUrl.includes('localhost'));
+  supabaseAnonKey === 'your-anon-key');
 
 // Create appropriate client based on configuration
 let supabaseClient: SupabaseClient;
 let isConfigured: boolean;
 
 if (!isConfigurationValid) {
-  console.warn('⚠️ Supabase configuration incomplete or invalid. Using mock client.');
-  console.warn('Current URL:', supabaseUrl);
-  console.warn('URL valid:', supabaseUrl && !supabaseUrl.includes('localhost') && supabaseUrl !== 'https://your-project-id.supabase.co');
-  console.warn('Key valid:', supabaseAnonKey && supabaseAnonKey !== 'your-anon-key');
+  console.warn('⚠️ Supabase configuration incomplete. Using mock client.');
   
   // Create a mock client to prevent app crashes
   supabaseClient = {
@@ -67,8 +76,17 @@ if (!isConfigurationValid) {
   
   isConfigured = false;
 } else {
+  // Validate URL format
   try {
-    console.log('✅ Creating Supabase client with URL:', supabaseUrl);
+    const url = new URL(supabaseUrl);
+    console.log('✅ Supabase URL format is valid:', url.origin);
+  } catch (error) {
+    console.error('❌ Invalid VITE_SUPABASE_URL format:', supabaseUrl);
+    throw new Error('Geçersiz Supabase URL formatı. Lütfen .env dosyasındaki VITE_SUPABASE_URL değerini kontrol edin.');
+  }
+
+  // Create the Supabase client with robust configuration
+  try {
     supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
@@ -80,21 +98,32 @@ if (!isConfigurationValid) {
           'Content-Type': 'application/json',
         },
       },
-      db: {
-        schema: 'public',
-      },
+      // Add reasonable timeouts to prevent hanging
       realtime: {
+        timeout: 30000, // 30 seconds
         params: {
           eventsPerSecond: 10,
         },
       },
     });
+
+    // Add connection monitoring
+    supabaseClient.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN') {
+        console.log('🔐 User signed in successfully');
+      } else if (event === 'SIGNED_OUT') {
+        console.log('🚪 User signed out');
+      } else if (event === 'TOKEN_REFRESHED') {
+        console.log('🔄 Auth token refreshed');
+      }
+    });
+
     isConfigured = true;
     console.log('✅ Supabase client created successfully');
   } catch (error) {
     console.error('❌ Error creating Supabase client:', error);
     
-    // Fallback to mock client
+    // Create a mock client as fallback
     supabaseClient = {
       auth: {
         onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } }, error: null }),
@@ -123,51 +152,6 @@ if (!isConfigurationValid) {
   }
 }
 
-// Enhanced connection test function with retry logic and increased timeouts
-export const testSupabaseConnection = async (retries = 3): Promise<boolean> => {
-  if (!isConfigured) {
-    console.log('⚠️ Supabase not configured, skipping connection test');
-    return false;
-  }
-
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      console.log(`🔄 Testing Supabase connection (attempt ${attempt}/${retries})...`);
-      
-      // Test with auth session check with increased timeout
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Connection timeout')), 15000)
-      );
-      
-      const sessionPromise = supabaseClient.auth.getSession();
-      
-      const { data, error } = await Promise.race([sessionPromise, timeoutPromise]) as any;
-      
-      if (error && error.message.includes('Failed to fetch')) {
-        throw new Error('Network connection failed');
-      }
-      
-      console.log('✅ Supabase connection test successful');
-      return true;
-    } catch (err: any) {
-      console.log(`⚠️ Supabase connection test failed (attempt ${attempt}):`, err.message);
-      
-      // If this is the last attempt, return false
-      if (attempt === retries) {
-        console.log('⚠️ All connection attempts failed');
-        return false;
-      }
-      
-      // Wait before retrying with exponential backoff
-      const delay = Math.pow(2, attempt - 1) * 2000;
-      console.log(`⏳ Waiting ${delay}ms before retry...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-  
-  return false;
-};
-
 export const SupabaseProvider: React.FC<SupabaseProviderProps> = ({ children }) => {
   return (
     <SupabaseContext.Provider value={{ supabase: supabaseClient, isConfigured }}>
@@ -175,6 +159,3 @@ export const SupabaseProvider: React.FC<SupabaseProviderProps> = ({ children }) 
     </SupabaseContext.Provider>
   );
 };
-
-// Export supabase client for use in other modules
-export { supabaseClient as supabase, supabaseUrl };
