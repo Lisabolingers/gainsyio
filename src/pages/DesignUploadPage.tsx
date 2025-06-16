@@ -49,7 +49,7 @@ const MAX_TAG_COUNT = 13;
 const MAX_TAG_LENGTH = 20;
 
 const DesignUploadPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isDemoMode } = useAuth();
   const [designItems, setDesignItems] = useState<DesignItem[]>([
     {
       id: '1',
@@ -113,13 +113,19 @@ const DesignUploadPage: React.FC = () => {
 
   // Load AI rules on component mount
   useEffect(() => {
-    if (user) {
+    if (user && !isDemoMode) {
       loadAIRules();
       loadTextTemplates();
     }
-  }, [user]);
+  }, [user, isDemoMode]);
 
   const loadAIRules = async () => {
+    // Skip if in demo mode
+    if (isDemoMode) {
+      console.log('🎭 Demo mode: Using default AI rules');
+      return;
+    }
+
     try {
       setLoadingRules(true);
       console.log('🔄 Loading AI rules...');
@@ -145,12 +151,21 @@ const DesignUploadPage: React.FC = () => {
     } catch (error: any) {
       console.error('❌ Error loading AI rules:', error);
       // Don't show error to user, just log it
+      // Set empty arrays as fallback
+      setTitleRules([]);
+      setTagRules([]);
     } finally {
       setLoadingRules(false);
     }
   };
 
   const loadTextTemplates = async () => {
+    // Skip if in demo mode
+    if (isDemoMode) {
+      console.log('🎭 Demo mode: Using default text templates');
+      return;
+    }
+
     try {
       console.log('🔄 Loading text templates...');
       
@@ -161,15 +176,21 @@ const DesignUploadPage: React.FC = () => {
       
       if (error) {
         console.error('❌ Text templates loading error:', error);
-        throw error;
+        // Don't throw error, just use default templates
+        console.log('⚠️ Using default text templates due to loading error');
+        return;
       }
       
       if (data && data.length > 0) {
         setTextTemplates(data);
         console.log(`✅ Loaded ${data.length} text templates`);
+      } else {
+        console.log('ℹ️ No custom text templates found, using defaults');
       }
     } catch (error: any) {
       console.error('❌ Error loading text templates:', error);
+      // Don't show error to user, just use default templates
+      console.log('⚠️ Using default text templates due to error:', error.message);
     }
   };
 
@@ -521,6 +542,52 @@ const DesignUploadPage: React.FC = () => {
       return;
     }
     
+    // Demo mode handling
+    if (isDemoMode) {
+      console.log('🎭 Demo mode: Generating mock AI content');
+      
+      try {
+        setAiLoading(prev => ({ ...prev, [`${itemIndex}-${contentType}`]: true }));
+        
+        // Simulate AI processing
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        if (contentType === 'title') {
+          const aiTitle = generateMockAITitle(item);
+          setDesignItems(prev => prev.map((item, idx) => {
+            if (idx === itemIndex) {
+              return { ...item, aiTitle };
+            }
+            return item;
+          }));
+        } else {
+          const aiTags = generateMockAITags(item);
+          setDesignItems(prev => prev.map((item, idx) => {
+            if (idx === itemIndex) {
+              if (item.tags.length === 0) {
+                const tagsToUse = aiTags.slice(0, MAX_TAG_COUNT);
+                const remainingTags = aiTags.slice(MAX_TAG_COUNT);
+                return { 
+                  ...item, 
+                  tags: tagsToUse,
+                  aiTags: remainingTags
+                };
+              }
+              return { ...item, aiTags };
+            }
+            return item;
+          }));
+        }
+        
+      } catch (error: any) {
+        console.error('❌ Error generating demo AI content:', error);
+        setError(`AI içeriği oluşturulurken hata: ${error.message}`);
+      } finally {
+        setAiLoading(prev => ({ ...prev, [`${itemIndex}-${contentType}`]: false }));
+      }
+      return;
+    }
+    
     try {
       setAiLoading(prev => ({ ...prev, [`${itemIndex}-${contentType}`]: true }));
       
@@ -759,6 +826,12 @@ const DesignUploadPage: React.FC = () => {
 
   // Save designs to temporary files
   const saveToTemporaryFiles = async (blackPreview: string, whitePreview: string) => {
+    // Skip if in demo mode
+    if (isDemoMode) {
+      console.log('🎭 Demo mode: Skipping temporary files save');
+      return;
+    }
+
     try {
       // In a real implementation, this would save to the temporary_files table
       // For now, we'll just simulate it
@@ -818,6 +891,23 @@ const DesignUploadPage: React.FC = () => {
         </p>
       </div>
 
+      {/* Demo Mode Warning */}
+      {isDemoMode && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
+                Demo Modu
+              </h3>
+              <p className="text-sm text-blue-600 dark:text-blue-300">
+                Şu anda demo modunda çalışıyorsunuz. Tüm özellikler simüle edilmektedir ve gerçek veriler kullanılmamaktadır.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Error/Success Messages */}
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
@@ -838,7 +928,7 @@ const DesignUploadPage: React.FC = () => {
       )}
 
       {/* AI Rules Warning */}
-      {(titleRules.length === 0 || tagRules.length === 0 || !titleRules.some(r => r.isDefault) || !tagRules.some(r => r.isDefault)) && (
+      {!isDemoMode && (titleRules.length === 0 || tagRules.length === 0 || !titleRules.some(r => r.isDefault) || !tagRules.some(r => r.isDefault)) && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
           <div className="flex items-start space-x-3">
             <Sparkles className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
@@ -1063,7 +1153,7 @@ const DesignUploadPage: React.FC = () => {
                           variant="secondary"
                           size="sm"
                           className="flex items-center space-x-1"
-                          disabled={aiLoading[`${itemIndex}-title`] || titleRules.length === 0 || !titleRules.some(r => r.isDefault)}
+                          disabled={aiLoading[`${itemIndex}-title`] || (!isDemoMode && (titleRules.length === 0 || !titleRules.some(r => r.isDefault)))}
                         >
                           {aiLoading[`${itemIndex}-title`] ? (
                             <RefreshCw className="h-3 w-3 animate-spin" />
@@ -1140,7 +1230,7 @@ const DesignUploadPage: React.FC = () => {
                           variant="secondary"
                           size="sm"
                           className="flex items-center space-x-1"
-                          disabled={aiLoading[`${itemIndex}-tags`] || !item.title || tagRules.length === 0 || !tagRules.some(r => r.isDefault)}
+                          disabled={aiLoading[`${itemIndex}-tags`] || !item.title || (!isDemoMode && (tagRules.length === 0 || !tagRules.some(r => r.isDefault)))}
                         >
                           {aiLoading[`${itemIndex}-tags`] ? (
                             <RefreshCw className="h-3 w-3 animate-spin" />
