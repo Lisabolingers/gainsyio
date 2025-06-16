@@ -2,14 +2,30 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { User, Session } from '@supabase/supabase-js';
 import { useSupabase } from './SupabaseContext';
 
+interface UserProfile {
+  id: string;
+  email: string;
+  full_name?: string;
+  avatar_url?: string;
+  subscription_plan: 'free' | 'basic' | 'professional' | 'enterprise';
+  subscription_status: 'active' | 'cancelled' | 'expired';
+  trial_ends_at?: string;
+  role: 'user' | 'admin' | 'superadmin';
+  created_at: string;
+  updated_at: string;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
+  userProfile: UserProfile | null;
   loading: boolean;
   error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  isSuperAdmin: () => boolean;
+  isAdminOrSuperAdmin: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,6 +45,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const { supabase } = useSupabase();
   const [user, setUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +70,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Check if user profile exists
       const { data: existingProfile, error: fetchError } = await supabase
         .from('user_profiles')
-        .select('id')
+        .select('*')
         .eq('id', user.id)
         .single();
 
@@ -66,23 +83,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // If profile doesn't exist, create it
       if (!existingProfile) {
         console.log('📝 Creating new user profile...');
-        const { error: insertError } = await supabase
+        const { data, error: insertError } = await supabase
           .from('user_profiles')
           .insert({
             id: user.id,
             email: user.email || '',
             subscription_plan: 'free',
-            subscription_status: 'active'
-          });
+            subscription_status: 'active',
+            role: 'user' // Default role is 'user'
+          })
+          .select()
+          .single();
 
         if (insertError) {
           console.error('❌ Error creating user profile:', insertError);
           throw new Error(`Profile creation failed: ${insertError.message}`);
         } else {
           console.log('✅ User profile created successfully');
+          setUserProfile(data);
         }
       } else {
         console.log('✅ User profile already exists');
+        setUserProfile(existingProfile);
       }
     } catch (error: any) {
       console.error('❌ Error in ensureUserProfile:', error);
@@ -155,16 +177,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('🔄 Auth state changed:', event);
       setSession(session);
       setUser(session?.user ?? null);
-      setLoading(false);
       
-      // Ensure user profile exists in background (don't block UI)
       if (session?.user) {
-        console.log('👤 User state changed, ensuring profile exists...');
-        ensureUserProfile(session.user).catch((error) => {
-          console.error('❌ Background profile check failed:', error);
+        // Fetch user profile when auth state changes
+        try {
+          const { data, error } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+            
+          if (error) throw error;
+          setUserProfile(data);
+        } catch (error) {
+          console.error('❌ Error fetching user profile:', error);
           // Don't set error state here as it would block the UI
-        });
+        }
+      } else {
+        setUserProfile(null);
       }
+      
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
@@ -176,13 +209,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true);
       console.log('🔐 Attempting sign in...');
       
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       
       if (error) throw error;
       console.log('✅ Sign in successful');
+      
+      // Fetch user profile after sign in
+      if (data.user) {
+        const { data: profileData, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+          
+        if (profileError) throw profileError;
+        setUserProfile(profileData);
+      }
     } catch (error: any) {
       console.error('❌ Sign in error:', error);
       
@@ -243,6 +288,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       console.log('✅ Sign out successful');
+      setUserProfile(null);
     } catch (error: any) {
       console.error('❌ Sign out error:', error);
       
@@ -257,14 +303,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // Helper functions to check user roles
+  const isSuperAdmin = () => {
+    return userProfile?.role === 'superadmin';
+  };
+
+  const isAdminOrSuperAdmin = () => {
+    return userProfile?.role === 'admin' || userProfile?.role === 'superadmin';
+  };
+
   const value = {
     user,
     session,
+    userProfile,
     loading,
     error,
     signIn,
     signUp,
     signOut,
+    isSuperAdmin,
+    isAdminOrSuperAdmin,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

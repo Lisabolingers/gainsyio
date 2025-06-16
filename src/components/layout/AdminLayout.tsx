@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { LayoutDashboard, Store, Package, BarChart3, BookTemplate as FileTemplate, PlusCircle, Image, Type, Library, Menu, X, LogOut, Settings, User, Bell, Sun, Moon, ChevronDown, Clock, Upload, Brain } from 'lucide-react';
+import { LayoutDashboard, Store, Package, BarChart3, BookTemplate as FileTemplate, PlusCircle, Image, Type, Library, Menu, X, LogOut, Settings, User, Bell, Sun, Moon, ChevronDown, Clock, Upload, Brain, Shield, Users } from 'lucide-react';
 
 const AdminLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -10,7 +10,7 @@ const AdminLayout: React.FC = () => {
   const [templatesExpanded, setTemplatesExpanded] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user, userProfile, signOut, isAdminOrSuperAdmin, isSuperAdmin } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   const navigation = [
@@ -38,6 +38,12 @@ const AdminLayout: React.FC = () => {
     { name: 'Upload Design', href: '/admin/upload-design', icon: Upload },
     { name: 'Temporary Files', href: '/admin/temporary-files', icon: Clock },
     { name: 'AI Agent', href: '/admin/ai-agent', icon: Brain },
+  ];
+
+  // Super admin only navigation items
+  const superAdminNavigation = [
+    { name: 'User Management', href: '/admin/users', icon: Users },
+    { name: 'System Settings', href: '/admin/system', icon: Settings },
   ];
 
   // CRITICAL: Templates submenu'nun açık olup olmayacağını kontrol et - SADECE kullanıcı manuel olarak açarsa
@@ -126,6 +132,7 @@ const AdminLayout: React.FC = () => {
         {/* Navigation */}
         <nav className="flex-1 px-3 py-6 overflow-y-auto">
           <div className="space-y-1">
+            {/* Regular navigation items */}
             {navigation.map((item) => (
               <div key={item.name}>
                 {/* Main menu item */}
@@ -210,6 +217,44 @@ const AdminLayout: React.FC = () => {
                 )}
               </div>
             ))}
+
+            {/* Super Admin Section - Only visible to superadmins */}
+            {isSuperAdmin() && (
+              <>
+                <div className="pt-5 pb-2">
+                  <div className="px-3 flex items-center">
+                    <Shield className="h-4 w-4 text-orange-500 mr-2" />
+                    <span className="text-xs font-semibold text-orange-600 dark:text-orange-400 uppercase tracking-wider">
+                      Süper Admin
+                    </span>
+                  </div>
+                </div>
+                
+                {superAdminNavigation.map((item) => (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    className={`
+                      group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors
+                      ${isActive(item.href)
+                        ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400'
+                        : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                      }
+                    `}
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <item.icon className={`
+                      mr-3 h-5 w-5 flex-shrink-0
+                      ${isActive(item.href)
+                        ? 'text-orange-500'
+                        : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
+                      }
+                    `} />
+                    {item.name}
+                  </Link>
+                ))}
+              </>
+            )}
           </div>
         </nav>
 
@@ -225,8 +270,20 @@ const AdminLayout: React.FC = () => {
               <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                 {user?.email}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Free Plan
+              <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center">
+                {userProfile?.role === 'superadmin' ? (
+                  <>
+                    <Shield className="h-3 w-3 mr-1 text-orange-500" />
+                    <span className="text-orange-600 dark:text-orange-400">Süper Admin</span>
+                  </>
+                ) : userProfile?.role === 'admin' ? (
+                  <>
+                    <Shield className="h-3 w-3 mr-1 text-blue-500" />
+                    <span className="text-blue-600 dark:text-blue-400">Admin</span>
+                  </>
+                ) : (
+                  <span>{userProfile?.subscription_plan || 'Free'} Plan</span>
+                )}
               </p>
             </div>
           </div>
@@ -245,6 +302,21 @@ const AdminLayout: React.FC = () => {
               >
                 <Menu className="h-6 w-6" />
               </button>
+              
+              {/* Role badge for header */}
+              {userProfile?.role && (
+                <div className={`hidden sm:flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                  userProfile.role === 'superadmin' 
+                    ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400' 
+                    : userProfile.role === 'admin'
+                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
+                    : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                }`}>
+                  {userProfile.role === 'superadmin' && <Shield className="h-3 w-3 mr-1" />}
+                  {userProfile.role === 'superadmin' ? 'Süper Admin' : 
+                   userProfile.role === 'admin' ? 'Admin' : 'Kullanıcı'}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center space-x-4">

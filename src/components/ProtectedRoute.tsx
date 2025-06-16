@@ -4,10 +4,16 @@ import { useAuth } from '../context/AuthContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
+  requireSuperAdmin?: boolean;
+  requireAdmin?: boolean;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { user, loading, error } = useAuth();
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
+  children, 
+  requireSuperAdmin = false,
+  requireAdmin = false
+}) => {
+  const { user, userProfile, loading, error } = useAuth();
 
   if (loading) {
     return (
@@ -38,8 +44,19 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     );
   }
 
+  // Check if user is authenticated
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Check for super admin access
+  if (requireSuperAdmin && userProfile?.role !== 'superadmin') {
+    return <Navigate to="/admin" replace />;
+  }
+
+  // Check for admin access (admin or superadmin)
+  if (requireAdmin && !['admin', 'superadmin'].includes(userProfile?.role || '')) {
+    return <Navigate to="/admin" replace />;
   }
 
   return <>{children}</>;

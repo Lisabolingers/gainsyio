@@ -16,6 +16,7 @@ import ContactPage from './pages/ContactPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsPage from './pages/TermsPage';
 import AdminLayout from './components/layout/AdminLayout';
+import SuperAdminLayout from './components/layout/SuperAdminLayout';
 import StoresPage from './pages/StoresPage';
 import ProductsPage from './pages/ProductsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
@@ -33,6 +34,15 @@ import DesignUploadPage from './pages/DesignUploadPage';
 import TemporaryFilesPage from './pages/TemporaryFilesPage';
 import AIAgentPage from './pages/AIAgentPage';
 import ProtectedRoute from './components/ProtectedRoute';
+
+// Super Admin Pages
+import SuperAdminDashboardPage from './pages/superadmin/SuperAdminDashboardPage';
+import UserManagementPage from './pages/superadmin/UserManagementPage';
+import SystemSettingsPage from './pages/superadmin/SystemSettingsPage';
+import SuperAdminAnalyticsPage from './pages/superadmin/SuperAdminAnalyticsPage';
+import DatabaseManagementPage from './pages/superadmin/DatabaseManagementPage';
+import LogsPage from './pages/superadmin/LogsPage';
+import ApiKeysPage from './pages/superadmin/ApiKeysPage';
 
 function App() {
   return (
@@ -77,6 +87,21 @@ function App() {
                 <Route path="upload-design" element={<DesignUploadPage />} />
                 <Route path="temporary-files" element={<TemporaryFilesPage />} />
                 <Route path="ai-agent" element={<AIAgentPage />} />
+              </Route>
+
+              {/* Super Admin Routes */}
+              <Route path="/superadmin" element={
+                <ProtectedRoute requireSuperAdmin>
+                  <SuperAdminLayout />
+                </ProtectedRoute>
+              }>
+                <Route index element={<SuperAdminDashboardPage />} />
+                <Route path="users" element={<UserManagementPage />} />
+                <Route path="analytics" element={<SuperAdminAnalyticsPage />} />
+                <Route path="system" element={<SystemSettingsPage />} />
+                <Route path="system/database" element={<DatabaseManagementPage />} />
+                <Route path="system/logs" element={<LogsPage />} />
+                <Route path="system/api-keys" element={<ApiKeysPage />} />
               </Route>
 
               {/* Catch all route */}
