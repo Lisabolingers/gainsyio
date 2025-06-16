@@ -1,4 +1,4 @@
-import { supabase, testSupabaseConnection } from './supabase';
+import { supabase, testSupabaseConnection, executeWithTimeout } from './supabase';
 import { UserFont } from './supabase';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -296,7 +296,7 @@ export class FontService {
   }
 
   /**
-   * Get user's fonts with enhanced error handling
+   * Get user's fonts with enhanced error handling and timeout protection
    */
   static async getUserFonts(userId: string): Promise<UserFont[]> {
     try {
@@ -308,20 +308,29 @@ export class FontService {
         throw new Error('Supabase connection failed. Please check your internet connection and try again.');
       }
 
-      const { data, error } = await supabase
-        .from('user_fonts')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+      // Use executeWithTimeout to prevent query timeout
+      const result = await executeWithTimeout(
+        async () => {
+          const { data, error } = await supabase
+            .from('user_fonts')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('is_active', true)
+            .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('❌ Error fetching user fonts:', error);
-        throw new Error(`Failed to fetch fonts: ${error.message}`);
-      }
+          if (error) {
+            console.error('❌ Error fetching user fonts:', error);
+            throw new Error(`Failed to fetch fonts: ${error.message}`);
+          }
 
-      console.log(`✅ Successfully fetched ${data?.length || 0} user fonts`);
-      return data || [];
+          return data || [];
+        },
+        20000, // 20 seconds timeout
+        2 // 2 retries
+      );
+
+      console.log(`✅ Successfully fetched ${result.length} user fonts`);
+      return result;
     } catch (error) {
       console.error('❌ Error in getUserFonts:', error);
       if (error instanceof Error) {
