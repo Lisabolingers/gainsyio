@@ -33,12 +33,12 @@ const AdminLayout: React.FC = () => {
       ]
     },
     { 
-      name: 'Listing', 
+      name: 'Research', 
       href: '/admin/listing', 
       icon: PlusCircle,
       hasSubmenu: true,
       submenu: [
-        { name: 'Create Listing', href: '/admin/listing', icon: PlusCircle },
+        { name: 'Research', href: '/admin/listing', icon: PlusCircle },
         { name: 'Upload Design', href: '/admin/listing/upload-design', icon: Upload },
       ]
     },
@@ -181,7 +181,7 @@ const AdminLayout: React.FC = () => {
                       {item.name}
                     </div>
                     <div className={`transition-transform duration-200 ${
-                      (item.name === 'Templates' && templatesExpanded) || (item.name === 'Listing' && listingExpanded) ? 'rotate-180' : 'rotate-0'
+                      (item.name === 'Templates' && templatesExpanded) || (item.name === 'Research' && listingExpanded) ? 'rotate-180' : 'rotate-0'
                     }`}>
                       <ChevronDown className="h-4 w-4 text-gray-400" />
                     </div>
@@ -239,7 +239,7 @@ const AdminLayout: React.FC = () => {
                 )}
 
                 {/* Listing Submenu items */}
-                {item.name === 'Listing' && listingExpanded && (
+                {item.name === 'Research' && listingExpanded && (
                   <div className="ml-6 mt-1 space-y-1">
                     {item.submenu?.map((subItem) => (
                       <Link
