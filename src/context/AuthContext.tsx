@@ -55,7 +55,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('🔍 Checking user profile for:', user.id);
       
       // Test basic connectivity first
-      const { data: _, error: testError } = await supabase
+      const { data, error: testError } = await supabase
         .from('user_profiles')
         .select('count')
         .limit(1);
@@ -142,13 +142,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.error('❌ Error getting session:', sessionError);
           setError(`Session error: ${sessionError.message}`);
         } else {
-          console.log('✅ Session retrieved successfully', session);
+          console.log('✅ Session retrieved successfully');
           setSession(session);
           setUser(session?.user ?? null);
           
           // Ensure user profile exists in background (don't block UI)
           if (session?.user) {
-            console.log('👤 User found, ensuring profile exists...', session.user);
+            console.log('👤 User found, ensuring profile exists...');
             try {
               await ensureUserProfile(session.user);
               console.log('✅ Profile check completed successfully');
@@ -177,7 +177,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔄 Auth state changed:', event, session);
+      console.log('🔄 Auth state changed:', event);
       setSession(session);
       setUser(session?.user ?? null);
       
@@ -193,11 +193,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             
           if (error) {
             console.error('❌ Error fetching user profile:', error);
-            throw error;
+            
+            // If profile doesn't exist, create it
+            if (error.code === 'PGRST116') {
+              console.log('📝 Profile not found, creating new profile...');
+              await ensureUserProfile(session.user);
+            } else {
+              throw error;
+            }
+          } else {
+            console.log('✅ User profile fetched successfully:', data);
+            setUserProfile(data);
           }
-          
-          console.log('✅ User profile fetched successfully:', data);
-          setUserProfile(data);
         } catch (error) {
           console.error('❌ Error fetching user profile:', error);
           // Don't set error state here as it would block the UI
@@ -224,7 +231,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       
       if (error) throw error;
-      console.log('✅ Sign in successful', data);
+      console.log('✅ Sign in successful');
       
       // Fetch user profile after sign in
       if (data.user) {
@@ -250,10 +257,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUserProfile(profileData);
         }
       }
-      
-      // Important: Set loading to false here to allow redirect to happen
-      setLoading(false);
-      
     } catch (error: any) {
       console.error('❌ Sign in error:', error);
       
@@ -264,8 +267,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } else {
         setError(error.message || 'An error occurred during sign in. Please try again.');
       }
-      setLoading(false);
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -281,7 +285,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       
       if (error) throw error;
-      console.log('✅ Sign up successful', data);
+      console.log('✅ Sign up successful');
 
       // Create user profile record if user was successfully created
       if (data.user) {
@@ -293,10 +297,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Don't throw here as signup was successful
         }
       }
-      
-      // Important: Set loading to false here to allow redirect to happen
-      setLoading(false);
-      
     } catch (error: any) {
       console.error('❌ Sign up error:', error);
       
@@ -305,8 +305,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } else {
         setError(error.message || 'An error occurred during registration. Please try again.');
       }
-      setLoading(false);
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 

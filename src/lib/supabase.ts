@@ -14,7 +14,16 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Please check your .env file.');
 }
 
-// Create Supabase client with enhanced error handling and timeout
+// Validate URL format
+try {
+  const url = new URL(supabaseUrl);
+  console.log('✅ Supabase URL format is valid:', url.origin);
+} catch (error) {
+  console.error('❌ Invalid VITE_SUPABASE_URL format:', supabaseUrl);
+  throw new Error('Invalid Supabase URL format. Please check your VITE_SUPABASE_URL in the .env file.');
+}
+
+// Create Supabase client with enhanced error handling
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
@@ -25,25 +34,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     headers: {
       'Content-Type': 'application/json',
     },
-    // Add request timeout
-    fetch: (url: string, options: RequestInit) => {
-      const timeout = 30000; // 30 seconds timeout
-      const controller = new AbortController();
-      const { signal } = controller;
-      
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-      
-      return fetch(url, { ...options, signal })
-        .then(response => {
-          clearTimeout(timeoutId);
-          return response;
-        })
-        .catch(error => {
-          clearTimeout(timeoutId);
-          throw error;
-        });
-    }
-  }
+  },
 });
 
 // Export supabaseUrl for use in other modules
