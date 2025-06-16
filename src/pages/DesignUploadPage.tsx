@@ -220,18 +220,6 @@ const DesignUploadPage: React.FC = () => {
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
         <div className="flex items-start space-x-3">
           <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
-          <div>
-            <h3 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
-              ℹ️ Tasarım Dosyaları Hakkında Bilgi
-            </h3>
-            <p className="text-sm text-blue-600 dark:text-blue-300">
-              <strong>Dosya Türleri:</strong> Siyah, beyaz veya renkli tasarımları PNG veya JPEG formatında yükleyebilirsiniz (maks. 5MB).
-              <br />
-              <strong>Süre:</strong> Bu dosyalar 10 dakika sonra otomatik olarak silinir.
-              <br />
-              <strong>Erişim:</strong> Oluşturulan tasarımları <a href="/admin/temporary-files" className=\"underline font-medium">Temporary Files</a> sayfasından görüntüleyebilir ve indirebilirsiniz.
-            </p>
-          </div>
         </div>
       </div>
 
