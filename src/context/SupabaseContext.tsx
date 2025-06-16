@@ -52,17 +52,38 @@ if (!isConfigurationValid) {
   // Create a mock client to prevent app crashes
   supabaseClient = {
     auth: {
-      onAuthStateChange: () => ({ data: { subscription: null }, error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } }, error: null }),
       getSession: () => Promise.resolve({ data: { session: null }, error: null }),
       signUp: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
-      signIn: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+      signInWithPassword: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
       signOut: () => Promise.resolve({ error: null }),
     },
     from: () => ({
-      select: () => Promise.resolve({ data: [], error: null }),
-      insert: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
-      update: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
-      delete: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+      select: () => ({
+        eq: () => ({
+          single: () => Promise.resolve({ data: null, error: null }),
+          maybeSingle: () => Promise.resolve({ data: null, error: null }),
+          limit: () => Promise.resolve({ data: [], error: null }),
+          order: () => Promise.resolve({ data: [], error: null }),
+        }),
+        limit: () => Promise.resolve({ data: [], error: null }),
+        order: () => Promise.resolve({ data: [], error: null }),
+      }),
+      insert: () => ({
+        select: () => ({
+          single: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+        }),
+      }),
+      update: () => ({
+        eq: () => ({
+          select: () => ({
+            single: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+          }),
+        }),
+      }),
+      delete: () => ({
+        eq: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+      }),
     }),
   } as any;
   
