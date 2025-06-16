@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { FontService } from '../lib/fontService';
 import { UserFont } from '../lib/supabase';
@@ -11,10 +11,11 @@ interface FontOption {
 }
 
 export const useFonts = () => {
-  const { user } = useAuth();
+  const { user, isDemoMode } = useAuth();
   const [userFonts, setUserFonts] = useState<UserFont[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fontsInitialized, setFontsInitialized] = useState(false);
 
   // Default system fonts with web-safe options and categories
   const systemFonts: FontOption[] = [
@@ -62,6 +63,34 @@ export const useFonts = () => {
     }
   ];
 
+  // Demo fonts for when in demo mode
+  const demoFonts: UserFont[] = [
+    {
+      id: 'demo-font-1',
+      user_id: user?.id || 'demo-user',
+      font_name: 'Demo Script',
+      font_family: 'Demo Script, cursive',
+      file_url: '',
+      file_size: 125000,
+      font_format: 'ttf',
+      is_active: true,
+      created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    },
+    {
+      id: 'demo-font-2',
+      user_id: user?.id || 'demo-user',
+      font_name: 'Demo Sans',
+      font_family: 'Demo Sans, sans-serif',
+      file_url: '',
+      file_size: 98000,
+      font_format: 'otf',
+      is_active: true,
+      created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
+    }
+  ];
+
   // Helper function to check if error is network-related
   const isNetworkError = (error: any): boolean => {
     return error?.message?.includes('Failed to fetch') ||
@@ -79,31 +108,53 @@ export const useFonts = () => {
     return error?.message || 'Bilinmeyen bir hata oluştu';
   };
 
-  // Load user fonts on component mount and when user changes
-  useEffect(() => {
-    if (user) {
-      loadUserFonts();
-    }
-  }, [user]);
-
-  const loadUserFonts = async () => {
-    if (!user) return;
-
+  // Load user fonts with memoization to prevent unnecessary rerenders
+  const loadUserFonts = useCallback(async () => {
+    if (!user && !isDemoMode) return;
+    
     try {
       setLoading(true);
       setError(null);
       
       console.log('🔄 Loading user fonts...');
       
-      const fonts = await FontService.getUserFonts(user.id);
+      // If in demo mode, return demo fonts
+      if (isDemoMode) {
+        console.log('🎭 Using demo fonts');
+        setUserFonts(demoFonts);
+        setFontsInitialized(true);
+        return demoFonts;
+      }
+      
+      const fonts = await FontService.getUserFonts(user?.id || '');
       setUserFonts(fonts);
 
       // Load fonts into browser with improved reliability
-      console.log(`🔄 Loading ${fonts.length} user fonts into browser...`);
+      if (fonts.length > 0) {
+        console.log(`🔄 Loading ${fonts.length} user fonts into browser...`);
+        
+        try {
+          // Load fonts in batches of 3 to prevent browser overload
+          const batchSize = 3;
+          for (let i = 0; i < fonts.length; i += batchSize) {
+            const batch = fonts.slice(i, i + batchSize);
+            await Promise.all(batch.map(font => FontService.loadFontInBrowser(font)));
+            // Small delay between batches
+            if (i + batchSize < fonts.length) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+          }
+          
+          console.log('✅ All fonts loaded to browser');
+        } catch (loadError) {
+          console.warn('⚠️ Some fonts could not be loaded to browser:', loadError);
+          // Continue despite font loading errors - we'll use fallbacks
+        }
+      }
       
-      const loadedFonts = await FontService.loadAllUserFonts(user.id);
-      
-      console.log(`🎉 Font loading complete. ${loadedFonts.length}/${fonts.length} fonts loaded successfully.`);
+      setFontsInitialized(true);
+      console.log('🎉 FONT INITIALIZATION COMPLETED');
+      return fonts;
       
     } catch (err: any) {
       const errorMessage = getErrorMessage(err);
@@ -112,13 +163,22 @@ export const useFonts = () => {
       
       // Set empty array as fallback to prevent UI crashes
       setUserFonts([]);
+      setFontsInitialized(true);
+      return [];
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, isDemoMode]);
+
+  // Load user fonts on component mount and when user changes
+  useEffect(() => {
+    if ((user || isDemoMode) && !fontsInitialized) {
+      loadUserFonts();
+    }
+  }, [user, isDemoMode, fontsInitialized, loadUserFonts]);
 
   const uploadFont = async (file: File): Promise<UserFont> => {
-    if (!user) {
+    if (!user && !isDemoMode) {
       throw new Error('User not authenticated');
     }
 
@@ -127,7 +187,30 @@ export const useFonts = () => {
       setError(null);
 
       console.log(`🔄 Uploading font: ${file.name}`);
-      const savedFont = await FontService.uploadAndSaveFont(file, user.id);
+      
+      // If in demo mode, create a demo font
+      if (isDemoMode) {
+        console.log('🎭 Creating demo font');
+        const demoFont: UserFont = {
+          id: `demo-font-${Date.now()}`,
+          user_id: user?.id || 'demo-user',
+          font_name: file.name.split('.')[0],
+          font_family: `${file.name.split('.')[0]}, sans-serif`,
+          file_url: URL.createObjectURL(file),
+          file_size: file.size,
+          font_format: (file.name.split('.').pop() || 'ttf') as 'ttf' | 'otf' | 'woff' | 'woff2',
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        
+        // Update state immediately
+        setUserFonts(prev => [demoFont, ...prev]);
+        
+        return demoFont;
+      }
+      
+      const savedFont = await FontService.uploadAndSaveFont(file, user?.id || '');
       console.log(`✅ Font uploaded successfully: ${savedFont.font_name}`);
       
       // CRITICAL: Update local state immediately for instant UI refresh
@@ -153,13 +236,20 @@ export const useFonts = () => {
   };
 
   const deleteFont = async (fontId: string) => {
-    if (!user) return;
+    if (!user && !isDemoMode) return;
 
     try {
       setLoading(true);
       setError(null);
 
-      await FontService.deleteFont(fontId, user.id);
+      // If in demo mode, just remove from state
+      if (isDemoMode) {
+        console.log('🎭 Removing demo font');
+        setUserFonts(prev => prev.filter(font => font.id !== fontId));
+        return;
+      }
+
+      await FontService.deleteFont(fontId, user?.id || '');
       
       // Update local state immediately
       setUserFonts(prev => prev.filter(font => font.id !== fontId));
@@ -219,6 +309,7 @@ export const useFonts = () => {
     error,
     uploadFont,
     deleteFont,
-    loadUserFonts
+    loadUserFonts,
+    fontsInitialized
   };
 };

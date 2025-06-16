@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Konva from 'konva';
 import { Stage, Layer, Rect, Text as KonvaText, Transformer, Group, Image as KonvaImage } from 'react-konva';
-import { Image, Plus, Edit, Trash2, Copy, Search, Filter, Grid, List, Save, Download, Upload, Eye, EyeOff, Move, RotateCw, Palette, Type, Square, Circle, Store } from 'lucide-react';
+import { Image, Plus, Edit, Trash2, Copy, Search, Filter, Grid, List, Save, Download, Upload, Eye, EyeOff, Move, RotateCw, Palette, Type, Square, Circle, Store, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
+import { supabase, executeWithTimeout, isConfigValid } from '../lib/supabase';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -21,6 +21,10 @@ interface MockupTemplate {
   is_default: boolean;
   created_at: string;
   updated_at: string;
+  design_type?: 'black' | 'white' | 'color';
+  product_category?: string;
+  folder_path?: string;
+  folder_name?: string;
 }
 
 interface DesignArea {
@@ -70,7 +74,7 @@ interface EtsyStore {
 }
 
 const MockupTemplatesPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isDemoMode } = useAuth();
   const [templates, setTemplates] = useState<MockupTemplate[]>([]);
   const [stores, setStores] = useState<EtsyStore[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +84,7 @@ const MockupTemplatesPage: React.FC = () => {
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
   const [showEditor, setShowEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<MockupTemplate | null>(null);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   // Editor States
   const [canvasSize, setCanvasSize] = useState({ width: 2000, height: 2000 });
@@ -108,19 +113,20 @@ const MockupTemplatesPage: React.FC = () => {
   const maxContainerSize = 600;
   const scale = Math.min(maxContainerSize / canvasSize.width, maxContainerSize / canvasSize.height, 1);
 
-  useEffect(() => {
-    if (user) {
-      loadTemplates();
-      loadStores();
-    }
-  }, [user]);
-
-  const loadTemplates = async () => {
+  // Memoized load templates function to prevent unnecessary rerenders
+  const loadTemplates = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       console.log('🔄 Loading mockup templates...');
       
+      // Check if in demo mode
+      if (isDemoMode || !isConfigValid) {
+        console.log('🎭 Using demo data for mockup templates');
+        loadDemoTemplates();
+        return;
+      }
+
       // Check if supabase client is properly initialized
       if (!supabase) {
         throw new Error('Supabase client is not initialized');
@@ -133,11 +139,16 @@ const MockupTemplatesPage: React.FC = () => {
 
       console.log('📡 Making request to Supabase for user:', user.id);
       
-      const { data, error } = await supabase
-        .from('mockup_templates')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+      // Use executeWithTimeout for better error handling
+      const { data, error } = await executeWithTimeout(
+        () => supabase
+          .from('mockup_templates')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false }),
+        15000, // 15 second timeout
+        2 // 2 retries
+      );
 
       if (error) {
         console.error('❌ Supabase query error:', error);
@@ -146,6 +157,7 @@ const MockupTemplatesPage: React.FC = () => {
 
       console.log(`✅ ${data?.length || 0} mockup templates loaded successfully`);
       setTemplates(data || []);
+      setInitialLoadComplete(true);
     } catch (error: any) {
       console.error('❌ Template loading error:', error);
       
@@ -163,15 +175,110 @@ const MockupTemplatesPage: React.FC = () => {
       }
       
       setError(errorMessage);
+      
+      // Load demo data as fallback
+      loadDemoTemplates();
     } finally {
       setLoading(false);
     }
+  }, [user, isDemoMode]);
+
+  const loadDemoTemplates = () => {
+    console.log('🎭 Loading demo mockup templates');
+    
+    // Create demo templates
+    const demoTemplates: MockupTemplate[] = [
+      {
+        id: 'demo-1',
+        user_id: user?.id || 'demo-user',
+        name: 'T-Shirt Mockup Template',
+        image_url: 'https://images.pexels.com/photos/1566412/pexels-photo-1566412.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+        design_areas: [
+          {
+            id: 'design-1',
+            x: 500,
+            y: 400,
+            width: 300,
+            height: 300,
+            rotation: 0,
+            opacity: 0.8,
+            visible: true
+          }
+        ],
+        text_areas: [
+          {
+            id: 'text-1',
+            x: 500,
+            y: 700,
+            width: 400,
+            height: 100,
+            rotation: 0,
+            text: 'Sample Text',
+            fontSize: 36,
+            fontFamily: 'Arial',
+            color: '#000000',
+            align: 'center',
+            placeholder: 'Enter text...',
+            maxChars: 50,
+            visible: true
+          }
+        ],
+        is_default: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        design_type: 'black',
+        product_category: 't-shirt',
+        folder_path: 'default',
+        folder_name: 'Default Templates'
+      },
+      {
+        id: 'demo-2',
+        user_id: user?.id || 'demo-user',
+        name: 'Mug Mockup Template',
+        image_url: 'https://images.pexels.com/photos/1566298/pexels-photo-1566298.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+        design_areas: [
+          {
+            id: 'design-1',
+            x: 400,
+            y: 300,
+            width: 200,
+            height: 200,
+            rotation: 0,
+            opacity: 0.8,
+            visible: true
+          }
+        ],
+        text_areas: [],
+        is_default: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        design_type: 'white',
+        product_category: 'mug',
+        folder_path: 'default',
+        folder_name: 'Default Templates'
+      }
+    ];
+    
+    setTemplates(demoTemplates);
+    setError('Using demo data - Database connection not available');
+    setInitialLoadComplete(true);
   };
 
-  const loadStores = async () => {
+  // Memoized load stores function to prevent unnecessary rerenders
+  const loadStores = useCallback(async () => {
     try {
       console.log('🔄 Loading Etsy stores...');
       
+      // Check if in demo mode
+      if (isDemoMode || !isConfigValid) {
+        console.log('🎭 Using demo data for stores');
+        setStores([
+          { id: 'demo-store-1', store_name: 'Demo Etsy Store', is_active: true },
+          { id: 'demo-store-2', store_name: 'Demo Craft Shop', is_active: true }
+        ]);
+        return;
+      }
+
       // Check if supabase client is properly initialized
       if (!supabase) {
         throw new Error('Supabase client is not initialized');
@@ -184,13 +291,18 @@ const MockupTemplatesPage: React.FC = () => {
 
       console.log('📡 Making request to Supabase for stores for user:', user.id);
       
-      const { data, error } = await supabase
-        .from('stores')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('platform', 'etsy')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+      // Use executeWithTimeout for better error handling
+      const { data, error } = await executeWithTimeout(
+        () => supabase
+          .from('stores')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('platform', 'etsy')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false }),
+        10000, // 10 second timeout
+        2 // 2 retries
+      );
 
       if (error) {
         console.error('❌ Store loading error:', error);
@@ -207,7 +319,22 @@ const MockupTemplatesPage: React.FC = () => {
       console.error('❌ Store loading error:', error);
       // Don't set error state for stores as it's not critical for the page to function
     }
-  };
+  }, [user, isDemoMode]);
+
+  // Load data on component mount
+  useEffect(() => {
+    if (user || isDemoMode) {
+      loadTemplates();
+      loadStores();
+    }
+  }, [user, isDemoMode, loadTemplates, loadStores]);
+
+  // Memoized filtered templates to prevent unnecessary recalculations
+  const filteredTemplates = React.useMemo(() => {
+    return templates.filter(template =>
+      template.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [templates, searchTerm]);
 
   const createNewTemplate = () => {
     setEditingTemplate(null);
@@ -276,6 +403,39 @@ const MockupTemplatesPage: React.FC = () => {
     try {
       console.log('💾 Saving template...');
 
+      // If in demo mode, just update the state
+      if (isDemoMode || !isConfigValid) {
+        console.log('🎭 Demo mode: Simulating template save');
+        
+        const templateData = {
+          id: editingTemplate?.id || `demo-${Date.now()}`,
+          user_id: user?.id || 'demo-user',
+          name: templateName,
+          image_url: backgroundImage,
+          design_areas: designAreas,
+          text_areas: textAreas,
+          logo_area: logoArea,
+          store_id: selectedStore,
+          is_default: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          design_type: 'black' as const,
+          product_category: 't-shirt',
+          folder_path: 'default',
+          folder_name: 'Default Templates'
+        };
+        
+        if (editingTemplate) {
+          setTemplates(prev => prev.map(t => t.id === editingTemplate.id ? templateData : t));
+        } else {
+          setTemplates(prev => [templateData, ...prev]);
+        }
+        
+        setShowEditor(false);
+        alert('Template saved successfully! 🎉');
+        return;
+      }
+
       const templateData = {
         user_id: user?.id,
         name: templateName,
@@ -284,7 +444,11 @@ const MockupTemplatesPage: React.FC = () => {
         text_areas: textAreas,
         logo_area: logoArea,
         store_id: selectedStore,
-        is_default: false
+        is_default: false,
+        design_type: 'black' as const,
+        product_category: 't-shirt',
+        folder_path: 'default',
+        folder_name: 'Default Templates'
       };
 
       let result;
@@ -329,6 +493,14 @@ const MockupTemplatesPage: React.FC = () => {
     if (!window.confirm('Are you sure you want to delete this template?')) return;
 
     try {
+      // If in demo mode, just update the state
+      if (isDemoMode || !isConfigValid) {
+        console.log('🎭 Demo mode: Simulating template deletion');
+        setTemplates(prev => prev.filter(t => t.id !== templateId));
+        setSelectedTemplates(prev => prev.filter(id => id !== templateId));
+        return;
+      }
+
       const { error } = await supabase
         .from('mockup_templates')
         .delete()
@@ -347,6 +519,22 @@ const MockupTemplatesPage: React.FC = () => {
 
   const duplicateTemplate = async (template: MockupTemplate) => {
     try {
+      // If in demo mode, just update the state
+      if (isDemoMode || !isConfigValid) {
+        console.log('🎭 Demo mode: Simulating template duplication');
+        
+        const duplicatedTemplate = {
+          ...template,
+          id: `demo-${Date.now()}`,
+          name: `${template.name} (Copy)`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        
+        setTemplates(prev => [duplicatedTemplate, ...prev]);
+        return;
+      }
+
       const { error } = await supabase
         .from('mockup_templates')
         .insert({
@@ -357,7 +545,11 @@ const MockupTemplatesPage: React.FC = () => {
           text_areas: template.text_areas,
           logo_area: template.logo_area,
           store_id: template.store_id,
-          is_default: false
+          is_default: false,
+          design_type: template.design_type || 'black',
+          product_category: template.product_category || 't-shirt',
+          folder_path: template.folder_path || 'default',
+          folder_name: template.folder_name || 'Default Templates'
         });
 
       if (error) throw error;
@@ -602,10 +794,6 @@ const MockupTemplatesPage: React.FC = () => {
     }
   }, [selectedId, showTransformer]);
 
-  const filteredTemplates = templates.filter(template =>
-    template.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -657,7 +845,8 @@ const MockupTemplatesPage: React.FC = () => {
     loadTemplates();
   };
 
-  if (loading) {
+  // Show loading state only on initial load
+  if (loading && !initialLoadComplete) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center h-64">
@@ -668,7 +857,7 @@ const MockupTemplatesPage: React.FC = () => {
   }
 
   // Show error state with retry option
-  if (error) {
+  if (error && !isDemoMode && !initialLoadComplete) {
     return (
       <div className="p-6">
         <div className="flex flex-col items-center justify-center h-64 space-y-4">
@@ -1108,6 +1297,34 @@ const MockupTemplatesPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Connection Error Warning */}
+      {error && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="text-sm font-medium text-yellow-700 dark:text-yellow-400 mb-1">
+                Connection Notice
+              </h3>
+              <p className="text-sm text-yellow-600 dark:text-yellow-300">
+                {error}
+              </p>
+              <div className="mt-2">
+                <Button
+                  onClick={retryLoadTemplates}
+                  variant="secondary"
+                  size="sm"
+                  className="flex items-center space-x-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  <span>Retry Connection</span>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Search */}
       <div className="flex flex-col sm:flex-row gap-4 items-center">
         <div className="relative flex-1">
@@ -1174,6 +1391,7 @@ const MockupTemplatesPage: React.FC = () => {
                       src={template.image_url}
                       alt={template.name}
                       className="w-full h-full object-cover"
+                      loading="lazy"
                     />
                     
                     {/* Overlay with area indicators */}

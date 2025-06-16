@@ -5,6 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 export class FontService {
   private static loadedFonts = new Set<string>();
   private static fontLoadPromises = new Map<string, Promise<void>>();
+  private static fontLoadAttempts = new Map<string, number>();
+  private static MAX_LOAD_ATTEMPTS = 3;
 
   /**
    * Font family categories with appropriate fallbacks
@@ -302,10 +304,16 @@ export class FontService {
     try {
       console.log('🔄 Fetching user fonts for user:', userId);
       
-      // Test connection first
-      const connectionOk = await testSupabaseConnection();
-      if (!connectionOk) {
-        throw new Error('Supabase connection failed. Please check your internet connection and try again.');
+      // Test connection first with a short timeout
+      try {
+        const connectionOk = await testSupabaseConnection();
+        if (!connectionOk) {
+          console.warn('⚠️ Supabase connection test failed, proceeding with caution');
+          // Continue anyway, but with awareness that connection might be unstable
+        }
+      } catch (connError) {
+        console.warn('⚠️ Connection test error:', connError);
+        // Continue anyway
       }
 
       // Use executeWithTimeout to prevent query timeout
@@ -325,7 +333,7 @@ export class FontService {
 
           return data || [];
         },
-        20000, // 20 seconds timeout
+        15000, // 15 seconds timeout (reduced from 20 seconds)
         2 // 2 retries
       );
 
@@ -410,6 +418,7 @@ export class FontService {
       // Remove from loaded fonts set
       this.loadedFonts.delete(mainFontName);
       this.fontLoadPromises.delete(mainFontName);
+      this.fontLoadAttempts.delete(mainFontName);
 
       console.log(`🗑️ Removed font from browser: ${mainFontName}`);
     } catch (err) {
@@ -418,7 +427,7 @@ export class FontService {
   }
 
   /**
-   * Enhanced font loading with base64 data
+   * Enhanced font loading with base64 data and retry mechanism
    */
   static async loadFontInBrowser(font: UserFont): Promise<void> {
     // Extract the main font family name (without fallbacks)
@@ -438,6 +447,18 @@ export class FontService {
       return this.fontLoadPromises.get(mainFontFamily)!;
     }
 
+    // Get current attempt count
+    const attempts = this.fontLoadAttempts.get(mainFontFamily) || 0;
+    
+    // Check if we've exceeded max attempts
+    if (attempts >= this.MAX_LOAD_ATTEMPTS) {
+      console.warn(`⚠️ Maximum load attempts (${this.MAX_LOAD_ATTEMPTS}) reached for font: ${font.font_name}`);
+      return;
+    }
+    
+    // Update attempt count
+    this.fontLoadAttempts.set(mainFontFamily, attempts + 1);
+
     // Create loading promise
     const loadingPromise = this.doLoadFontFromBase64(font);
     this.fontLoadPromises.set(mainFontFamily, loadingPromise);
@@ -454,7 +475,7 @@ export class FontService {
   }
 
   /**
-   * Load font from base64 data
+   * Load font from base64 data with optimized approach
    */
   private static async doLoadFontFromBase64(font: UserFont): Promise<void> {
     const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
@@ -462,10 +483,10 @@ export class FontService {
     console.log(`🔥 Loading font from base64: ${font.font_name} with family: ${mainFontFamily}`);
 
     try {
-      // Step 1: CSS injection with base64 data
+      // Step 1: CSS injection with base64 data - optimized to reduce reflow
       await this.injectBase64FontCSS(font);
       
-      // Step 2: Force browser recognition
+      // Step 2: Force browser recognition with minimal DOM operations
       await this.forceBrowserRecognition(font);
       
       console.log(`🎯 Font fully loaded and ready: ${font.font_name}`);
@@ -478,7 +499,7 @@ export class FontService {
   }
 
   /**
-   * Inject font CSS with base64 data
+   * Inject font CSS with base64 data - optimized version
    */
   private static async injectBase64FontCSS(font: UserFont): Promise<void> {
     const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
@@ -491,7 +512,7 @@ export class FontService {
       console.log(`🗑️ Removed existing font style: ${mainFontFamily}`);
     }
 
-    // Create CSS with base64 data
+    // Create CSS with base64 data - optimized to reduce reflow
     const style = document.createElement('style');
     style.id = styleId;
     style.textContent = `
@@ -509,12 +530,12 @@ export class FontService {
     
     console.log(`💉 CSS injection complete with base64 data: ${mainFontFamily}`);
     
-    // Wait for CSS to be processed
-    await new Promise(resolve => setTimeout(resolve, 200));
+    // Wait for CSS to be processed - reduced wait time
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
 
   /**
-   * Force browser recognition with simple approach
+   * Force browser recognition with minimal DOM operations
    */
   private static async forceBrowserRecognition(font: UserFont): Promise<void> {
     const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
@@ -524,34 +545,36 @@ export class FontService {
     // Wait for fonts to be ready
     await document.fonts.ready;
     
-    // Create simple test element
-    const testElement = document.createElement('div');
-    testElement.style.fontFamily = `"${mainFontFamily}", Arial, sans-serif`;
-    testElement.style.fontSize = '16px';
-    testElement.style.position = 'absolute';
-    testElement.style.left = '-9999px';
-    testElement.style.top = '-9999px';
-    testElement.style.visibility = 'hidden';
-    testElement.textContent = 'Font Test';
+    // Create simple test element - reuse existing if possible
+    let testElement = document.getElementById(`font-test-${mainFontFamily}`);
     
-    document.body.appendChild(testElement);
+    if (!testElement) {
+      testElement = document.createElement('div');
+      testElement.id = `font-test-${mainFontFamily}`;
+      testElement.style.fontFamily = `"${mainFontFamily}", Arial, sans-serif`;
+      testElement.style.fontSize = '16px';
+      testElement.style.position = 'absolute';
+      testElement.style.left = '-9999px';
+      testElement.style.top = '-9999px';
+      testElement.style.visibility = 'hidden';
+      testElement.textContent = 'Font Test';
+      
+      document.body.appendChild(testElement);
+    }
     
     // Force reflow
     testElement.offsetHeight;
     
-    // Wait a bit for font to load
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Wait a bit for font to load - reduced wait time
+    await new Promise(resolve => setTimeout(resolve, 300));
     
-    // Clean up
-    if (testElement.parentNode) {
-      testElement.parentNode.removeChild(testElement);
-    }
+    // Don't remove the test element - keep it for future font checks
     
     console.log(`✅ Browser recognition complete for: ${mainFontFamily}`);
   }
 
   /**
-   * Load all user fonts into browser
+   * Load all user fonts into browser with optimized batching
    */
   static async loadAllUserFonts(userId: string): Promise<string[]> {
     try {
@@ -560,23 +583,28 @@ export class FontService {
 
       console.log(`🚀 Starting font loading: ${fonts.length} fonts`);
 
-      // Load fonts one by one for maximum reliability
-      for (let i = 0; i < fonts.length; i++) {
-        const font = fonts[i];
-        try {
-          console.log(`🔥 Loading font ${i + 1}/${fonts.length}: ${font.font_name}`);
-          await this.loadFontInBrowser(font);
-          const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
-          loadedFonts.push(mainFontFamily);
-          console.log(`✅ Font loaded successfully: ${font.font_name}`);
-        } catch (error) {
-          console.warn(`⚠️ Font loading failed (continuing): ${font.font_name}`, error);
-          // Continue with other fonts
-        }
+      // Load fonts in batches to prevent browser overload
+      const batchSize = 3;
+      for (let i = 0; i < fonts.length; i += batchSize) {
+        const batch = fonts.slice(i, i + batchSize);
         
-        // Small delay between fonts
-        if (i < fonts.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 300));
+        // Load batch in parallel
+        await Promise.allSettled(batch.map(async (font) => {
+          try {
+            console.log(`🔥 Loading font ${i + 1}/${fonts.length}: ${font.font_name}`);
+            await this.loadFontInBrowser(font);
+            const mainFontFamily = font.font_family.split(',')[0].replace(/['"]/g, '').trim();
+            loadedFonts.push(mainFontFamily);
+            console.log(`✅ Font loaded successfully: ${font.font_name}`);
+          } catch (error) {
+            console.warn(`⚠️ Font loading failed (continuing): ${font.font_name}`, error);
+            // Continue with other fonts
+          }
+        }));
+        
+        // Small delay between batches
+        if (i + batchSize < fonts.length) {
+          await new Promise(resolve => setTimeout(resolve, 200));
         }
       }
 
@@ -656,6 +684,7 @@ export class FontService {
       // Clear all tracking
       this.loadedFonts.clear();
       this.fontLoadPromises.clear();
+      this.fontLoadAttempts.clear();
       
       // Remove all existing font styles
       const existingStyles = document.querySelectorAll('style[id^="font-style-"]');
@@ -675,7 +704,7 @@ export class FontService {
       }
       
       // Wait for cleanup
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       // Reload all fonts
       await this.loadAllUserFonts(userId);

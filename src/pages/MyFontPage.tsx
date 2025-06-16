@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Type, Upload, Trash2, Download, Search, Filter, Grid, List, RefreshCw, Info } from 'lucide-react';
 import { useFonts } from '../hooks/useFonts';
 import { FontService } from '../lib/fontService';
@@ -9,41 +9,51 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import FontUploadButton from '../components/AutoTextToImage/FontUploadButton';
 
 const MyFontPage: React.FC = () => {
-  const { user } = useAuth();
-  const { userFonts, fontsByCategory, loading, error, deleteFont, loadUserFonts } = useFonts();
+  const { user, isDemoMode } = useAuth();
+  const { userFonts, fontsByCategory, loading, error, deleteFont, loadUserFonts, fontsInitialized } = useFonts();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'date' | 'size' | 'category'>('date');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedFonts, setSelectedFonts] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
-  // Filter and sort fonts
-  const filteredFonts = userFonts
-    .filter(font => {
-      const matchesSearch = font.font_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           font.font_family.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      if (selectedCategory === 'all') return matchesSearch;
-      
-      const categoryInfo = FontService.getFontCategoryInfo(font.font_name);
-      return matchesSearch && categoryInfo.category === selectedCategory;
-    })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case 'name':
-          return a.font_name.localeCompare(b.font_name);
-        case 'size':
-          return b.file_size - a.file_size;
-        case 'category':
-          const catA = FontService.getFontCategoryInfo(a.font_name).category;
-          const catB = FontService.getFontCategoryInfo(b.font_name).category;
-          return catA.localeCompare(catB);
-        case 'date':
-        default:
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      }
-    });
+  // Filter and sort fonts - memoized to prevent unnecessary recalculations
+  const filteredFonts = React.useMemo(() => {
+    return userFonts
+      .filter(font => {
+        const matchesSearch = font.font_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                             font.font_family.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        if (selectedCategory === 'all') return matchesSearch;
+        
+        const categoryInfo = FontService.getFontCategoryInfo(font.font_name);
+        return matchesSearch && categoryInfo.category === selectedCategory;
+      })
+      .sort((a, b) => {
+        switch (sortBy) {
+          case 'name':
+            return a.font_name.localeCompare(b.font_name);
+          case 'size':
+            return b.file_size - a.file_size;
+          case 'category':
+            const catA = FontService.getFontCategoryInfo(a.font_name).category;
+            const catB = FontService.getFontCategoryInfo(b.font_name).category;
+            return catA.localeCompare(catB);
+          case 'date':
+          default:
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+      });
+  }, [userFonts, searchTerm, selectedCategory, sortBy]);
+
+  // Mark initial load as complete after fonts are loaded
+  useEffect(() => {
+    if (fontsInitialized && !initialLoadComplete) {
+      setInitialLoadComplete(true);
+    }
+  }, [fontsInitialized, initialLoadComplete]);
 
   const handleDeleteFont = async (fontId: string) => {
     if (window.confirm('Are you sure you want to delete this font?')) {
@@ -69,14 +79,16 @@ const MyFontPage: React.FC = () => {
   };
 
   const handleRefresh = async () => {
-    if (!user) return;
+    if (!user && !isDemoMode) return;
     
     setRefreshing(true);
     try {
       console.log('🔄 Refreshing fonts...');
       
       // Force reload all fonts with improved loading
-      await FontService.forceReloadAllFonts(user.id);
+      if (!isDemoMode) {
+        await FontService.forceReloadAllFonts(user?.id || '');
+      }
       
       // Reload the fonts list
       await loadUserFonts();
@@ -132,7 +144,18 @@ const MyFontPage: React.FC = () => {
     return colors[category as keyof typeof colors] || 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
   };
 
-  const FontPreview: React.FC<{ font: any }> = ({ font }) => {
+  // Get category counts for filter dropdown - memoized to prevent recalculation
+  const categoryCounts = React.useMemo(() => {
+    const counts = { all: userFonts.length };
+    userFonts.forEach(font => {
+      const category = FontService.getFontCategoryInfo(font.font_name).category;
+      counts[category] = (counts[category] || 0) + 1;
+    });
+    return counts;
+  }, [userFonts]);
+
+  // Font Preview Component - memoized to prevent unnecessary rerenders
+  const FontPreview = React.memo<{ font: any }>(({ font }) => {
     const categoryInfo = FontService.getFontCategoryInfo(font.font_name);
     
     // CRITICAL: Proper font style application with fallback and improved visibility
@@ -166,19 +189,10 @@ const MyFontPage: React.FC = () => {
         </div>
       </div>
     );
-  };
+  });
 
-  // Get category counts for filter dropdown
-  const categoryCounts = React.useMemo(() => {
-    const counts = { all: userFonts.length };
-    userFonts.forEach(font => {
-      const category = FontService.getFontCategoryInfo(font.font_name).category;
-      counts[category] = (counts[category] || 0) + 1;
-    });
-    return counts;
-  }, [userFonts]);
-
-  if (loading && userFonts.length === 0) {
+  // Show loading state only on initial load, not during refreshes
+  if (loading && !initialLoadComplete) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center h-64">
@@ -222,6 +236,14 @@ const MyFontPage: React.FC = () => {
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg">
           {error}
+        </div>
+      )}
+
+      {/* Loading Indicator during refresh */}
+      {refreshing && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-center space-x-3">
+          <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />
+          <span className="text-blue-700 dark:text-blue-400">Refreshing fonts...</span>
         </div>
       )}
 

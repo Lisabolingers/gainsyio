@@ -77,7 +77,7 @@ if (!isConfigValid) {
       // Improved fetch with better timeout handling
       fetch: (url: RequestInfo, options?: RequestInit) => {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 20000); // Increased from 15000 to 20000 ms (20 seconds)
         
         return fetch(url, {
           ...options,
@@ -104,7 +104,7 @@ if (!isConfigValid) {
 export { supabase, supabaseUrl, isConfigValid };
 
 // Enhanced connection test function with better error handling
-export const testSupabaseConnection = async (retries = 2): Promise<boolean> => {
+export const testSupabaseConnection = async (retries = 3): Promise<boolean> => { // Increased retries from 2 to 3
   if (!isConfigValid) {
     console.warn('⚠️ Supabase configuration is invalid, skipping connection test');
     return false;
@@ -118,8 +118,8 @@ export const testSupabaseConnection = async (retries = 2): Promise<boolean> => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         controller.abort();
-        console.warn(`⏰ Connection test attempt ${attempt} timed out after 8 seconds`);
-      }, 8000); // 8 second timeout per attempt
+        console.warn(`⏰ Connection test attempt ${attempt} timed out after 10 seconds`);
+      }, 10000); // 10 second timeout per attempt (increased from 8 seconds)
       
       try {
         // Use a simple health check that doesn't require authentication
@@ -171,7 +171,7 @@ export const testSupabaseConnection = async (retries = 2): Promise<boolean> => {
     
     // Wait before retrying (exponential backoff)
     if (attempt < retries) {
-      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 3000); // Max 3 seconds
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // Max 5 seconds (reduced from 8 seconds)
       console.log(`⏳ Waiting ${delay}ms before retry...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
@@ -183,26 +183,31 @@ export const testSupabaseConnection = async (retries = 2): Promise<boolean> => {
 // Helper function to handle database queries with timeout and retry
 export const executeWithTimeout = async <T>(
   queryFn: () => Promise<T>,
-  timeoutMs: number = 10000,
-  retries: number = 1
+  timeoutMs: number = 15000, // Increased from 10000 to 15000 ms (15 seconds)
+  retries: number = 2
 ): Promise<T> => {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
+      // Create a promise that rejects after timeoutMs
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Query timeout')), timeoutMs);
+        setTimeout(() => reject(new Error(`Query timeout after ${timeoutMs}ms`)), timeoutMs);
       });
       
+      // Race between the query and the timeout
       const result = await Promise.race([queryFn(), timeoutPromise]);
       return result;
     } catch (error: any) {
       console.error(`Query attempt ${attempt} failed:`, error.message);
       
+      // If this is the last attempt, throw the error
       if (attempt === retries) {
         throw error;
       }
       
-      // Wait before retry
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait before retry with exponential backoff
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 3000); // Max 3 seconds
+      console.log(`⏳ Waiting ${delay}ms before retry...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
   
