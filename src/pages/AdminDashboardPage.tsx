@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
+import { supabase, executeWithTimeout, isConfigValid } from '../lib/supabase';
 import { TrendingUp, TrendingDown, DollarSign, Package, Eye, Heart, ShoppingCart, Store, Plus, ArrowUpRight, Calendar, BarChart3, BookTemplate as FileTemplate, ChevronDown, AlertCircle } from 'lucide-react';
 
 interface DashboardStats {
@@ -29,7 +29,7 @@ interface EtsyStore {
 }
 
 const AdminDashboardPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isDemoMode } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({
     totalStores: 0,
     totalProducts: 0,
@@ -56,32 +56,20 @@ const AdminDashboardPage: React.FC = () => {
     { value: 'alltime', label: 'All time' }
   ];
 
-  // Check if Supabase is properly configured
-  const isSupabaseConfigured = () => {
-    const url = import.meta.env.VITE_SUPABASE_URL;
-    const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    
-    return url && 
-           key && 
-           url !== 'https://your-project-id.supabase.co' && 
-           key !== 'your-anon-key' &&
-           !url.includes('localhost');
-  };
-
   useEffect(() => {
-    if (!isSupabaseConfigured()) {
-      setConnectionError('Supabase configuration is missing or invalid. Using demo data.');
-      loadDemoData();
-      return;
+    if (user || isDemoMode) {
+      if (isDemoMode || !isConfigValid) {
+        loadDemoData();
+      } else {
+        loadStores();
+        fetchDashboardData();
+      }
     }
-
-    if (user) {
-      loadStores();
-      fetchDashboardData();
-    }
-  }, [user, selectedStore, selectedPeriod]);
+  }, [user, selectedStore, selectedPeriod, isDemoMode]);
 
   const loadDemoData = () => {
+    console.log('🎭 Loading demo dashboard data...');
+    
     // Load demo stores
     const demoStores: EtsyStore[] = [
       { id: 'store1', store_name: 'Demo Etsy Store', is_active: true },
@@ -132,6 +120,7 @@ const AdminDashboardPage: React.FC = () => {
       },
     ]);
     
+    setConnectionError('Using demo data - Database connection not available');
     setLoading(false);
   };
 
@@ -139,21 +128,29 @@ const AdminDashboardPage: React.FC = () => {
     try {
       console.log('🔄 Loading Etsy stores for dashboard...');
       
-      const { data, error } = await supabase
-        .from('stores')
-        .select('id, store_name, is_active')
-        .eq('user_id', user?.id)
-        .eq('platform', 'etsy')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+      const { data, error } = await executeWithTimeout(
+        () => supabase
+          .from('stores')
+          .select('id, store_name, is_active')
+          .eq('user_id', user?.id)
+          .eq('platform', 'etsy')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false }),
+        8000, // 8 second timeout
+        2 // 2 retries
+      );
 
       if (error) {
         console.error('❌ Store loading error:', error);
-        if (error.message.includes('Failed to fetch')) {
-          setConnectionError('Unable to connect to database. Using demo data.');
+        
+        if (error.message?.includes('Failed to fetch') || 
+            error.message?.includes('timeout') ||
+            error.message?.includes('signal timed out')) {
+          setConnectionError('Database connection failed. Using demo data.');
           loadDemoData();
           return;
         }
+        
         throw error;
       }
 
@@ -162,8 +159,15 @@ const AdminDashboardPage: React.FC = () => {
       setConnectionError(null);
     } catch (error: any) {
       console.error('❌ Store loading general error:', error);
-      if (error.message?.includes('Failed to fetch')) {
-        setConnectionError('Database connection failed. Using demo data.');
+      
+      if (error.message?.includes('Failed to fetch') || 
+          error.message?.includes('timeout') ||
+          error.message?.includes('Query timeout') ||
+          error.name === 'AbortError') {
+        setConnectionError('Database connection timeout. Using demo data.');
+        loadDemoData();
+      } else {
+        setConnectionError(`Database error: ${error.message}. Using demo data.`);
         loadDemoData();
       }
     }
@@ -175,18 +179,13 @@ const AdminDashboardPage: React.FC = () => {
       setConnectionError(null);
 
       // Test connection first
-      if (!isSupabaseConfigured()) {
+      if (!isConfigValid) {
         setConnectionError('Supabase is not properly configured. Using demo data.');
         loadDemoData();
         return;
       }
 
-      // Create a timeout promise with increased timeout to 30 seconds
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Database query timeout')), 30000)
-      );
-
-      // Fetch stores count
+      // Fetch stores count with timeout
       let storesQuery = supabase
         .from('stores')
         .select('*', { count: 'exact', head: true })
@@ -196,34 +195,45 @@ const AdminDashboardPage: React.FC = () => {
         storesQuery = storesQuery.eq('id', selectedStore);
       }
 
-      const storesPromise = storesQuery;
       let storesCount;
-
       try {
-        const { count, error } = await Promise.race([storesPromise, timeoutPromise]) as any;
+        const { count, error } = await executeWithTimeout(
+          () => storesQuery,
+          8000, // 8 second timeout
+          2 // 2 retries
+        );
         
         if (error) {
           console.error('❌ Stores query error:', error);
-          if (error.message.includes('Failed to fetch')) {
+          
+          if (error.message?.includes('Failed to fetch') || 
+              error.message?.includes('timeout') ||
+              error.message?.includes('signal timed out')) {
             setConnectionError('Database connection failed. Using demo data.');
             loadDemoData();
             return;
           }
+          
           throw error;
         }
         
         storesCount = count;
       } catch (error: any) {
         console.error('❌ Stores query error:', error);
-        if (error.message.includes('timeout') || error.message.includes('Failed to fetch')) {
+        
+        if (error.message?.includes('timeout') || 
+            error.message?.includes('Failed to fetch') ||
+            error.message?.includes('Query timeout') ||
+            error.name === 'AbortError') {
           setConnectionError('Database query timed out. Using demo data.');
           loadDemoData();
           return;
         }
+        
         throw error;
       }
 
-      // Fetch products count
+      // Fetch products count with timeout
       let productsQuery = supabase
         .from('products')
         .select('*, stores!inner(*)', { count: 'exact', head: true })
@@ -233,37 +243,48 @@ const AdminDashboardPage: React.FC = () => {
         productsQuery = productsQuery.eq('store_id', selectedStore);
       }
 
-      const productsPromise = productsQuery;
       let productsCount;
-
       try {
-        const { count, error } = await Promise.race([productsPromise, timeoutPromise]) as any;
+        const { count, error } = await executeWithTimeout(
+          () => productsQuery,
+          8000, // 8 second timeout
+          2 // 2 retries
+        );
         
         if (error) {
           console.error('❌ Products query error:', error);
-          if (error.message.includes('Failed to fetch')) {
+          
+          if (error.message?.includes('Failed to fetch') || 
+              error.message?.includes('timeout') ||
+              error.message?.includes('signal timed out')) {
             setConnectionError('Database connection failed. Using demo data.');
             loadDemoData();
             return;
           }
+          
           throw error;
         }
         
         productsCount = count;
       } catch (error: any) {
         console.error('❌ Products query error:', error);
-        if (error.message.includes('timeout') || error.message.includes('Failed to fetch')) {
+        
+        if (error.message?.includes('timeout') || 
+            error.message?.includes('Failed to fetch') ||
+            error.message?.includes('Query timeout') ||
+            error.name === 'AbortError') {
           setConnectionError('Database query timed out. Using demo data.');
           loadDemoData();
           return;
         }
+        
         throw error;
       }
 
       // Calculate date range based on selected period
       const dateRange = getDateRange(selectedPeriod);
 
-      // Fetch analytics data with date filtering
+      // Fetch analytics data with date filtering and timeout
       let analyticsQuery = supabase
         .from('analytics_data')
         .select(`
@@ -289,34 +310,36 @@ const AdminDashboardPage: React.FC = () => {
         analyticsQuery = analyticsQuery.lte('date', dateRange.end);
       }
 
-      const analyticsPromise = analyticsQuery;
       let analyticsData;
-
       try {
-        const { data, error } = await Promise.race([analyticsPromise, timeoutPromise]) as any;
+        const { data, error } = await executeWithTimeout(
+          () => analyticsQuery,
+          8000, // 8 second timeout
+          2 // 2 retries
+        );
         
         if (error) {
           console.error('❌ Analytics query error:', error);
-          if (error.message.includes('Failed to fetch')) {
-            setConnectionError('Database connection failed. Using demo data.');
-            loadDemoData();
-            return;
+          
+          if (error.message?.includes('Failed to fetch') || 
+              error.message?.includes('timeout') ||
+              error.message?.includes('signal timed out')) {
+            // Don't throw error for analytics as it's not critical
+            console.warn('Analytics data unavailable, using defaults');
+            analyticsData = [];
+          } else {
+            // Don't throw error for analytics as it's not critical
+            console.warn('Analytics data unavailable, using defaults');
+            analyticsData = [];
           }
-          // Don't throw error for analytics as it's not critical
-          console.warn('Analytics data unavailable, using defaults');
-          analyticsData = [];
         } else {
           analyticsData = data;
         }
       } catch (error: any) {
         console.error('❌ Analytics query error:', error);
-        if (error.message.includes('timeout') || error.message.includes('Failed to fetch')) {
-          // Don't throw error for analytics as it's not critical
-          console.warn('Analytics data unavailable, using defaults');
-          analyticsData = [];
-        } else {
-          throw error;
-        }
+        // Don't throw error for analytics as it's not critical
+        console.warn('Analytics data unavailable, using defaults');
+        analyticsData = [];
       }
 
       // Calculate totals
@@ -376,11 +399,15 @@ const AdminDashboardPage: React.FC = () => {
 
     } catch (error: any) {
       console.error('Error fetching dashboard data:', error);
-      if (error.message?.includes('Failed to fetch') || error.message?.includes('timeout')) {
+      
+      if (error.message?.includes('Failed to fetch') || 
+          error.message?.includes('timeout') ||
+          error.message?.includes('Query timeout') ||
+          error.name === 'AbortError') {
         setConnectionError('Unable to connect to the database. Using demo data.');
         loadDemoData();
       } else {
-        setConnectionError(`Database error: ${error.message}`);
+        setConnectionError(`Database error: ${error.message}. Using demo data.`);
         loadDemoData();
       }
     } finally {
@@ -536,10 +563,25 @@ const AdminDashboardPage: React.FC = () => {
     return period ? period.label : 'Last 7 days';
   };
 
-  // Show connection error if Supabase is not configured
-  if (connectionError) {
+  if (loading) {
     return (
       <div className="p-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-6"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="h-32 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Connection Status Warning */}
+      {connectionError && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6">
           <div className="flex items-start space-x-3">
             <AlertCircle className="h-6 w-6 text-yellow-500 flex-shrink-0 mt-0.5" />
@@ -567,123 +609,13 @@ const AdminDashboardPage: React.FC = () => {
             </div>
           </div>
         </div>
-        
-        {/* Continue showing the dashboard with demo data */}
-        <div className="mt-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Dashboard (Demo Mode)
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            {getSelectedStoreName()} • {getSelectedPeriodLabel()}
-          </p>
-        </div>
-        
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-          {statCards.map((stat, index) => (
-            <div
-              key={index}
-              className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    {stat.title}
-                  </p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                    {stat.value}
-                  </p>
-                </div>
-                <div className={`p-3 rounded-lg ${stat.color}`}>
-                  <stat.icon className="h-6 w-6 text-white" />
-                </div>
-              </div>
-              <div className="flex items-center mt-4">
-                {stat.changeType === 'increase' ? (
-                  <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
-                ) : (
-                  <TrendingDown className="h-4 w-4 text-red-500 mr-1" />
-                )}
-                <span className={`text-sm font-medium ${
-                  stat.changeType === 'increase' ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {stat.change}
-                </span>
-                <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
-                  vs previous period
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-        
-        {/* Recent Activity */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700 mt-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Recent Activities (Demo)
-            </h3>
-            <Link 
-              to="/admin/analytics"
-              className="text-orange-600 hover:text-orange-700 text-sm font-medium"
-            >
-              View All
-            </Link>
-          </div>
-          <div className="space-y-4">
-            {recentActivity.map((activity) => (
-              <div key={activity.id} className="flex items-start space-x-3">
-                <div className={`p-2 rounded-lg ${getActivityColor(activity.type)}`}>
-                  {getActivityIcon(activity.type)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    {activity.title}
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {activity.description}
-                  </p>
-                  <div className="flex items-center justify-between mt-1">
-                    <p className="text-xs text-gray-400">
-                      {activity.timestamp}
-                    </p>
-                    {activity.amount && (
-                      <p className="text-xs font-medium text-green-600">
-                        +${activity.amount}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
+      )}
 
-  if (loading) {
-    return (
-      <div className="p-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-6"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="h-32 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-6 space-y-6">
       {/* Header with Store and Period Selectors */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Dashboard
+            Dashboard {(isDemoMode || connectionError) && '(Demo Mode)'}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
             {getSelectedStoreName()} • {getSelectedPeriodLabel()}
@@ -819,7 +751,7 @@ const AdminDashboardPage: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Recent Activities
+              Recent Activities {(isDemoMode || connectionError) && '(Demo)'}
             </h3>
             <Link 
               to="/admin/analytics"

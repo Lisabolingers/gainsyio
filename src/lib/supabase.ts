@@ -63,7 +63,7 @@ if (!isConfigValid) {
     throw new Error('Geçersiz Supabase URL formatı. Lütfen .env dosyasındaki VITE_SUPABASE_URL değerini kontrol edin.');
   }
 
-  // Create real client
+  // Create real client with improved timeout and retry settings
   supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       persistSession: true,
@@ -74,12 +74,27 @@ if (!isConfigValid) {
       headers: {
         'Content-Type': 'application/json',
       },
-      // Add timeout settings
+      // Improved fetch with better timeout handling
       fetch: (url: RequestInfo, options?: RequestInit) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+        
         return fetch(url, {
           ...options,
-          signal: AbortSignal.timeout(10000), // 10 second timeout
+          signal: controller.signal,
+        }).finally(() => {
+          clearTimeout(timeoutId);
         });
+      },
+    },
+    // Add database connection settings
+    db: {
+      schema: 'public',
+    },
+    // Add realtime settings
+    realtime: {
+      params: {
+        eventsPerSecond: 10,
       },
     },
   });
@@ -88,32 +103,57 @@ if (!isConfigValid) {
 // Export supabase client
 export { supabase, supabaseUrl, isConfigValid };
 
-// Enhanced connection test function with retry logic
-export const testSupabaseConnection = async (retries = 3): Promise<boolean> => {
+// Enhanced connection test function with better error handling
+export const testSupabaseConnection = async (retries = 2): Promise<boolean> => {
+  if (!isConfigValid) {
+    console.warn('⚠️ Supabase configuration is invalid, skipping connection test');
+    return false;
+  }
+
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       console.log(`🔄 Testing Supabase connection (attempt ${attempt}/${retries})...`);
       
-      // Use a simple health check that doesn't require authentication
+      // Create abort controller for timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        console.warn(`⏰ Connection test attempt ${attempt} timed out after 8 seconds`);
+      }, 8000); // 8 second timeout per attempt
       
-      const response = await fetch(`${supabaseUrl}/rest/v1/`, {
-        method: 'HEAD',
-        headers: {
-          'apikey': supabaseAnonKey,
-        },
-        signal: controller.signal,
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (response.ok) {
-        console.log('✅ Supabase connection test successful');
-        return true;
-      } else {
-        console.warn('⚠️ Supabase connection test returned:', response.status, response.statusText);
-        console.warn('This might indicate incorrect API key or project configuration');
+      try {
+        // Use a simple health check that doesn't require authentication
+        const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+          method: 'HEAD',
+          headers: {
+            'apikey': supabaseAnonKey,
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok || response.status === 401) {
+          // 401 is also acceptable as it means the server is responding
+          console.log('✅ Supabase connection test successful');
+          return true;
+        } else {
+          console.warn(`⚠️ Supabase connection test returned: ${response.status} ${response.statusText}`);
+          
+          // If this is the last attempt, return false
+          if (attempt === retries) {
+            return false;
+          }
+        }
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        
+        if (fetchError.name === 'AbortError') {
+          console.warn(`⏰ Connection test attempt ${attempt} was aborted (timeout)`);
+        } else {
+          console.error(`❌ Fetch error in attempt ${attempt}:`, fetchError.message);
+        }
         
         // If this is the last attempt, return false
         if (attempt === retries) {
@@ -121,21 +161,52 @@ export const testSupabaseConnection = async (retries = 3): Promise<boolean> => {
         }
       }
     } catch (err: any) {
-      console.error(`❌ Supabase connection test error (attempt ${attempt}):`, err);
+      console.error(`❌ Supabase connection test error (attempt ${attempt}):`, err.message);
       
       // If this is the last attempt, return false
       if (attempt === retries) {
         return false;
       }
-      
-      // Wait before retrying (exponential backoff)
-      const delay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s...
+    }
+    
+    // Wait before retrying (exponential backoff)
+    if (attempt < retries) {
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 3000); // Max 3 seconds
       console.log(`⏳ Waiting ${delay}ms before retry...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
   
   return false;
+};
+
+// Helper function to handle database queries with timeout and retry
+export const executeWithTimeout = async <T>(
+  queryFn: () => Promise<T>,
+  timeoutMs: number = 10000,
+  retries: number = 1
+): Promise<T> => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Query timeout')), timeoutMs);
+      });
+      
+      const result = await Promise.race([queryFn(), timeoutPromise]);
+      return result;
+    } catch (error: any) {
+      console.error(`Query attempt ${attempt} failed:`, error.message);
+      
+      if (attempt === retries) {
+        throw error;
+      }
+      
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+  
+  throw new Error('All query attempts failed');
 };
 
 // Database types

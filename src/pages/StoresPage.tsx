@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Store, Plus, Edit, Trash2, ExternalLink, RefreshCw, Search, CheckCircle, Clock, X, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
+import { supabase, executeWithTimeout, isConfigValid } from '../lib/supabase';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 
@@ -19,16 +19,17 @@ interface StoreData {
 }
 
 const StoresPage: React.FC = () => {
-  const { user, loading: authLoading, error: authError } = useAuth();
+  const { user, loading: authLoading, error: authError, isDemoMode } = useAuth();
   const [stores, setStores] = useState<StoreData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user) {
+    if (user || isDemoMode) {
       loadStores();
     }
-  }, [user]);
+  }, [user, isDemoMode]);
 
   // Handle OAuth callback from Etsy
   useEffect(() => {
@@ -53,27 +54,96 @@ const StoresPage: React.FC = () => {
     }
   }, []);
 
+  const loadDemoStores = () => {
+    console.log('🎭 Loading demo stores...');
+    const demoStores: StoreData[] = [
+      {
+        id: 'demo-store-1',
+        user_id: user?.id || 'demo-user',
+        platform: 'etsy',
+        store_name: 'Demo Etsy Store',
+        store_url: 'https://etsy.com/shop/demo-store',
+        api_credentials: { connected: true, demo: true },
+        is_active: true,
+        last_sync_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: 'demo-store-2',
+        user_id: user?.id || 'demo-user',
+        platform: 'etsy',
+        store_name: 'Demo Craft Shop',
+        store_url: 'https://etsy.com/shop/demo-craft',
+        api_credentials: { connected: false, demo: true },
+        is_active: false,
+        last_sync_at: undefined,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+    ];
+    setStores(demoStores);
+    setConnectionError('Using demo data - Supabase connection not available');
+    setLoading(false);
+  };
+
   const loadStores = async () => {
     try {
       setLoading(true);
+      setConnectionError(null);
+      
+      // If in demo mode or Supabase not configured, load demo data
+      if (isDemoMode || !isConfigValid) {
+        loadDemoStores();
+        return;
+      }
+
       console.log('🔄 Loading Etsy stores...');
       
-      const { data, error } = await supabase
-        .from('stores')
-        .select('*')
-        .eq('user_id', user?.id)
-        .eq('platform', 'etsy')
-        .order('created_at', { ascending: false });
+      // Use executeWithTimeout for better error handling
+      const { data, error } = await executeWithTimeout(
+        () => supabase
+          .from('stores')
+          .select('*')
+          .eq('user_id', user?.id)
+          .eq('platform', 'etsy')
+          .order('created_at', { ascending: false }),
+        8000, // 8 second timeout
+        2 // 2 retries
+      );
 
       if (error) {
         console.error('❌ Store loading error:', error);
+        
+        // Handle specific error types
+        if (error.message?.includes('Failed to fetch') || 
+            error.message?.includes('timeout') ||
+            error.message?.includes('signal timed out')) {
+          setConnectionError('Database connection failed. Using demo data.');
+          loadDemoStores();
+          return;
+        }
+        
         throw error;
       }
 
       console.log(`✅ ${data?.length || 0} Etsy stores loaded`);
       setStores(data || []);
-    } catch (error) {
+      
+    } catch (error: any) {
       console.error('❌ Store loading general error:', error);
+      
+      // Handle network errors gracefully
+      if (error.message?.includes('Failed to fetch') || 
+          error.message?.includes('timeout') ||
+          error.message?.includes('Query timeout') ||
+          error.name === 'AbortError') {
+        setConnectionError('Database connection timeout. Using demo data.');
+        loadDemoStores();
+      } else {
+        setConnectionError(`Database error: ${error.message}. Using demo data.`);
+        loadDemoStores();
+      }
     } finally {
       setLoading(false);
     }
@@ -81,7 +151,7 @@ const StoresPage: React.FC = () => {
 
   const generateEtsyOAuthURL = () => {
     // TODO: Replace with actual Etsy API credentials from environment variables
-    const CLIENT_ID = process.env.VITE_ETSY_CLIENT_ID || 'your_etsy_client_id';
+    const CLIENT_ID = import.meta.env.VITE_ETSY_CLIENT_ID || 'your_etsy_client_id';
     const REDIRECT_URI = `${window.location.origin}/admin/stores`; // Current page as callback
     const STATE = `new_store_${Date.now()}`; // Unique state for new store
     const SCOPE = 'shops_r listings_r listings_w'; // Read shops, read/write listings
@@ -99,7 +169,7 @@ const StoresPage: React.FC = () => {
 
   const handleAddStore = () => {
     // Check for auth errors
-    if (authError) {
+    if (authError && !isDemoMode) {
       alert('Connection error: ' + authError + '\n\nPlease refresh the page and try again.');
       return;
     }
@@ -110,14 +180,38 @@ const StoresPage: React.FC = () => {
       return;
     }
 
-    // Check if user is logged in
-    if (!user) {
+    // Check if user is logged in (unless in demo mode)
+    if (!user && !isDemoMode) {
       alert('You need to sign in to add a store.');
+      return;
+    }
+
+    // If in demo mode, add demo store
+    if (isDemoMode || !isConfigValid) {
+      addDemoStore();
       return;
     }
 
     // Start Etsy OAuth flow directly
     initiateEtsyOAuth();
+  };
+
+  const addDemoStore = () => {
+    const newDemoStore: StoreData = {
+      id: `demo-store-${Date.now()}`,
+      user_id: user?.id || 'demo-user',
+      platform: 'etsy',
+      store_name: `New Demo Store ${stores.length + 1}`,
+      store_url: `https://etsy.com/shop/new-demo-${stores.length + 1}`,
+      api_credentials: { connected: true, demo: true },
+      is_active: true,
+      last_sync_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    
+    setStores(prev => [newDemoStore, ...prev]);
+    alert('🎭 Demo store added successfully!');
   };
 
   const initiateEtsyOAuth = async () => {
@@ -143,6 +237,22 @@ const StoresPage: React.FC = () => {
   };
 
   const connectExistingStore = async (storeId: string) => {
+    // If in demo mode, simulate connection
+    if (isDemoMode || !isConfigValid) {
+      setStores(prev => prev.map(store => 
+        store.id === storeId 
+          ? { 
+              ...store, 
+              api_credentials: { ...store.api_credentials, connected: true },
+              last_sync_at: new Date().toISOString(),
+              is_active: true
+            }
+          : store
+      ));
+      alert('🎭 Demo store connected successfully!');
+      return;
+    }
+
     try {
       console.log('🔗 Initiating Etsy OAuth for existing store:', storeId);
       
@@ -152,7 +262,7 @@ const StoresPage: React.FC = () => {
       localStorage.setItem('etsy_oauth_timestamp', Date.now().toString());
       
       // Generate OAuth URL with store-specific state
-      const CLIENT_ID = process.env.VITE_ETSY_CLIENT_ID || 'your_etsy_client_id';
+      const CLIENT_ID = import.meta.env.VITE_ETSY_CLIENT_ID || 'your_etsy_client_id';
       const REDIRECT_URI = `${window.location.origin}/admin/stores`;
       const STATE = `existing_store_${storeId}_${Date.now()}`;
       const SCOPE = 'shops_r listings_r listings_w';
@@ -243,11 +353,15 @@ const StoresPage: React.FC = () => {
         last_sync_at: new Date().toISOString()
       };
 
-      const { data, error } = await supabase
-        .from('stores')
-        .insert(storeData)
-        .select()
-        .single();
+      const { data, error } = await executeWithTimeout(
+        () => supabase
+          .from('stores')
+          .insert(storeData)
+          .select()
+          .single(),
+        10000, // 10 second timeout
+        2 // 2 retries
+      );
 
       if (error) throw error;
 
@@ -278,21 +392,25 @@ const StoresPage: React.FC = () => {
 
     try {
       // TODO: Exchange authorization code for access token on backend
-      const { error } = await supabase
-        .from('stores')
-        .update({ 
-          last_sync_at: new Date().toISOString(),
-          api_credentials: { 
-            connected: true, 
-            connected_at: new Date().toISOString(),
-            authorization_code: code,
-            state: state,
-            // TODO: Store actual tokens here after backend exchange
-          },
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', storeId)
-        .eq('user_id', user?.id);
+      const { error } = await executeWithTimeout(
+        () => supabase
+          .from('stores')
+          .update({ 
+            last_sync_at: new Date().toISOString(),
+            api_credentials: { 
+              connected: true, 
+              connected_at: new Date().toISOString(),
+              authorization_code: code,
+              state: state,
+              // TODO: Store actual tokens here after backend exchange
+            },
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', storeId)
+          .eq('user_id', user?.id),
+        10000, // 10 second timeout
+        2 // 2 retries
+      );
 
       if (error) throw error;
 
@@ -310,12 +428,23 @@ const StoresPage: React.FC = () => {
   const deleteStore = async (storeId: string) => {
     if (!window.confirm('Are you sure you want to delete this Etsy store? This action cannot be undone.')) return;
 
+    // If in demo mode, just remove from state
+    if (isDemoMode || !isConfigValid) {
+      setStores(prev => prev.filter(s => s.id !== storeId));
+      alert('🎭 Demo store deleted successfully!');
+      return;
+    }
+
     try {
-      const { error } = await supabase
-        .from('stores')
-        .delete()
-        .eq('id', storeId)
-        .eq('user_id', user?.id);
+      const { error } = await executeWithTimeout(
+        () => supabase
+          .from('stores')
+          .delete()
+          .eq('id', storeId)
+          .eq('user_id', user?.id),
+        10000, // 10 second timeout
+        2 // 2 retries
+      );
 
       if (error) throw error;
 
@@ -328,15 +457,29 @@ const StoresPage: React.FC = () => {
   };
 
   const toggleStoreStatus = async (storeId: string, currentStatus: boolean) => {
+    // If in demo mode, just update state
+    if (isDemoMode || !isConfigValid) {
+      setStores(prev => prev.map(store => 
+        store.id === storeId 
+          ? { ...store, is_active: !currentStatus }
+          : store
+      ));
+      return;
+    }
+
     try {
-      const { error } = await supabase
-        .from('stores')
-        .update({ 
-          is_active: !currentStatus,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', storeId)
-        .eq('user_id', user?.id);
+      const { error } = await executeWithTimeout(
+        () => supabase
+          .from('stores')
+          .update({ 
+            is_active: !currentStatus,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', storeId)
+          .eq('user_id', user?.id),
+        10000, // 10 second timeout
+        2 // 2 retries
+      );
 
       if (error) throw error;
 
@@ -352,20 +495,35 @@ const StoresPage: React.FC = () => {
   };
 
   const syncStoreData = async (storeId: string) => {
+    // If in demo mode, just update timestamp
+    if (isDemoMode || !isConfigValid) {
+      setStores(prev => prev.map(store => 
+        store.id === storeId 
+          ? { ...store, last_sync_at: new Date().toISOString() }
+          : store
+      ));
+      alert('🎭 Demo store data synchronized successfully!');
+      return;
+    }
+
     try {
       console.log('🔄 Syncing store data for:', storeId);
       
       // TODO: Implement actual Etsy API data sync
       // This will fetch shop info, listings, etc.
       
-      const { error } = await supabase
-        .from('stores')
-        .update({ 
-          last_sync_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', storeId)
-        .eq('user_id', user?.id);
+      const { error } = await executeWithTimeout(
+        () => supabase
+          .from('stores')
+          .update({ 
+            last_sync_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', storeId)
+          .eq('user_id', user?.id),
+        10000, // 10 second timeout
+        2 // 2 retries
+      );
 
       if (error) throw error;
 
@@ -401,8 +559,8 @@ const StoresPage: React.FC = () => {
     return store.api_credentials?.connected && store.last_sync_at && store.is_active;
   };
 
-  // Show error message if auth error exists
-  if (authError) {
+  // Show error message if auth error exists and not in demo mode
+  if (authError && !isDemoMode) {
     return (
       <div className="p-6">
         <div className="text-center py-12">
@@ -432,12 +590,29 @@ const StoresPage: React.FC = () => {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Connection Status Warning */}
+      {connectionError && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <AlertCircle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-medium text-yellow-700 dark:text-yellow-400 mb-1">
+                Database Connection Notice
+              </h3>
+              <p className="text-sm text-yellow-600 dark:text-yellow-300">
+                {connectionError}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
             <Store className="h-6 w-6 mr-2 text-orange-500" />
-            Etsy Stores
+            Etsy Stores {(isDemoMode || connectionError) && '(Demo Mode)'}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
             Connect and manage your Etsy stores ({stores.length} stores)
@@ -447,7 +622,7 @@ const StoresPage: React.FC = () => {
           <Button
             onClick={handleAddStore}
             className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
-            disabled={authLoading || !!authError}
+            disabled={authLoading}
           >
             <Plus className="h-4 w-4" />
             <span>Connect Etsy Store</span>
@@ -468,6 +643,12 @@ const StoresPage: React.FC = () => {
               You'll be redirected to Etsy, grant permissions, and automatically return here with your store connected.
               <br />
               <strong>Development Mode:</strong> Currently using mock tokens. Real API integration will be activated when Etsy API keys are configured.
+              {(isDemoMode || connectionError) && (
+                <>
+                  <br />
+                  <strong>Demo Mode:</strong> Database connection unavailable. All operations are simulated with demo data.
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -508,7 +689,7 @@ const StoresPage: React.FC = () => {
             <Button
               onClick={handleAddStore}
               className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
-              disabled={authLoading || !!authError}
+              disabled={authLoading}
             >
               <Plus className="h-4 w-4" />
               <span>Connect First Store</span>
