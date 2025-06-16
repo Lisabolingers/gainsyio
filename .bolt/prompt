@@ -5,6 +5,4 @@ By default, this template supports JSX syntax with Tailwind CSS classes, React h
 Use icons from lucide-react for logos.
 The website will be in English.
 
-Make sure that Supabase connections are working properly. Automatically make Supabase connections on the pages we create. If a feature does not work, you can try different methods.
-
 Follow the steps correctly to avoid unnecessary token usage by doing the same process over and over again.
