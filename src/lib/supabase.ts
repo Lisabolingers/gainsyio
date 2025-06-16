@@ -26,6 +26,24 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       'Content-Type': 'application/json',
     },
   },
+  // Add request timeout
+  fetch: (url, options) => {
+    const timeout = 30000; // 30 seconds timeout
+    const controller = new AbortController();
+    const { signal } = controller;
+    
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    
+    return fetch(url, { ...options, signal })
+      .then(response => {
+        clearTimeout(timeoutId);
+        return response;
+      })
+      .catch(error => {
+        clearTimeout(timeoutId);
+        throw error;
+      });
+  }
 });
 
 // Export supabaseUrl for use in other modules

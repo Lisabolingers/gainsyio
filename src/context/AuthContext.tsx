@@ -205,6 +205,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true);
       console.log('🔐 Attempting sign in...');
       
+      // Test connection before attempting sign in
+      const connectionOk = await testSupabaseConnection();
+      if (!connectionOk) {
+        throw new Error('Veritabanı bağlantısı kurulamadı. Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin.');
+      }
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -246,9 +252,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true);
       console.log('📝 Attempting sign up...');
       
+      // Test connection before attempting sign up
+      const connectionOk = await testSupabaseConnection();
+      if (!connectionOk) {
+        throw new Error('Veritabanı bağlantısı kurulamadı. Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin.');
+      }
+      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/login`
+        }
       });
       
       if (error) throw error;
@@ -266,6 +281,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
         setError('Bağlantı hatası: Sunucuya erişilemiyor. İnternet bağlantınızı kontrol edin.');
+      } else if (error.message?.includes('already registered')) {
+        setError('Bu e-posta adresi zaten kayıtlı. Lütfen giriş yapmayı deneyin veya farklı bir e-posta adresi kullanın.');
       } else {
         setError(error.message || 'Kayıt sırasında bir hata oluştu. Lütfen tekrar deneyin.');
       }
