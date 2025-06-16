@@ -55,14 +55,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('🔍 Checking user profile for:', user.id);
       
       // Test basic connectivity first
-      const { data, error: testError } = await supabase
+      const { error: testError } = await supabase
         .from('user_profiles')
         .select('count')
         .limit(1);
       
       if (testError) {
         console.error('❌ Supabase connectivity test failed:', testError);
-        throw new Error(`Database connection failed: ${testError.message}`);
+        throw new Error(`Veritabanı bağlantısı başarısız: ${testError.message}`);
       }
       
       console.log('✅ Supabase connectivity test passed');
@@ -77,7 +77,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (fetchError && fetchError.code !== 'PGRST116') {
         // PGRST116 is "not found" error, which is expected if profile doesn't exist
         console.error('❌ Error checking user profile:', fetchError);
-        throw new Error(`Profile check failed: ${fetchError.message}`);
+        throw new Error(`Profil kontrolü başarısız: ${fetchError.message}`);
       }
 
       // If profile doesn't exist, create it
@@ -97,7 +97,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         if (insertError) {
           console.error('❌ Error creating user profile:', insertError);
-          throw new Error(`Profile creation failed: ${insertError.message}`);
+          throw new Error(`Profil oluşturma başarısız: ${insertError.message}`);
         } else {
           console.log('✅ User profile created successfully');
           setUserProfile(data);
@@ -111,20 +111,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       // Check if it's a network error
       if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-        const networkError = 'Connection error: Unable to reach the server. Please check your internet connection and try again.';
+        const networkError = 'Bağlantı hatası: Sunucuya ulaşılamıyor. Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin.';
         setError(networkError);
         throw new Error(networkError);
       }
       
       // Check if it's a CORS error
       if (error.message?.includes('CORS') || error.message?.includes('Access-Control')) {
-        const corsError = 'CORS error: Server configuration issue. Please try again later.';
+        const corsError = 'CORS hatası: Sunucu yapılandırma sorunu. Lütfen daha sonra tekrar deneyin.';
         setError(corsError);
         throw new Error(corsError);
       }
       
       // Generic error
-      setError(`User profile error: ${error.message}`);
+      setError(`Kullanıcı profili hatası: ${error.message}`);
       throw error;
     }
   };
@@ -140,7 +140,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         if (sessionError) {
           console.error('❌ Error getting session:', sessionError);
-          setError(`Session error: ${sessionError.message}`);
+          setError(`Oturum hatası: ${sessionError.message}`);
         } else {
           console.log('✅ Session retrieved successfully');
           setSession(session);
@@ -162,9 +162,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.error('❌ Error initializing auth:', error);
         
         if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-          setError('Connection error: Unable to reach the server. Please check your internet connection.');
+          setError('Bağlantı hatası: Sunucuya ulaşılamıyor. Lütfen internet bağlantınızı kontrol edin.');
         } else {
-          setError(error.message || 'Failed to initialize authentication');
+          setError(error.message || 'Kimlik doğrulama başlatılamadı');
         }
       } finally {
         setLoading(false);
@@ -261,11 +261,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('❌ Sign in error:', error);
       
       if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-        setError('Connection error: Unable to reach the server. Please check your internet connection.');
+        setError('Bağlantı hatası: Sunucuya ulaşılamıyor. Lütfen internet bağlantınızı kontrol edin.');
       } else if (error.message?.includes('Invalid login credentials')) {
-        setError('Invalid email or password. Please check your credentials.');
+        setError('Geçersiz e-posta veya şifre. Lütfen bilgilerinizi kontrol edin.');
       } else {
-        setError(error.message || 'An error occurred during sign in. Please try again.');
+        setError(error.message || 'Giriş sırasında bir hata oluştu. Lütfen tekrar deneyin.');
       }
       throw error;
     } finally {
@@ -301,9 +301,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('❌ Sign up error:', error);
       
       if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-        setError('Connection error: Unable to reach the server. Please check your internet connection.');
+        setError('Bağlantı hatası: Sunucuya ulaşılamıyor. Lütfen internet bağlantınızı kontrol edin.');
       } else {
-        setError(error.message || 'An error occurred during registration. Please try again.');
+        setError(error.message || 'Kayıt sırasında bir hata oluştu. Lütfen tekrar deneyin.');
       }
       throw error;
     } finally {
@@ -325,9 +325,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('❌ Sign out error:', error);
       
       if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-        setError('Connection error: Unable to reach the server during sign out.');
+        setError('Bağlantı hatası: Çıkış sırasında sunucuya ulaşılamadı.');
       } else {
-        setError('An error occurred during sign out. Please try again.');
+        setError('Çıkış sırasında bir hata oluştu. Lütfen tekrar deneyin.');
       }
       throw error;
     } finally {
