@@ -98,38 +98,37 @@ if (!isConfigurationValid) {
     throw new Error('Geçersiz Supabase URL formatı. Lütfen .env dosyasındaki VITE_SUPABASE_URL değerini kontrol edin.');
   }
 
-  // Test if URL is reachable (basic check) - only in development
+  // Enhanced connection test with better error handling
   const testSupabaseConnection = async () => {
     try {
       console.log('🔍 Testing Supabase connection...');
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
       
-      const response = await fetch(`${supabaseUrl}/rest/v1/`, {
-        method: 'HEAD',
-        headers: {
-          'apikey': supabaseAnonKey,
-        },
-        signal: controller.signal,
-      });
+      // Use a more reliable connection test
+      const { data, error } = await supabaseClient.auth.getSession();
       
-      clearTimeout(timeoutId);
+      if (error && error.message.includes('Invalid API key')) {
+        console.error('❌ Invalid Supabase API key');
+        console.error('Please check your VITE_SUPABASE_ANON_KEY in .env file');
+        return;
+      }
       
-      if (response.ok) {
+      // Test basic database connectivity
+      const { error: dbError } = await supabaseClient
+        .from('user_profiles')
+        .select('count')
+        .limit(0);
+      
+      if (dbError) {
+        console.warn('⚠️ Database connection test failed:', dbError.message);
+        console.warn('This might indicate RLS policies or table access issues');
+      } else {
         console.log('✅ Supabase connection test successful');
-      } else {
-        console.warn('⚠️ Supabase connection test returned:', response.status, response.statusText);
-        console.warn('This might indicate incorrect API key or project configuration');
       }
+      
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.warn('⚠️ Supabase connection test timed out');
-        console.warn('This might indicate network issues or slow connection');
-      } else {
-        console.warn('⚠️ Supabase connection test failed:', error);
-        console.warn('This might indicate network issues or incorrect configuration');
-        console.warn('The app will still work, but database features may not function properly');
-      }
+      console.warn('⚠️ Supabase connection test failed:', error);
+      console.warn('This might indicate network issues or incorrect configuration');
+      console.warn('The app will still work, but database features may not function properly');
     }
   };
 
@@ -161,7 +160,7 @@ if (!isConfigurationValid) {
   if (import.meta.env.DEV) {
     setTimeout(() => {
       testSupabaseConnection();
-    }, 1000);
+    }, 2000); // Increased delay to 2 seconds
   }
 
   isConfigured = true;
