@@ -181,9 +181,9 @@ const AdminDashboardPage: React.FC = () => {
         return;
       }
 
-      // Create a timeout promise
+      // Create a timeout promise with increased timeout to 30 seconds
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Database query timeout')), 10000)
+        setTimeout(() => reject(new Error('Database query timeout')), 30000)
       );
 
       // Fetch stores count
