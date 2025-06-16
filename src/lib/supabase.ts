@@ -21,18 +21,26 @@ if (supabaseUrl.includes('localhost')) {
   throw new Error('Supabase URL geçersiz. Localhost URL\'i kullanılamaz.');
 }
 
-// Create Supabase client with enhanced error handling
+// Create Supabase client with enhanced error handling and CORS configuration
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true, // Detect session from URL hash
+    detectSessionInUrl: true,
   },
   global: {
     headers: {
       'Content-Type': 'application/json',
     },
-  }
+  },
+  db: {
+    schema: 'public',
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
 });
 
 // Export supabaseUrl for use in other modules
@@ -46,7 +54,7 @@ export const testSupabaseConnection = async (retries = 2): Promise<boolean> => {
       
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Connection timeout')), 5000)
+        setTimeout(() => reject(new Error('Connection timeout')), 8000)
       );
       
       // Use auth session check instead of direct fetch

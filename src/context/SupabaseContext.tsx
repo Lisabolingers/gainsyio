@@ -79,6 +79,28 @@ if (!isConfigurationValid) {
         headers: {
           'Content-Type': 'application/json',
         },
+        fetch: (url, options = {}) => {
+          // Add timeout and better error handling
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
+          
+          return fetch(url, {
+            ...options,
+            signal: controller.signal,
+            headers: {
+              ...options.headers,
+              'Access-Control-Allow-Origin': '*',
+            },
+          }).catch(error => {
+            console.error('Fetch error:', error);
+            if (error.name === 'AbortError') {
+              throw new Error('Request timeout');
+            }
+            throw error;
+          }).finally(() => {
+            clearTimeout(timeoutId);
+          });
+        },
       },
     });
     isConfigured = true;
@@ -126,10 +148,16 @@ export const testSupabaseConnection = async (retries = 3): Promise<boolean> => {
     try {
       console.log(`🔄 Testing Supabase connection (attempt ${attempt}/${retries})...`);
       
-      // Test with auth session check instead of direct fetch to avoid CORS issues
-      const { data, error } = await supabaseClient.auth.getSession();
+      // Test with auth session check with timeout
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Connection timeout')), 8000)
+      );
       
-      if (error && error.message.includes('Failed to fetch')) {
+      const sessionPromise = supabaseClient.auth.getSession();
+      
+      const { data, error } = await Promise.race([sessionPromise, timeoutPromise]) as any;
+      
+      if (error && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
         throw new Error('Network connection failed');
       }
       
