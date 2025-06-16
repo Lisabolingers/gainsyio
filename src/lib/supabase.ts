@@ -52,7 +52,7 @@ if (!isConfigValid) {
         eq: () => Promise.resolve({ data: null, error: null }),
       }),
     }),
-  } as SupabaseClient;
+  } as unknown as SupabaseClient;
 } else {
   // Validate URL format
   try {
