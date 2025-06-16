@@ -10,7 +10,6 @@ import { useFonts } from '../../hooks/useFonts';
 import { FontService } from '../../lib/fontService';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
-import LogoSelector from './LogoSelector';
 
 const DesignSettings = () => {
   const { user } = useAuth();
@@ -57,12 +56,10 @@ const DesignSettings = () => {
   const [fontsInitialized, setFontsInitialized] = useState(false);
   const [templateLoading, setTemplateLoading] = useState(false);
   const [currentTemplateId, setCurrentTemplateId] = useState<string | null>(null);
-  const [showLogoSelector, setShowLogoSelector] = useState(false);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const stageRef = useRef<Konva.Stage>();
-  const transformerRef = useRef<Konva.Transformer>();
-  const groupRefs = useRef<Record<number, Konva.Group>>({});
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const stageRef = useRef();
+  const transformerRef = useRef();
+  const groupRefs = useRef({});
+  const fileInputRef = useRef();
 
   // Update font list when userFonts changes
   useEffect(() => {
@@ -145,11 +142,6 @@ const DesignSettings = () => {
           setSelectedId(null);
           setIsTransformerVisible(false);
           setIsUserInteracting(false);
-        }
-        
-        // Load logo if exists
-        if (data.style_settings?.logoUrl) {
-          setLogoUrl(data.style_settings.logoUrl);
         }
         
         // Re-render canvas
@@ -472,8 +464,7 @@ const DesignSettings = () => {
         background_color: '#ffffff',
         style_settings: {
           canvas_size: canvasSize,
-          texts: texts,
-          logoUrl: logoUrl
+          texts: texts
         },
         is_default: false
       };
@@ -682,12 +673,6 @@ const DesignSettings = () => {
     }
   };
 
-  // Handle logo selection
-  const handleLogoSelect = (imageUrl: string) => {
-    setLogoUrl(imageUrl);
-    setShowLogoSelector(false);
-  };
-
   // Enhanced text rendering with proper font handling
   const renderKonvaText = (text) => {
     console.log(`🎨 Rendering text: "${text.text.substring(0, 20)}..." font: ${text.fontFamily}`);
@@ -797,32 +782,6 @@ const DesignSettings = () => {
     );
   };
 
-  // Render logo if available
-  const renderLogo = () => {
-    if (!logoUrl) return null;
-    
-    const logoSize = 100; // Default size
-    const logoX = canvasSize.width / 2;
-    const logoY = canvasSize.height - logoSize / 2 - 20; // Position at bottom
-    
-    return (
-      <KonvaImage
-        image={new window.Image()}
-        x={logoX}
-        y={logoY}
-        width={logoSize}
-        height={logoSize}
-        offsetX={logoSize / 2}
-        offsetY={logoSize / 2}
-        src={logoUrl}
-        onLoad={(e) => {
-          // When image loads, redraw the layer
-          e.target.getLayer().batchDraw();
-        }}
-      />
-    );
-  };
-
   return (
     <div className="flex h-full gap-[10px] p-4">
       {/* Template Loading Indicator */}
@@ -833,14 +792,6 @@ const DesignSettings = () => {
             <span className="text-gray-900 dark:text-white">Loading template...</span>
           </div>
         </div>
-      )}
-
-      {/* Logo Selector Modal */}
-      {showLogoSelector && (
-        <LogoSelector 
-          onSelect={handleLogoSelect}
-          onClose={() => setShowLogoSelector(false)}
-        />
       )}
 
       {/* Canvas Section - Left Side */}
@@ -871,10 +822,6 @@ const DesignSettings = () => {
                 onClick={handleStageClick}
               >
                 <Layer key={`layer-${forceRender}-${fontsInitialized}`}>
-                  {/* Render logo first (behind text) */}
-                  {logoUrl && renderLogo()}
-                  
-                  {/* Render text elements */}
                   {texts.map((text) => renderKonvaText(text))}
 
                   {/* Show transformer only when needed */}
@@ -940,32 +887,12 @@ const DesignSettings = () => {
             />
           </div>
           <div className="flex flex-col gap-2">
-            <div className="flex gap-2">
-              <Button onClick={downloadImage} disabled={!templateName} className="flex-1">
-                DOWNLOAD DESIGN
-              </Button>
-              <Button onClick={saveTemplate} disabled={!templateName} variant="secondary" className="flex-1">
-                {currentTemplateId ? 'UPDATE TEMPLATE' : 'SAVE TEMPLATE'}
-              </Button>
-            </div>
-            <div className="flex gap-2">
-              <Button 
-                onClick={() => setShowLogoSelector(true)} 
-                variant="secondary" 
-                className="flex-1"
-              >
-                {logoUrl ? 'CHANGE LOGO' : 'ADD LOGO'}
-              </Button>
-              {logoUrl && (
-                <Button 
-                  onClick={() => setLogoUrl(null)} 
-                  variant="danger" 
-                  className="w-10"
-                >
-                  X
-                </Button>
-              )}
-            </div>
+            <Button onClick={downloadImage} disabled={!templateName} className="w-full">
+              DOWNLOAD DESIGN
+            </Button>
+            <Button onClick={saveTemplate} disabled={!templateName} variant="secondary" className="w-full">
+              {currentTemplateId ? 'UPDATE TEMPLATE' : 'SAVE TEMPLATE'}
+            </Button>
           </div>
         </div>
       </div>
@@ -977,7 +904,7 @@ const DesignSettings = () => {
           <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <div className="flex items-center space-x-2">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-              <span className="text-sm text-blue-700 dark:text-blue-400">
+              <span className="text-blue-700 dark:text-blue-400 text-sm">
                 Loading fonts... ({userFonts.length} fonts)
               </span>
             </div>
