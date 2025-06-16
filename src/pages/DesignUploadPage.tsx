@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Plus, Trash2, X, Check, Image as ImageIcon, FileText, Tag, BookTemplate as Template, Grid as Grid3X3, Send, Sparkles, RefreshCw, Type } from 'lucide-react';
+import { Upload, Plus, Trash2, X, Check, Image as ImageIcon, FileText, Tag, BookTemplate as Template, Grid as Grid3X3, Send, Sparkles, RefreshCw, Type, Edit, ArrowRight, Pencil } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { Card, CardContent } from '../components/ui/Card';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 
 interface DesignItem {
   id: string;
@@ -25,6 +25,7 @@ interface DesignItem {
   mockupFolder: string;
   designMode: 'upload' | 'autoText';
   selectedTextTemplate: string;
+  textInputs: { [key: string]: string }; // Text inputs for the template
 }
 
 interface AIRule {
@@ -37,6 +38,12 @@ interface AIRule {
 interface TextTemplate {
   id: string;
   name: string;
+  style_settings?: {
+    texts?: Array<{
+      id: number;
+      text: string;
+    }>;
+  };
 }
 
 const MAX_TITLE_LENGTH = 140;
@@ -58,7 +65,8 @@ const DesignUploadPage: React.FC = () => {
       template: '',
       mockupFolder: '',
       designMode: 'upload',
-      selectedTextTemplate: ''
+      selectedTextTemplate: '',
+      textInputs: {}
     }
   ]);
   const [templates, setTemplates] = useState([
@@ -89,6 +97,8 @@ const DesignUploadPage: React.FC = () => {
   
   // Text Templates
   const [textTemplates, setTextTemplates] = useState<TextTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [selectedTemplateDetails, setSelectedTemplateDetails] = useState<{[key: string]: TextTemplate}>({});
   
   const blackFileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const whiteFileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -142,11 +152,12 @@ const DesignUploadPage: React.FC = () => {
 
   const loadTextTemplates = async () => {
     try {
+      setLoadingTemplates(true);
       console.log('🔄 Loading text templates...');
       
       const { data, error } = await supabase
         .from('auto_text_templates')
-        .select('id, name')
+        .select('id, name, style_settings')
         .eq('user_id', user?.id)
         .order('created_at', { ascending: false });
       
@@ -159,6 +170,58 @@ const DesignUploadPage: React.FC = () => {
       console.log(`✅ Loaded ${data?.length || 0} text templates`);
     } catch (error: any) {
       console.error('❌ Error loading text templates:', error);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  const loadTemplateDetails = async (templateId: string, itemIndex: number) => {
+    if (!templateId) return;
+    
+    try {
+      console.log(`🔄 Loading template details for ${templateId}...`);
+      
+      const { data, error } = await supabase
+        .from('auto_text_templates')
+        .select('*')
+        .eq('id', templateId)
+        .eq('user_id', user?.id)
+        .single();
+      
+      if (error) {
+        console.error('❌ Template details loading error:', error);
+        throw error;
+      }
+      
+      console.log('✅ Template details loaded:', data);
+      
+      // Store template details
+      setSelectedTemplateDetails(prev => ({
+        ...prev,
+        [templateId]: data
+      }));
+      
+      // Initialize text inputs for this template
+      if (data.style_settings?.texts) {
+        const initialTextInputs: { [key: string]: string } = {};
+        data.style_settings.texts.forEach((textItem: any) => {
+          initialTextInputs[`text-${textItem.id}`] = textItem.text || '';
+        });
+        
+        // Update the design item with initial text inputs
+        setDesignItems(prev => prev.map((item, idx) => {
+          if (idx === itemIndex) {
+            return {
+              ...item,
+              textInputs: initialTextInputs
+            };
+          }
+          return item;
+        }));
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Error loading template details:', error);
     }
   };
 
@@ -323,6 +386,26 @@ const DesignUploadPage: React.FC = () => {
       }
       return item;
     }));
+    
+    // Load template details if a template is selected
+    if (value) {
+      loadTemplateDetails(value, itemIndex);
+    }
+  };
+
+  const handleTextInputChange = (itemIndex: number, textId: string, value: string) => {
+    setDesignItems(prev => prev.map((item, idx) => {
+      if (idx === itemIndex) {
+        return {
+          ...item,
+          textInputs: {
+            ...item.textInputs,
+            [textId]: value
+          }
+        };
+      }
+      return item;
+    }));
   };
 
   const addNewDesignItem = () => {
@@ -340,7 +423,8 @@ const DesignUploadPage: React.FC = () => {
         template: '',
         mockupFolder: '',
         designMode: 'upload',
-        selectedTextTemplate: ''
+        selectedTextTemplate: '',
+        textInputs: {}
       }
     ]);
   };
@@ -572,7 +656,8 @@ const DesignUploadPage: React.FC = () => {
           template: '',
           mockupFolder: '',
           designMode: 'upload',
-          selectedTextTemplate: ''
+          selectedTextTemplate: '',
+          textInputs: {}
         }
       ]);
       
@@ -610,6 +695,64 @@ const DesignUploadPage: React.FC = () => {
         }
       }, 100);
     }
+  };
+
+  // Function to generate preview designs from text template
+  const generateDesignsFromTemplate = (itemIndex: number) => {
+    const item = designItems[itemIndex];
+    if (!item.selectedTextTemplate) {
+      setError('Lütfen önce bir text şablonu seçin.');
+      return;
+    }
+    
+    const templateDetails = selectedTemplateDetails[item.selectedTextTemplate];
+    if (!templateDetails) {
+      setError('Şablon detayları yüklenemedi. Lütfen tekrar deneyin.');
+      return;
+    }
+    
+    // In a real implementation, this would call a service to generate designs
+    // For now, we'll simulate it with placeholder images
+    
+    // Simulate processing time
+    setAiLoading(prev => ({ ...prev, [`${itemIndex}-template`]: true }));
+    
+    setTimeout(() => {
+      // Create mock designs
+      const blackPreview = 'https://images.pexels.com/photos/3094218/pexels-photo-3094218.jpeg?auto=compress&cs=tinysrgb&w=400';
+      const whitePreview = 'https://images.pexels.com/photos/1109354/pexels-photo-1109354.jpeg?auto=compress&cs=tinysrgb&w=400';
+      
+      // Update design items with previews
+      setDesignItems(prev => prev.map((item, idx) => {
+        if (idx === itemIndex) {
+          return {
+            ...item,
+            blackDesign: {
+              ...item.blackDesign,
+              preview: blackPreview
+            },
+            whiteDesign: {
+              ...item.whiteDesign,
+              preview: whitePreview
+            }
+          };
+        }
+        return item;
+      }));
+      
+      setAiLoading(prev => ({ ...prev, [`${itemIndex}-template`]: false }));
+    }, 2000);
+  };
+
+  // Get template text fields
+  const getTemplateTextFields = (itemIndex: number) => {
+    const item = designItems[itemIndex];
+    if (!item.selectedTextTemplate || !selectedTemplateDetails[item.selectedTextTemplate]) {
+      return [];
+    }
+    
+    const templateDetails = selectedTemplateDetails[item.selectedTextTemplate];
+    return templateDetails.style_settings?.texts || [];
   };
 
   return (
@@ -669,8 +812,8 @@ const DesignUploadPage: React.FC = () => {
       <div className="space-y-8">
         {designItems.map((item, itemIndex) => (
           <Card key={item.id} className="border-2 border-gray-200 dark:border-gray-700 overflow-hidden">
-            <CardContent className="p-6">
-              <div className="flex justify-between items-center mb-4">
+            <CardHeader className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex justify-between items-center">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Tasarım #{itemIndex + 1}
                 </h2>
@@ -686,7 +829,8 @@ const DesignUploadPage: React.FC = () => {
                   </Button>
                 )}
               </div>
-              
+            </CardHeader>
+            <CardContent className="p-6">
               {/* Design Mode Selector */}
               <div className="flex items-center space-x-4 mb-4 border-b border-gray-200 dark:border-gray-700 pb-4">
                 <div className="flex items-center space-x-2">
@@ -722,9 +866,9 @@ const DesignUploadPage: React.FC = () => {
                 {/* First Row - All elements side by side */}
                 <div className="col-span-12 grid grid-cols-12 gap-4">
                   {/* Design Uploads or Text Template Selection */}
-                  <div className="col-span-2 flex space-x-2">
+                  <div className="col-span-2">
                     {item.designMode === 'upload' ? (
-                      <>
+                      <div className="flex space-x-2">
                         {/* Black Design */}
                         <div className="flex-1">
                           <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
@@ -806,10 +950,10 @@ const DesignUploadPage: React.FC = () => {
                             )}
                           </div>
                         </div>
-                      </>
+                      </div>
                     ) : (
                       // Auto Text Design Template Selection
-                      <div className="col-span-2 w-full">
+                      <div className="w-full">
                         <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2 flex items-center">
                           <Type className="h-4 w-4 mr-1 text-orange-500" />
                           Text Şablonu
@@ -844,7 +988,7 @@ const DesignUploadPage: React.FC = () => {
                               className="text-xs py-1 px-2"
                               disabled={!item.selectedTextTemplate}
                             >
-                              <Type className="h-3 w-3 mr-1" />
+                              <Edit className="h-3 w-3 mr-1" />
                               <span>Düzenle</span>
                             </Button>
                           </div>
@@ -1061,6 +1205,90 @@ const DesignUploadPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Auto Text Design Template Fields */}
+              {item.designMode === 'autoText' && item.selectedTextTemplate && (
+                <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-md font-semibold text-gray-900 dark:text-white flex items-center">
+                      <Type className="h-5 w-5 mr-2 text-orange-500" />
+                      Şablon Metinleri
+                    </h3>
+                    <Button
+                      onClick={() => generateDesignsFromTemplate(itemIndex)}
+                      className="flex items-center space-x-1"
+                      size="sm"
+                      disabled={aiLoading[`${itemIndex}-template`]}
+                    >
+                      {aiLoading[`${itemIndex}-template`] ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-4 w-4" />
+                      )}
+                      <span>Tasarım Oluştur</span>
+                    </Button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {getTemplateTextFields(itemIndex).map((textField: any) => (
+                      <div key={textField.id} className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Text {textField.id}
+                        </label>
+                        <textarea
+                          value={item.textInputs[`text-${textField.id}`] || textField.text || ''}
+                          onChange={(e) => handleTextInputChange(itemIndex, `text-${textField.id}`, e.target.value)}
+                          placeholder="Metin girin..."
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 resize-none"
+                          rows={2}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Preview Section */}
+                  {(item.blackDesign.preview || item.whiteDesign.preview) && (
+                    <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
+                      <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
+                        Oluşturulan Tasarımlar
+                      </h3>
+                      <div className="flex space-x-4">
+                        {item.blackDesign.preview && (
+                          <div className="flex-1">
+                            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
+                              <div className="w-3 h-3 bg-black rounded-full mr-1"></div>
+                              Siyah Tasarım
+                            </h4>
+                            <div className="relative bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600 aspect-square">
+                              <img 
+                                src={item.blackDesign.preview} 
+                                alt="Black design preview" 
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                          </div>
+                        )}
+                        
+                        {item.whiteDesign.preview && (
+                          <div className="flex-1">
+                            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
+                              <div className="w-3 h-3 bg-white border border-gray-300 rounded-full mr-1"></div>
+                              Beyaz Tasarım
+                            </h4>
+                            <div className="relative bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600 aspect-square">
+                              <img 
+                                src={item.whiteDesign.preview} 
+                                alt="White design preview" 
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
