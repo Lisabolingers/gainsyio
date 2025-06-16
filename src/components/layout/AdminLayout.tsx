@@ -173,7 +173,7 @@ const AdminLayout: React.FC = () => {
                     <div className="flex items-center">
                       <item.icon className={`
                         mr-3 h-5 w-5 flex-shrink-0
-                        ${isActive(item.href) && !((item.name === 'Research' && location.pathname === '/admin/listing') || (item.name === 'Templates' && location.pathname === '/admin/templates'))
+                        ${isActive(item.href) && !((item.name === 'Listing' && location.pathname === '/admin/listing') || (item.name === 'Templates' && location.pathname === '/admin/templates'))
                           ? 'text-orange-500'
                           : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'
                         }
