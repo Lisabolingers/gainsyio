@@ -100,7 +100,7 @@ const StoresPage: React.FC = () => {
 
       console.log('🔄 Loading Etsy stores...');
       
-      // Use executeWithTimeout for better error handling
+      // Use executeWithTimeout for better error handling with increased timeout
       const { data, error } = await executeWithTimeout(
         () => supabase
           .from('stores')
@@ -108,7 +108,7 @@ const StoresPage: React.FC = () => {
           .eq('user_id', user?.id)
           .eq('platform', 'etsy')
           .order('created_at', { ascending: false }),
-        8000, // 8 second timeout
+        20000, // Increased timeout from 8000 to 20000 milliseconds (20 seconds)
         2 // 2 retries
       );
 
@@ -359,7 +359,7 @@ const StoresPage: React.FC = () => {
           .insert(storeData)
           .select()
           .single(),
-        10000, // 10 second timeout
+        20000, // Increased timeout from 10000 to 20000 milliseconds (20 seconds)
         2 // 2 retries
       );
 
@@ -408,7 +408,7 @@ const StoresPage: React.FC = () => {
           })
           .eq('id', storeId)
           .eq('user_id', user?.id),
-        10000, // 10 second timeout
+        20000, // Increased timeout from 10000 to 20000 milliseconds (20 seconds)
         2 // 2 retries
       );
 
@@ -442,7 +442,7 @@ const StoresPage: React.FC = () => {
           .delete()
           .eq('id', storeId)
           .eq('user_id', user?.id),
-        10000, // 10 second timeout
+        20000, // Increased timeout from 10000 to 20000 milliseconds (20 seconds)
         2 // 2 retries
       );
 
@@ -477,7 +477,7 @@ const StoresPage: React.FC = () => {
           })
           .eq('id', storeId)
           .eq('user_id', user?.id),
-        10000, // 10 second timeout
+        20000, // Increased timeout from 10000 to 20000 milliseconds (20 seconds)
         2 // 2 retries
       );
 
@@ -521,7 +521,7 @@ const StoresPage: React.FC = () => {
           })
           .eq('id', storeId)
           .eq('user_id', user?.id),
-        10000, // 10 second timeout
+        20000, // Increased timeout from 10000 to 20000 milliseconds (20 seconds)
         2 // 2 retries
       );
 
