@@ -39,7 +39,7 @@ const AdminLayout: React.FC = () => {
       hasSubmenu: true,
       submenu: [
         { name: 'Research', href: '/admin/listing', icon: PlusCircle },
-        { name: 'Upload Design', href: '/admin/listing/upload-design', icon: Upload },
+        { name: 'Create Listing', href: '/admin/listing/upload-design', icon: Upload },
       ]
     },
     { name: 'Auto Text to Image', href: '/admin/templates/auto-text-to-image', icon: PlusCircle },
