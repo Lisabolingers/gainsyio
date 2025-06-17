@@ -316,7 +316,7 @@ export class FontService {
         // Continue anyway
       }
 
-      // Use executeWithTimeout to prevent query timeout
+      // Use executeWithTimeout to prevent query timeout - increased timeout and retries
       const result = await executeWithTimeout(
         async () => {
           const { data, error } = await supabase
@@ -333,8 +333,8 @@ export class FontService {
 
           return data || [];
         },
-        15000, // 15 seconds timeout (reduced from 20 seconds)
-        2 // 2 retries
+        30000, // 30 seconds timeout (increased from 15 seconds)
+        3 // 3 retries (increased from 2)
       );
 
       console.log(`✅ Successfully fetched ${result.length} user fonts`);
