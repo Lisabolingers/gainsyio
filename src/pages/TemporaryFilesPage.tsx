@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Clock, Trash2, Download, Search, Filter, Grid, List, RefreshCw, AlertCircle, CheckCircle, X, Image as ImageIcon, FileUp, FileDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase, executeWithTimeout } from '../lib/supabase';
@@ -13,8 +13,8 @@ interface TemporaryFile {
   file_url: string;
   file_type: string;
   file_size: number;
-  created_at: string;
   expires_at: string;
+  created_at: string;
 }
 
 const TemporaryFilesPage: React.FC = () => {

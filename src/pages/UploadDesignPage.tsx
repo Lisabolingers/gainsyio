@@ -560,6 +560,24 @@ const UploadDesignPage: React.FC = () => {
               </div>
               
               <div className="space-y-4">
+                {/* Store Images Folder */}
+                <div>
+                  <div className="flex items-center mb-2">
+                    <span className="text-orange-500 mr-2">🗂️</span>
+                    <span className="text-gray-700 dark:text-gray-300 text-sm">Store Images Folder</span>
+                  </div>
+                  <select 
+                    value={selectedStoreImagesFolder}
+                    onChange={(e) => setSelectedStoreImagesFolder(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="">Klasör seçin...</option>
+                    {storeImagesFolders.map(folder => (
+                      <option key={folder.id} value={folder.path}>{folder.name}</option>
+                    ))}
+                  </select>
+                </div>
+                
                 {/* Listeleme Şablonu */}
                 <div>
                   <div className="flex items-center mb-2">
@@ -589,43 +607,7 @@ const UploadDesignPage: React.FC = () => {
                   </select>
                 </div>
                 
-                {/* Store Images Folder */}
-                <div>
-                  <div className="flex items-center mb-2">
-                    <span className="text-orange-500 mr-2">🗂️</span>
-                    <span className="text-gray-700 dark:text-gray-300 text-sm">Store Images Folder</span>
-                  </div>
-                  <select 
-                    value={selectedStoreImagesFolder}
-                    onChange={(e) => setSelectedStoreImagesFolder(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="">Klasör seçin...</option>
-                    {storeImagesFolders.map(folder => (
-                      <option key={folder.id} value={folder.path}>{folder.name}</option>
-                    ))}
-                  </select>
-                </div>
-                
-                {/* Store Images Folder - YENİ EKLENEN */}
-                <div>
-                  <div className="flex items-center mb-2">
-                    <span className="text-orange-500 mr-2">🗂️</span>
-                    <span className="text-gray-700 dark:text-gray-300 text-sm">Store Images Folder</span>
-                  </div>
-                  <select 
-                    value={selectedFolder}
-                    onChange={(e) => setSelectedFolder(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="">Klasör seçin...</option>
-                    {folders.map(folder => (
-                      <option key={folder.id} value={folder.path}>{folder.name}</option>
-                    ))}
-                  </select>
-                </div>
-                
-                {/* Choose Shop - YENİ EKLENEN */}
+                {/* Choose Shop */}
                 <div>
                   <div className="flex items-center mb-2">
                     <span className="text-orange-500 mr-2">🏪</span>
