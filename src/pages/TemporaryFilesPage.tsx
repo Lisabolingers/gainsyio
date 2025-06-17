@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Trash2, Download, Search, Filter, Grid, List, RefreshCw, AlertCircle, CheckCircle, X, Image as ImageIcon, FileUp, FileDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
+import { supabase, executeWithTimeout } from '../lib/supabase';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -59,31 +59,33 @@ const TemporaryFilesPage: React.FC = () => {
         return;
       }
       
-      const { data, error } = await supabase
-        .from('temporary_files')
-        .select('*')
-        .eq('user_id', user?.id)
-        .order('created_at', { ascending: false });
+      // Use executeWithTimeout for more robust error handling
+      const result = await executeWithTimeout(async () => {
+        return await supabase
+          .from('temporary_files')
+          .select('*')
+          .eq('user_id', user?.id)
+          .order('created_at', { ascending: false });
+      });
       
-      if (error) {
-        console.error('❌ Error loading temporary files:', error);
-        console.log('📋 Falling back to mock data due to Supabase error');
+      if (result.error) {
+        console.warn('⚠️ Supabase query returned error, falling back to mock data:', result.error.message);
         loadMockFiles();
         return;
       }
       
       // If we have real data, use it
-      if (data && data.length > 0) {
-        setFiles(data);
-        console.log(`✅ ${data.length} temporary files loaded`);
+      if (result.data && result.data.length > 0) {
+        setFiles(result.data);
+        console.log(`✅ ${result.data.length} temporary files loaded from Supabase`);
         return;
       }
       
       // Otherwise use mock data
+      console.log('📋 No data found in Supabase, using mock data');
       loadMockFiles();
     } catch (error: any) {
-      console.error('❌ Error loading files:', error);
-      console.log('📋 Falling back to mock data due to fetch error');
+      console.warn('⚠️ Network error or timeout occurred, falling back to mock data:', error.message);
       loadMockFiles();
     } finally {
       setLoading(false);
@@ -163,23 +165,27 @@ const TemporaryFilesPage: React.FC = () => {
         return;
       }
       
-      const { error } = await supabase
-        .from('temporary_files')
-        .delete()
-        .eq('id', fileId)
-        .eq('user_id', user?.id);
+      // Use executeWithTimeout for more robust error handling
+      const result = await executeWithTimeout(async () => {
+        return await supabase
+          .from('temporary_files')
+          .delete()
+          .eq('id', fileId)
+          .eq('user_id', user?.id);
+      });
       
-      if (error) {
-        console.error('❌ Error deleting file:', error);
-        throw error;
+      if (result.error) {
+        console.warn('⚠️ Error deleting file from Supabase, removing from UI anyway:', result.error.message);
+      } else {
+        console.log(`✅ File deleted successfully from Supabase`);
       }
       
+      // Always remove from UI regardless of Supabase result
       setFiles(prev => prev.filter(file => file.id !== fileId));
       setSelectedFiles(prev => prev.filter(id => id !== fileId));
       
-      console.log(`✅ File deleted successfully`);
     } catch (error: any) {
-      console.error('❌ Error deleting file:', error);
+      console.warn('⚠️ Network error during file deletion, removing from UI anyway:', error.message);
       // In case of error, still remove from UI for demo purposes
       setFiles(prev => prev.filter(file => file.id !== fileId));
       setSelectedFiles(prev => prev.filter(id => id !== fileId));
@@ -203,24 +209,27 @@ const TemporaryFilesPage: React.FC = () => {
         return;
       }
       
-      // In a real implementation with Supabase, we would use .in() to delete multiple files
-      const { error } = await supabase
-        .from('temporary_files')
-        .delete()
-        .in('id', selectedFiles)
-        .eq('user_id', user?.id);
+      // Use executeWithTimeout for more robust error handling
+      const result = await executeWithTimeout(async () => {
+        return await supabase
+          .from('temporary_files')
+          .delete()
+          .in('id', selectedFiles)
+          .eq('user_id', user?.id);
+      });
       
-      if (error) {
-        console.error('❌ Error deleting files:', error);
-        throw error;
+      if (result.error) {
+        console.warn('⚠️ Error deleting files from Supabase, removing from UI anyway:', result.error.message);
+      } else {
+        console.log(`✅ ${selectedFiles.length} files deleted successfully from Supabase`);
       }
       
+      // Always remove from UI regardless of Supabase result
       setFiles(prev => prev.filter(file => !selectedFiles.includes(file.id)));
       setSelectedFiles([]);
       
-      console.log(`✅ ${selectedFiles.length} files deleted successfully`);
     } catch (error: any) {
-      console.error('❌ Error deleting files:', error);
+      console.warn('⚠️ Network error during bulk file deletion, removing from UI anyway:', error.message);
       // In case of error, still remove from UI for demo purposes
       setFiles(prev => prev.filter(file => !selectedFiles.includes(file.id)));
       setSelectedFiles([]);
