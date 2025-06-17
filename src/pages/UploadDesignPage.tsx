@@ -44,6 +44,8 @@ const UploadDesignPage: React.FC = () => {
   const [selectedFolder, setSelectedFolder] = useState<string>('');
   const [stores, setStores] = useState<EtsyStore[]>([]);
   const [selectedStore, setSelectedStore] = useState<string>('');
+  const [storeImagesFolders, setStoreImagesFolders] = useState<StoreFolder[]>([]);
+  const [selectedStoreImagesFolder, setSelectedStoreImagesFolder] = useState<string>('');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -52,6 +54,7 @@ const UploadDesignPage: React.FC = () => {
       loadDesigns();
       loadFolders();
       loadStores();
+      loadStoreImagesFolders();
     }
   }, [user]);
 
@@ -145,6 +148,23 @@ const UploadDesignPage: React.FC = () => {
       setFolders(mockFolders);
     } catch (error) {
       console.error('Error loading folders:', error);
+    }
+  };
+
+  const loadStoreImagesFolders = async () => {
+    try {
+      // Mock store images folders data
+      const mockStoreImagesFolders: StoreFolder[] = [
+        { id: '1', name: 'Logos', path: 'logos' },
+        { id: '2', name: 'Banners', path: 'banners' },
+        { id: '3', name: 'Product Images', path: 'product-images' },
+        { id: '4', name: 'Backgrounds', path: 'backgrounds' },
+        { id: '5', name: 'Watermarks', path: 'watermarks' }
+      ];
+      
+      setStoreImagesFolders(mockStoreImagesFolders);
+    } catch (error) {
+      console.error('Error loading store images folders:', error);
     }
   };
 
@@ -566,6 +586,24 @@ const UploadDesignPage: React.FC = () => {
                     <option value="2">Mugs</option>
                     <option value="3">Posters</option>
                     <option value="4">Canvas Prints</option>
+                  </select>
+                </div>
+                
+                {/* Store Images Folder */}
+                <div>
+                  <div className="flex items-center mb-2">
+                    <span className="text-orange-500 mr-2">🗂️</span>
+                    <span className="text-gray-700 dark:text-gray-300 text-sm">Store Images Folder</span>
+                  </div>
+                  <select 
+                    value={selectedStoreImagesFolder}
+                    onChange={(e) => setSelectedStoreImagesFolder(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="">Klasör seçin...</option>
+                    {storeImagesFolders.map(folder => (
+                      <option key={folder.id} value={folder.path}>{folder.name}</option>
+                    ))}
                   </select>
                 </div>
                 
