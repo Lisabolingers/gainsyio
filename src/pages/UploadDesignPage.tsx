@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, Trash2, Download, Search, Filter, Grid, List, RefreshCw, AlertCircle, Clock, CheckCircle, X, Image as ImageIcon, FileUp, FileDown, FolderOpen, Store } from 'lucide-react';
+import { Upload, Trash2, Download, Search, Filter, Grid, List, RefreshCw, AlertCircle, Clock, CheckCircle, X, Image as ImageIcon, FileUp, FileDown, FolderOpen, Store, ArrowRight, Send, ChevronLeft, Eye } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
@@ -30,6 +30,12 @@ interface EtsyStore {
   is_active: boolean;
 }
 
+interface MockupPreview {
+  id: string;
+  imageUrl: string;
+  title: string;
+}
+
 const UploadDesignPage: React.FC = () => {
   const { user } = useAuth();
   const [designs, setDesigns] = useState<DesignFile[]>([]);
@@ -46,8 +52,17 @@ const UploadDesignPage: React.FC = () => {
   const [selectedStore, setSelectedStore] = useState<string>('');
   const [storeImagesFolders, setStoreImagesFolders] = useState<StoreFolder[]>([]);
   const [selectedStoreImagesFolder, setSelectedStoreImagesFolder] = useState<string>('');
+  const [showPreview, setShowPreview] = useState(false);
+  const [productTitle, setProductTitle] = useState('');
+  const [productTags, setProductTags] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState('');
+  const [selectedMockupFolder, setSelectedMockupFolder] = useState('');
+  const [mockupPreviews, setMockupPreviews] = useState<MockupPreview[]>([]);
+  const [isGeneratingMockups, setIsGeneratingMockups] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const designContainerRef = useRef<HTMLDivElement>(null);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (user) {
@@ -370,6 +385,92 @@ const UploadDesignPage: React.FC = () => {
     design.file_type.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Generate mockup previews
+  const generateMockupPreviews = () => {
+    setIsGeneratingMockups(true);
+    
+    // Simulate API call to generate mockups
+    setTimeout(() => {
+      // Mock mockup previews
+      const mockMockups: MockupPreview[] = [
+        {
+          id: '1',
+          imageUrl: 'https://images.pexels.com/photos/1484516/pexels-photo-1484516.jpeg?auto=compress&cs=tinysrgb&w=600',
+          title: 'T-shirt Mockup 1'
+        },
+        {
+          id: '2',
+          imageUrl: 'https://images.pexels.com/photos/1926620/pexels-photo-1926620.jpeg?auto=compress&cs=tinysrgb&w=600',
+          title: 'T-shirt Mockup 2'
+        },
+        {
+          id: '3',
+          imageUrl: 'https://images.pexels.com/photos/1304647/pexels-photo-1304647.jpeg?auto=compress&cs=tinysrgb&w=600',
+          title: 'T-shirt Mockup 3'
+        },
+        {
+          id: '4',
+          imageUrl: 'https://images.pexels.com/photos/1656684/pexels-photo-1656684.jpeg?auto=compress&cs=tinysrgb&w=600',
+          title: 'T-shirt Mockup 4'
+        },
+        {
+          id: '5',
+          imageUrl: 'https://images.pexels.com/photos/1020370/pexels-photo-1020370.jpeg?auto=compress&cs=tinysrgb&w=600',
+          title: 'Mug Mockup 1'
+        },
+        {
+          id: '6',
+          imageUrl: 'https://images.pexels.com/photos/1251833/pexels-photo-1251833.jpeg?auto=compress&cs=tinysrgb&w=600',
+          title: 'Mug Mockup 2'
+        }
+      ];
+      
+      setMockupPreviews(mockMockups);
+      setIsGeneratingMockups(false);
+    }, 2000);
+  };
+
+  // Handle next button click
+  const handleNextClick = () => {
+    // Validate required fields
+    if (!productTitle.trim()) {
+      alert('Lütfen ürün başlığını girin.');
+      return;
+    }
+    
+    if (!productTags.trim()) {
+      alert('Lütfen ürün etiketlerini girin.');
+      return;
+    }
+    
+    // Animate transition to preview page
+    if (designContainerRef.current && previewContainerRef.current) {
+      designContainerRef.current.style.transform = 'translateX(-100%)';
+      previewContainerRef.current.style.transform = 'translateX(0)';
+    }
+    
+    setShowPreview(true);
+    
+    // Generate mockup previews
+    generateMockupPreviews();
+  };
+
+  // Handle back button click
+  const handleBackClick = () => {
+    // Animate transition back to design page
+    if (designContainerRef.current && previewContainerRef.current) {
+      designContainerRef.current.style.transform = 'translateX(0)';
+      previewContainerRef.current.style.transform = 'translateX(100%)';
+    }
+    
+    setShowPreview(false);
+  };
+
+  // Handle send to Etsy
+  const handleSendToEtsy = () => {
+    alert('Ürün Etsy\'e gönderildi! (Bu bir demo mesajıdır)');
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -381,7 +482,7 @@ const UploadDesignPage: React.FC = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 relative overflow-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -425,501 +526,777 @@ const UploadDesignPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Info Panel */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-        <div className="flex items-start space-x-3">
-          <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
-          <div>
-            <h3 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
-              ℹ️ Design Files Information
-            </h3>
-            <p className="text-sm text-blue-600 dark:text-blue-300">
-              <strong>Temporary Storage:</strong> Design files are stored temporarily until they are used in an Etsy listing.
-              <br />
-              <strong>Expiration:</strong> Files will be automatically deleted after 24 hours if not used.
-              <br />
-              <strong>File Types:</strong> Upload black, white, or color designs in PNG or JPEG format (max 5MB).
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Error Display */}
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <div className="flex items-center space-x-3">
-            <AlertCircle className="h-5 w-5 text-red-500" />
-            <div>
-              <h3 className="text-sm font-medium text-red-700 dark:text-red-400">
-                Error
-              </h3>
-              <p className="text-sm text-red-600 dark:text-red-300 mt-1">
-                {error}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Design Area */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 border-2 overflow-hidden">
-        <div className="px-6 py-4 p-6">
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tasarım #1</h2>
-            
-            {/* Design Type Selection */}
-            <div className="flex items-center space-x-4 mb-4">
-              <label className="flex items-center space-x-2">
-                <input
-                  type="radio"
-                  name="designType"
-                  checked={true}
-                  className="text-orange-600 focus:ring-orange-500"
-                />
-                <span className="text-gray-700 dark:text-gray-300">Upload Design</span>
-              </label>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="radio"
-                  name="designType"
-                  checked={false}
-                  className="text-orange-600 focus:ring-orange-500"
-                />
-                <span className="text-gray-700 dark:text-gray-300">Auto Text Design</span>
-              </label>
-            </div>
-            
-            {/* Color Selection */}
-            <div className="flex items-center space-x-4 mb-4">
-              <label className="flex items-center space-x-2">
-                <input
-                  type="radio"
-                  name="colorType"
-                  checked={true}
-                  className="text-orange-600 focus:ring-orange-500"
-                />
-                <span className="text-gray-700 dark:text-gray-300">Siyah</span>
-              </label>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="radio"
-                  name="colorType"
-                  checked={false}
-                  className="text-orange-600 focus:ring-orange-500"
-                />
-                <span className="text-gray-700 dark:text-gray-300">Beyaz</span>
-              </label>
-            </div>
-            
-            {/* Upload Buttons and Input Fields */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              <div className="border border-gray-300 dark:border-gray-600 border-dashed rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
-                <div className="text-gray-400 mb-2">+</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Yükle</div>
-              </div>
-              
-              <div className="bg-gray-800 border border-gray-700 border-dashed rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-700">
-                <div className="text-gray-400 mb-2">+</div>
-                <div className="text-xs text-gray-400">Yükle</div>
-              </div>
-              
-              <div className="col-span-2">
-                <div className="mb-2 flex items-center">
-                  <span className="text-orange-500 mr-2">📝</span>
-                  <span className="text-gray-700 dark:text-gray-300 text-sm">Başlık</span>
-                  <span className="text-gray-400 text-xs ml-auto">0/140</span>
-                </div>
-                <input
-                  type="text"
-                  placeholder="Ürün başlığını girin..."
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-                <button className="mt-2 px-3 py-1 bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 rounded-lg text-sm flex items-center">
-                  <span className="mr-1">🔥</span>
-                  AI Öner
-                </button>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      {/* Main Container with Design and Preview Sections */}
+      <div className="relative overflow-hidden" style={{ minHeight: '80vh' }}>
+        {/* Design Section */}
+        <div 
+          ref={designContainerRef}
+          className="transition-transform duration-500 ease-in-out"
+          style={{ 
+            transform: 'translateX(0)', 
+            position: 'relative',
+            width: '100%'
+          }}
+        >
+          {/* Info Panel */}
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
               <div>
-                <div className="mb-2 flex items-center">
-                  <span className="text-orange-500 mr-2">🏷️</span>
-                  <span className="text-gray-700 dark:text-gray-300 text-sm">Etiketler</span>
-                  <span className="text-gray-400 text-xs ml-auto">0/13</span>
+                <h3 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
+                  ℹ️ Design Files Information
+                </h3>
+                <p className="text-sm text-blue-600 dark:text-blue-300">
+                  <strong>Temporary Storage:</strong> Design files are stored temporarily until they are used in an Etsy listing.
+                  <br />
+                  <strong>Expiration:</strong> Files will be automatically deleted after 24 hours if not used.
+                  <br />
+                  <strong>File Types:</strong> Upload black, white, or color designs in PNG or JPEG format (max 5MB).
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Error Display */}
+          {error && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
+              <div className="flex items-center space-x-3">
+                <AlertCircle className="h-5 w-5 text-red-500" />
+                <div>
+                  <h3 className="text-sm font-medium text-red-700 dark:text-red-400">
+                    Error
+                  </h3>
+                  <p className="text-sm text-red-600 dark:text-red-300 mt-1">
+                    {error}
+                  </p>
                 </div>
-                <textarea
-                  placeholder="Etiketleri virgülle ayırarak girin..."
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
-                  rows={4}
-                ></textarea>
-                <button className="mt-2 px-3 py-1 bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 rounded-lg text-sm flex items-center">
-                  <span className="mr-1">🔥</span>
-                  AI Öner
+              </div>
+            </div>
+          )}
+
+          {/* Design Area */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 border-2 overflow-hidden mb-6">
+            <div className="px-6 py-4 p-6">
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tasarım #1</h2>
+                
+                {/* Design Type Selection */}
+                <div className="flex items-center space-x-4 mb-4">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      name="designType"
+                      checked={true}
+                      className="text-orange-600 focus:ring-orange-500"
+                    />
+                    <span className="text-gray-700 dark:text-gray-300">Upload Design</span>
+                  </label>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      name="designType"
+                      checked={false}
+                      className="text-orange-600 focus:ring-orange-500"
+                    />
+                    <span className="text-gray-700 dark:text-gray-300">Auto Text Design</span>
+                  </label>
+                </div>
+                
+                {/* Color Selection */}
+                <div className="flex items-center space-x-4 mb-4">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      name="colorType"
+                      checked={true}
+                      className="text-orange-600 focus:ring-orange-500"
+                    />
+                    <span className="text-gray-700 dark:text-gray-300">Siyah</span>
+                  </label>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      name="colorType"
+                      checked={false}
+                      className="text-orange-600 focus:ring-orange-500"
+                    />
+                    <span className="text-gray-700 dark:text-gray-300">Beyaz</span>
+                  </label>
+                </div>
+                
+                {/* Upload Buttons and Input Fields */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div className="border border-gray-300 dark:border-gray-600 border-dashed rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <div className="text-gray-400 mb-2">+</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Yükle</div>
+                  </div>
+                  
+                  <div className="bg-gray-800 border border-gray-700 border-dashed rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-700">
+                    <div className="text-gray-400 mb-2">+</div>
+                    <div className="text-xs text-gray-400">Yükle</div>
+                  </div>
+                  
+                  <div className="col-span-2">
+                    <div className="mb-2 flex items-center">
+                      <span className="text-orange-500 mr-2">📝</span>
+                      <span className="text-gray-700 dark:text-gray-300 text-sm">Başlık</span>
+                      <span className="text-gray-400 text-xs ml-auto">{productTitle.length}/140</span>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Ürün başlığını girin..."
+                      value={productTitle}
+                      onChange={(e) => setProductTitle(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      maxLength={140}
+                    />
+                    <button className="mt-2 px-3 py-1 bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 rounded-lg text-sm flex items-center">
+                      <span className="mr-1">🔥</span>
+                      AI Öner
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <div className="mb-2 flex items-center">
+                      <span className="text-orange-500 mr-2">🏷️</span>
+                      <span className="text-gray-700 dark:text-gray-300 text-sm">Etiketler</span>
+                      <span className="text-gray-400 text-xs ml-auto">{productTags.split(',').filter(tag => tag.trim()).length}/13</span>
+                    </div>
+                    <textarea
+                      placeholder="Etiketleri virgülle ayırarak girin..."
+                      value={productTags}
+                      onChange={(e) => setProductTags(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+                      rows={4}
+                    ></textarea>
+                    <button className="mt-2 px-3 py-1 bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 rounded-lg text-sm flex items-center">
+                      <span className="mr-1">🔥</span>
+                      AI Öner
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {/* Store Images Klasörü */}
+                    <div>
+                      <div className="flex items-center mb-2">
+                        <span className="text-orange-500 mr-2">🗂️</span>
+                        <span className="text-gray-700 dark:text-gray-300 text-sm">Store Images Klasörü</span>
+                      </div>
+                      <select 
+                        value={selectedStoreImagesFolder}
+                        onChange={(e) => setSelectedStoreImagesFolder(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      >
+                        <option value="">Store Images klasörü seçin...</option>
+                        {storeImagesFolders.map(folder => (
+                          <option key={folder.id} value={folder.path}>{folder.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    {/* Listeleme Şablonu */}
+                    <div>
+                      <div className="flex items-center mb-2">
+                        <span className="text-orange-500 mr-2">📋</span>
+                        <span className="text-gray-700 dark:text-gray-300 text-sm">Listeleme Şablonu</span>
+                      </div>
+                      <select 
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        value={selectedTemplate}
+                        onChange={(e) => setSelectedTemplate(e.target.value)}
+                      >
+                        <option value="">Şablon seçin...</option>
+                        <option value="1">Vintage Poster Template</option>
+                        <option value="2">Modern Typography Template</option>
+                        <option value="3">Botanical Illustration Template</option>
+                      </select>
+                    </div>
+                    
+                    {/* Mockup Klasörü */}
+                    <div>
+                      <div className="flex items-center mb-2">
+                        <span className="text-orange-500 mr-2">🖼️</span>
+                        <span className="text-gray-700 dark:text-gray-300 text-sm">Mockup Klasörü</span>
+                      </div>
+                      <select 
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        value={selectedMockupFolder}
+                        onChange={(e) => setSelectedMockupFolder(e.target.value)}
+                      >
+                        <option value="">Klasör seçin...</option>
+                        <option value="1">T-Shirts</option>
+                        <option value="2">Mugs</option>
+                        <option value="3">Posters</option>
+                        <option value="4">Canvas Prints</option>
+                      </select>
+                    </div>
+                    
+                    {/* Mağaza Seçimi */}
+                    <div>
+                      <div className="flex items-center mb-2">
+                        <span className="text-orange-500 mr-2">🏪</span>
+                        <span className="text-gray-700 dark:text-gray-300 text-sm">Mağaza Seçimi</span>
+                      </div>
+                      <select
+                        value={selectedStore}
+                        onChange={(e) => setSelectedStore(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      >
+                        <option value="">Mağaza seçin...</option>
+                        {stores.map(store => (
+                          <option key={store.id} value={store.id}>{store.store_name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Next Button */}
+                <div className="flex justify-end mt-6">
+                  <Button
+                    onClick={handleNextClick}
+                    className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
+                  >
+                    <span>İleri</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Hidden File Input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/jpg"
+            multiple
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+
+          {/* Search and Filters */}
+          <div className="flex flex-col sm:flex-row gap-4 items-center mb-6">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Search designs..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <div className="flex border border-gray-300 dark:border-gray-600 rounded-lg">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 ${viewMode === 'grid' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400'} rounded-l-lg`}
+                >
+                  <Grid className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 ${viewMode === 'list' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400'} rounded-r-lg`}
+                >
+                  <List className="h-4 w-4" />
                 </button>
               </div>
-              
-              <div className="space-y-4">
-                {/* Store Images Klasörü */}
-                <div>
-                  <div className="flex items-center mb-2">
-                    <span className="text-orange-500 mr-2">🗂️</span>
-                    <span className="text-gray-700 dark:text-gray-300 text-sm">Store Images Klasörü</span>
-                  </div>
-                  <select 
-                    value={selectedStoreImagesFolder}
-                    onChange={(e) => setSelectedStoreImagesFolder(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="">Store Images klasörü seçin...</option>
-                    {storeImagesFolders.map(folder => (
-                      <option key={folder.id} value={folder.path}>{folder.name}</option>
-                    ))}
-                  </select>
-                </div>
-                
-                {/* Listeleme Şablonu */}
-                <div>
-                  <div className="flex items-center mb-2">
-                    <span className="text-orange-500 mr-2">📋</span>
-                    <span className="text-gray-700 dark:text-gray-300 text-sm">Listeleme Şablonu</span>
-                  </div>
-                  <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                    <option value="">Şablon seçin...</option>
-                    <option value="1">Vintage Poster Template</option>
-                    <option value="2">Modern Typography Template</option>
-                    <option value="3">Botanical Illustration Template</option>
-                  </select>
-                </div>
-                
-                {/* Mockup Klasörü */}
-                <div>
-                  <div className="flex items-center mb-2">
-                    <span className="text-orange-500 mr-2">🖼️</span>
-                    <span className="text-gray-700 dark:text-gray-300 text-sm">Mockup Klasörü</span>
-                  </div>
-                  <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                    <option value="">Klasör seçin...</option>
-                    <option value="1">T-Shirts</option>
-                    <option value="2">Mugs</option>
-                    <option value="3">Posters</option>
-                    <option value="4">Canvas Prints</option>
-                  </select>
-                </div>
-                
-                {/* Mağaza Seçimi */}
-                <div>
-                  <div className="flex items-center mb-2">
-                    <span className="text-orange-500 mr-2">🏪</span>
-                    <span className="text-gray-700 dark:text-gray-300 text-sm">Mağaza Seçimi</span>
-                  </div>
-                  <select
-                    value={selectedStore}
-                    onChange={(e) => setSelectedStore(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="">Mağaza seçin...</option>
-                    {stores.map(store => (
-                      <option key={store.id} value={store.id}>{store.store_name}</option>
-                    ))}
-                  </select>
+            </div>
+          </div>
+
+          {/* Bulk Actions */}
+          {selectedDesigns.length > 0 && (
+            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4 mb-6">
+              <div className="flex items-center justify-between">
+                <span className="text-orange-700 dark:text-orange-400">
+                  {selectedDesigns.length} design(s) selected
+                </span>
+                <div className="flex space-x-2">
+                  <Button onClick={handleBulkDelete} variant="danger" size="sm">
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Delete Selected
+                  </Button>
+                  <Button onClick={() => setSelectedDesigns([])} variant="secondary" size="sm">
+                    Clear Selection
+                  </Button>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Hidden File Input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/jpg"
-        multiple
-        onChange={handleFileSelect}
-        className="hidden"
-      />
-
-      {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
-          <Input
-            type="text"
-            placeholder="Search designs..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-          />
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <div className="flex border border-gray-300 dark:border-gray-600 rounded-lg">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 ${viewMode === 'grid' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400'} rounded-l-lg`}
-            >
-              <Grid className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-2 ${viewMode === 'list' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400'} rounded-r-lg`}
-            >
-              <List className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Bulk Actions */}
-      {selectedDesigns.length > 0 && (
-        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-orange-700 dark:text-orange-400">
-              {selectedDesigns.length} design(s) selected
-            </span>
-            <div className="flex space-x-2">
-              <Button onClick={handleBulkDelete} variant="danger" size="sm">
-                <Trash2 className="h-4 w-4 mr-1" />
-                Delete Selected
-              </Button>
-              <Button onClick={() => setSelectedDesigns([])} variant="secondary" size="sm">
-                Clear Selection
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Designs Display */}
-      {filteredDesigns.length === 0 ? (
-        <div className="text-center py-12">
-          <ImageIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            {searchTerm ? 'No designs found' : 'No designs uploaded yet'}
-          </h3>
-          <p className="text-gray-500 dark:text-gray-400 mb-6">
-            {searchTerm
-              ? 'Try adjusting your search terms'
-              : 'Upload your first design to get started'
-            }
-          </p>
-          {!searchTerm && (
-            <Button
-              onClick={() => fileInputRef.current?.click()}
-              className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
-            >
-              <Upload className="h-4 w-4" />
-              <span>Upload First Design</span>
-            </Button>
           )}
-        </div>
-      ) : (
-        <>
-          {/* Select All Checkbox */}
-          <div className="flex items-center space-x-2 pb-4 border-b border-gray-200 dark:border-gray-700">
-            <input
-              type="checkbox"
-              checked={selectedDesigns.length === filteredDesigns.length}
-              onChange={selectAllDesigns}
-              className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-            />
-            <label className="text-sm text-gray-700 dark:text-gray-300">
-              Select all ({filteredDesigns.length} designs)
-            </label>
-          </div>
 
-          {/* Grid View */}
-          {viewMode === 'grid' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {filteredDesigns.map((design) => (
-                <Card key={design.id} className="hover:shadow-lg transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      {/* Design Preview */}
-                      <div className="relative aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
-                        <img
-                          src={design.file_url}
-                          alt={design.file_name}
-                          className="w-full h-full object-contain"
-                        />
-                        
-                        {/* Design Type Badge */}
-                        <div className="absolute top-2 left-2">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDesignTypeColor(design.file_type)}`}>
-                            {design.file_type.charAt(0).toUpperCase() + design.file_type.slice(1)}
-                          </span>
-                        </div>
+          {/* Designs Display */}
+          {filteredDesigns.length === 0 ? (
+            <div className="text-center py-12">
+              <ImageIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                {searchTerm ? 'No designs found' : 'No designs uploaded yet'}
+              </h3>
+              <p className="text-gray-500 dark:text-gray-400 mb-6">
+                {searchTerm
+                  ? 'Try adjusting your search terms'
+                  : 'Upload your first design to get started'
+                }
+              </p>
+              {!searchTerm && (
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
+                >
+                  <Upload className="h-4 w-4" />
+                  <span>Upload First Design</span>
+                </Button>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Select All Checkbox */}
+              <div className="flex items-center space-x-2 pb-4 border-b border-gray-200 dark:border-gray-700 mb-6">
+                <input
+                  type="checkbox"
+                  checked={selectedDesigns.length === filteredDesigns.length}
+                  onChange={selectAllDesigns}
+                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                />
+                <label className="text-sm text-gray-700 dark:text-gray-300">
+                  Select all ({filteredDesigns.length} designs)
+                </label>
+              </div>
 
-                        {/* Status Badge */}
-                        <div className="absolute top-2 right-2">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(design.status)}`}>
-                            {design.status === 'active' ? 'Active' : design.status === 'used' ? 'Used' : 'Expired'}
-                          </span>
-                        </div>
-                        
-                        {/* Overlay with actions */}
-                        <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-50 transition-opacity flex items-center justify-center opacity-0 hover:opacity-100">
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => downloadDesign(design)}
-                              className="p-2 bg-white text-gray-900 rounded-full hover:bg-gray-100"
-                              title="Download"
-                            >
-                              <Download className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => deleteDesign(design.id)}
-                              className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600"
-                              title="Delete"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+              {/* Grid View */}
+              {viewMode === 'grid' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {filteredDesigns.map((design) => (
+                    <Card key={design.id} className="hover:shadow-lg transition-shadow">
+                      <CardContent className="p-4">
+                        <div className="space-y-3">
+                          {/* Design Preview */}
+                          <div className="relative aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
+                            <img
+                              src={design.file_url}
+                              alt={design.file_name}
+                              className="w-full h-full object-contain"
+                            />
+                            
+                            {/* Design Type Badge */}
+                            <div className="absolute top-2 left-2">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDesignTypeColor(design.file_type)}`}>
+                                {design.file_type.charAt(0).toUpperCase() + design.file_type.slice(1)}
+                              </span>
+                            </div>
+
+                            {/* Status Badge */}
+                            <div className="absolute top-2 right-2">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(design.status)}`}>
+                                {design.status === 'active' ? 'Active' : design.status === 'used' ? 'Used' : 'Expired'}
+                              </span>
+                            </div>
+                            
+                            {/* Overlay with actions */}
+                            <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-50 transition-opacity flex items-center justify-center opacity-0 hover:opacity-100">
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={() => downloadDesign(design)}
+                                  className="p-2 bg-white text-gray-900 rounded-full hover:bg-gray-100"
+                                  title="Download"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => deleteDesign(design.id)}
+                                  className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Design Info */}
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedDesigns.includes(design.id)}
+                                  onChange={() => toggleDesignSelection(design.id)}
+                                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                                />
+                                <h3 className="font-medium text-gray-900 dark:text-white text-sm truncate">
+                                  {design.file_name}
+                                </h3>
+                              </div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                {formatFileSize(design.file_size)} • {formatDate(design.created_at)}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Expiration Info */}
+                          <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+                            <Clock className="h-3 w-3 mr-1" />
+                            <span>Expires in: {getTimeRemaining(design.expires_at)}</span>
                           </div>
                         </div>
-                      </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
 
-                      {/* Design Info */}
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2">
+              {/* List View */}
+              {viewMode === 'list' && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 dark:bg-gray-700">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          <input
+                            type="checkbox"
+                            checked={selectedDesigns.length === filteredDesigns.length}
+                            onChange={selectAllDesigns}
+                            className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                          />
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Design
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Type
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Size
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Created
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Expires In
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {filteredDesigns.map((design) => (
+                        <tr key={design.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                          <td className="px-6 py-4 whitespace-nowrap">
                             <input
                               type="checkbox"
                               checked={selectedDesigns.includes(design.id)}
                               onChange={() => toggleDesignSelection(design.id)}
                               className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
                             />
-                            <h3 className="font-medium text-gray-900 dark:text-white text-sm truncate">
-                              {design.file_name}
-                            </h3>
-                          </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            {formatFileSize(design.file_size)} • {formatDate(design.created_at)}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="flex-shrink-0 h-10 w-10 rounded overflow-hidden">
+                                <img
+                                  src={design.file_url}
+                                  alt={design.file_name}
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                  {design.file_name}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDesignTypeColor(design.file_type)}`}>
+                              {design.file_type.charAt(0).toUpperCase() + design.file_type.slice(1)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {formatFileSize(design.file_size)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(design.status)}`}>
+                              {design.status === 'active' ? 'Active' : design.status === 'used' ? 'Used' : 'Expired'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {formatDate(design.created_at)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {getTimeRemaining(design.expires_at)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => downloadDesign(design)}
+                                className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                                title="Download"
+                              >
+                                <Download className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => deleteDesign(design.id)}
+                                className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                                title="Delete"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Preview Section */}
+        <div 
+          ref={previewContainerRef}
+          className="transition-transform duration-500 ease-in-out absolute top-0 left-0 w-full h-full"
+          style={{ 
+            transform: 'translateX(100%)',
+            backgroundColor: 'var(--bg-color, #f9fafb)',
+            zIndex: 10
+          }}
+        >
+          {/* Preview Header */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={handleBackClick}
+                  className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Ürün Önizleme</h2>
+              </div>
+              <Button
+                onClick={handleSendToEtsy}
+                className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
+              >
+                <Send className="h-4 w-4" />
+                <span>Etsy'e Gönder</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* Preview Content */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column - Mockups */}
+            <div className="lg:col-span-2">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                  <ImageIcon className="h-5 w-5 mr-2 text-orange-500" />
+                  Mockup Görselleri
+                  <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
+                    (Maksimum 10 görsel)
+                  </span>
+                </h3>
+
+                {isGeneratingMockups ? (
+                  <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+                      <p className="text-gray-500 dark:text-gray-400">Mockuplar oluşturuluyor...</p>
+                    </div>
+                  </div>
+                ) : mockupPreviews.length > 0 ? (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {mockupPreviews.map((mockup) => (
+                      <div key={mockup.id} className="relative group">
+                        <div className="aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
+                          <img
+                            src={mockup.imageUrl}
+                            alt={mockup.title}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-lg">
+                          <div className="flex space-x-2">
+                            <button
+                              className="p-2 bg-white text-gray-900 rounded-full hover:bg-gray-100"
+                              title="View large"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <button
+                              className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600"
+                              title="Remove"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                           </div>
                         </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
+                          {mockup.title}
+                        </p>
                       </div>
+                    ))}
+                    
+                    {/* Add More Button (if less than 10) */}
+                    {mockupPreviews.length < 10 && (
+                      <div className="aspect-square border border-gray-300 dark:border-gray-600 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <Plus className="h-8 w-8 text-gray-400 mb-2" />
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Mockup Ekle
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <ImageIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500 dark:text-gray-400 mb-6">
+                      Henüz mockup oluşturulmadı
+                    </p>
+                    <Button
+                      onClick={generateMockupPreviews}
+                      className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      <span>Mockupları Oluştur</span>
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
 
-                      {/* Expiration Info */}
-                      <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
-                        <Clock className="h-3 w-3 mr-1" />
-                        <span>Expires in: {getTimeRemaining(design.expires_at)}</span>
+            {/* Right Column - Product Info */}
+            <div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Ürün Bilgileri
+                </h3>
+                
+                <div className="space-y-4">
+                  {/* Title */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Başlık
+                    </h4>
+                    <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <p className="text-gray-900 dark:text-white">
+                        {productTitle || 'Başlık girilmedi'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Tags */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Etiketler
+                    </h4>
+                    <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div className="flex flex-wrap gap-2">
+                        {productTags ? (
+                          productTags.split(',').map((tag, index) => (
+                            tag.trim() && (
+                              <span
+                                key={index}
+                                className="px-2 py-1 bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 text-xs rounded-full"
+                              >
+                                {tag.trim()}
+                              </span>
+                            )
+                          ))
+                        ) : (
+                          <p className="text-gray-500 dark:text-gray-400 text-sm">
+                            Etiket girilmedi
+                          </p>
+                        )}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Store and Template Info */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Mağaza ve Şablon
+                </h3>
+                
+                <div className="space-y-4">
+                  {/* Store */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Mağaza
+                    </h4>
+                    <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <p className="text-gray-900 dark:text-white flex items-center">
+                        <Store className="h-4 w-4 mr-2 text-orange-500" />
+                        {selectedStore ? 
+                          stores.find(s => s.id === selectedStore)?.store_name || 'Seçili Mağaza' : 
+                          'Mağaza seçilmedi'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Template */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Listeleme Şablonu
+                    </h4>
+                    <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <p className="text-gray-900 dark:text-white">
+                        {selectedTemplate ? 
+                          (selectedTemplate === '1' ? 'Vintage Poster Template' : 
+                           selectedTemplate === '2' ? 'Modern Typography Template' : 
+                           'Botanical Illustration Template') : 
+                          'Şablon seçilmedi'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Store Images Folder */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Store Images Klasörü
+                    </h4>
+                    <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <p className="text-gray-900 dark:text-white flex items-center">
+                        <FolderOpen className="h-4 w-4 mr-2 text-orange-500" />
+                        {selectedStoreImagesFolder ? 
+                          storeImagesFolders.find(f => f.path === selectedStoreImagesFolder)?.name || 'Seçili Klasör' : 
+                          'Klasör seçilmedi'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Mockup Folder */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Mockup Klasörü
+                    </h4>
+                    <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <p className="text-gray-900 dark:text-white flex items-center">
+                        <FolderOpen className="h-4 w-4 mr-2 text-orange-500" />
+                        {selectedMockupFolder ? 
+                          (selectedMockupFolder === '1' ? 'T-Shirts' : 
+                           selectedMockupFolder === '2' ? 'Mugs' : 
+                           selectedMockupFolder === '3' ? 'Posters' : 
+                           'Canvas Prints') : 
+                          'Klasör seçilmedi'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
-
-          {/* List View */}
-          {viewMode === 'list' && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-700">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      <input
-                        type="checkbox"
-                        checked={selectedDesigns.length === filteredDesigns.length}
-                        onChange={selectAllDesigns}
-                        className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                      />
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Design
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Size
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Created
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Expires In
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {filteredDesigns.map((design) => (
-                    <tr key={design.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <input
-                          type="checkbox"
-                          checked={selectedDesigns.includes(design.id)}
-                          onChange={() => toggleDesignSelection(design.id)}
-                          className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                        />
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-3">
-                          <div className="flex-shrink-0 h-10 w-10 rounded overflow-hidden">
-                            <img
-                              src={design.file_url}
-                              alt={design.file_name}
-                              className="h-full w-full object-cover"
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                              {design.file_name}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDesignTypeColor(design.file_type)}`}>
-                          {design.file_type.charAt(0).toUpperCase() + design.file_type.slice(1)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {formatFileSize(design.file_size)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(design.status)}`}>
-                          {design.status === 'active' ? 'Active' : design.status === 'used' ? 'Used' : 'Expired'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {formatDate(design.created_at)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {getTimeRemaining(design.expires_at)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => downloadDesign(design)}
-                            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                            title="Download"
-                          >
-                            <Download className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => deleteDesign(design.id)}
-                            className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
-      )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
