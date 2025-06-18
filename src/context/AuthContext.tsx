@@ -90,6 +90,33 @@ const DEMO_ACCOUNTS = [
   }
 ];
 
+// Helper function to clear invalid auth data
+const clearInvalidAuthData = () => {
+  try {
+    // Clear all possible Supabase auth keys from localStorage
+    const keysToRemove = [
+      'gainsy_auth_token',
+      'sb-dupisvxgtxvjgbymjilf-auth-token',
+      'supabase.auth.token'
+    ];
+    
+    // Also check for any keys that start with 'sb-' (Supabase pattern)
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('sb-') && key.includes('auth')) {
+        keysToRemove.push(key);
+      }
+    });
+    
+    keysToRemove.forEach(key => {
+      localStorage.removeItem(key);
+    });
+    
+    console.log('🧹 Cleared invalid auth data from localStorage');
+  } catch (error) {
+    console.warn('⚠️ Error clearing localStorage:', error);
+  }
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const { supabase } = useSupabase();
   const [user, setUser] = useState<User | null>(null);
@@ -161,8 +188,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         if (sessionError) {
           console.error('❌ Error getting session:', sessionError);
-          // Don't switch to demo mode here, just log the error
-          setError(`Authentication error: ${sessionError.message}`);
+          
+          // Check for invalid refresh token error
+          if (sessionError.message?.includes('Invalid Refresh Token') || 
+              sessionError.message?.includes('refresh_token_not_found')) {
+            console.log('🧹 Invalid refresh token detected, clearing auth data...');
+            clearInvalidAuthData();
+            
+            // Reset auth state
+            setSession(null);
+            setUser(null);
+            setUserProfile(null);
+            setError(null); // Don't show error for invalid token, just clear it
+            
+            console.log('✅ Auth state cleared due to invalid refresh token');
+          } else {
+            // Don't switch to demo mode here, just log the error
+            setError(`Authentication error: ${sessionError.message}`);
+          }
         } else {
           console.log('✅ Session retrieved successfully');
           setSession(session);
@@ -182,7 +225,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       } catch (error: any) {
         console.error('❌ Error initializing auth:', error);
-        setError(`Authentication initialization failed: ${error.message}`);
+        
+        // Check for refresh token errors in catch block as well
+        if (error.message?.includes('Invalid Refresh Token') || 
+            error.message?.includes('refresh_token_not_found')) {
+          console.log('🧹 Invalid refresh token detected in catch, clearing auth data...');
+          clearInvalidAuthData();
+          
+          // Reset auth state
+          setSession(null);
+          setUser(null);
+          setUserProfile(null);
+          setError(null); // Don't show error for invalid token, just clear it
+        } else {
+          setError(`Authentication initialization failed: ${error.message}`);
+        }
       } finally {
         setLoading(false);
       }
@@ -195,6 +252,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('🔄 Auth state changed:', event);
+      
+      // Handle sign out event
+      if (event === 'SIGNED_OUT') {
+        console.log('👋 User signed out, clearing state...');
+        setSession(null);
+        setUser(null);
+        setUserProfile(null);
+        setError(null);
+        return;
+      }
+      
+      // Handle token refresh errors
+      if (event === 'TOKEN_REFRESHED' && !session) {
+        console.log('🔄 Token refresh failed, clearing invalid auth data...');
+        clearInvalidAuthData();
+        setSession(null);
+        setUser(null);
+        setUserProfile(null);
+        setError(null);
+        return;
+      }
+      
       setSession(session);
       setUser(session?.user ?? null);
       
@@ -492,6 +571,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setLoading(true);
       console.log('🚪 Attempting sign out...');
+      
+      // Clear any potentially invalid auth data before signing out
+      clearInvalidAuthData();
       
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
