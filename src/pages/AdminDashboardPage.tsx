@@ -136,8 +136,8 @@ const AdminDashboardPage: React.FC = () => {
           .eq('platform', 'etsy')
           .eq('is_active', true)
           .order('created_at', { ascending: false }),
-        30000, // Increased from 20000 to 30000 milliseconds (30 seconds)
-        2 // 2 retries
+        45000, // Increased from 30000 to 45000 milliseconds (45 seconds)
+        3 // Increased from 2 to 3 retries
       );
 
       if (error) {
@@ -199,8 +199,8 @@ const AdminDashboardPage: React.FC = () => {
       try {
         const { count, error } = await executeWithTimeout(
           () => storesQuery,
-          30000, // Increased from 20000 to 30000 milliseconds (30 seconds)
-          2 // 2 retries
+          45000, // Increased from 30000 to 45000 milliseconds (45 seconds)
+          3 // Increased from 2 to 3 retries
         );
         
         if (error) {
@@ -247,8 +247,8 @@ const AdminDashboardPage: React.FC = () => {
       try {
         const { count, error } = await executeWithTimeout(
           () => productsQuery,
-          30000, // Increased from 20000 to 30000 milliseconds (30 seconds)
-          2 // 2 retries
+          45000, // Increased from 30000 to 45000 milliseconds (45 seconds)
+          3 // Increased from 2 to 3 retries
         );
         
         if (error) {
@@ -314,8 +314,8 @@ const AdminDashboardPage: React.FC = () => {
       try {
         const { data, error } = await executeWithTimeout(
           () => analyticsQuery,
-          30000, // Increased from 20000 to 30000 milliseconds (30 seconds)
-          2 // 2 retries
+          45000, // Increased from 30000 to 45000 milliseconds (45 seconds)
+          3 // Increased from 2 to 3 retries
         );
         
         if (error) {
