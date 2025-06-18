@@ -559,7 +559,7 @@ const UploadDesignPage: React.FC = () => {
                 </button>
               </div>
               
-                           <div className="space-y-4">
+              <div className="space-y-4">
                 {/* Store Images Klasörü */}
                 <div>
                   <div className="flex items-center mb-2">
@@ -625,7 +625,10 @@ const UploadDesignPage: React.FC = () => {
                   </select>
                 </div>
               </div>
-
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Hidden File Input */}
       <input
