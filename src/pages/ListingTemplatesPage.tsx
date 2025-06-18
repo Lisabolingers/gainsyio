@@ -39,7 +39,7 @@ interface EtsyDraftListing {
 }
 
 const ListingTemplatesPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isDemoMode } = useAuth();
   const [templates, setTemplates] = useState<ListingTemplate[]>([]);
   const [stores, setStores] = useState<EtsyStore[]>([]);
   const [selectedStore, setSelectedStore] = useState<string>('');
@@ -52,6 +52,16 @@ const ListingTemplatesPage: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDraftModal, setShowDraftModal] = useState(false);
   const [selectedDraft, setSelectedDraft] = useState<EtsyDraftListing | null>(null);
+  const [creatingTemplates, setCreatingTemplates] = useState(false);
+
+  // Form states for creating/editing templates
+  const [templateName, setTemplateName] = useState('');
+  const [templateTitle, setTemplateTitle] = useState('');
+  const [templateDescription, setTemplateDescription] = useState('');
+  const [templateTags, setTemplateTags] = useState<string[]>([]);
+  const [templatePrice, setTemplatePrice] = useState<number | undefined>(undefined);
+  const [templateCategory, setTemplateCategory] = useState('');
+  const [editingTemplate, setEditingTemplate] = useState<ListingTemplate | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -65,6 +75,11 @@ const ListingTemplatesPage: React.FC = () => {
       setLoading(true);
       console.log('🔄 Loading listing templates...');
       
+      if (isDemoMode) {
+        loadDemoTemplates();
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('listing_templates')
         .select('*')
@@ -73,21 +88,183 @@ const ListingTemplatesPage: React.FC = () => {
 
       if (error) {
         console.error('❌ Template loading error:', error);
-        throw error;
+        loadDemoTemplates();
+        return;
+      }
+
+      if (data && data.length === 0) {
+        // If no templates exist, create sample templates
+        await createSampleTemplates();
+        return;
       }
 
       console.log(`✅ ${data?.length || 0} listing templates loaded`);
       setTemplates(data || []);
     } catch (error) {
       console.error('❌ Template loading general error:', error);
+      loadDemoTemplates();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadDemoTemplates = () => {
+    console.log('📋 Loading demo templates...');
+    
+    const demoTemplates: ListingTemplate[] = [
+      {
+        id: '1',
+        user_id: user?.id || 'demo-user',
+        name: 'Vintage Poster Template',
+        title_template: 'Vintage {{theme}} Poster - Digital Download - Wall Art - Home Decor - Printable Art',
+        description_template: 'Beautiful vintage-style {{theme}} poster perfect for home decoration. High-quality digital download ready for printing.\n\n✅ INSTANT DOWNLOAD\n✅ High resolution JPG and PDF files\n✅ Multiple sizes included: 8x10, 11x14, 16x20, A4, A3\n\nPerfect for living room, bedroom, office, or as a thoughtful gift!',
+        tags_template: ['vintage', 'poster', 'digital download', 'printable', 'wall art', 'home decor', 'retro', 'design'],
+        price_template: 4.99,
+        category: 'Art & Collectibles',
+        is_default: true,
+        created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+        updated_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: '2',
+        user_id: user?.id || 'demo-user',
+        name: 'Modern Typography Template',
+        title_template: 'Modern {{theme}} Typography Print - Instant Download - Minimalist Wall Art - Home Decor',
+        description_template: 'Clean and modern {{theme}} typography design. Perfect for office or home decoration.\n\n✅ INSTANT DOWNLOAD\n✅ High resolution JPG and PDF files\n✅ Multiple sizes included: 8x10, 11x14, 16x20, A4, A3\n\nThis minimalist design will add a touch of elegance to any space!',
+        tags_template: ['typography', 'modern', 'print', 'instant download', 'office decor', 'minimalist', 'black white', 'wall art'],
+        price_template: 3.99,
+        category: 'Art & Collectibles',
+        is_default: false,
+        created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+        updated_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: '3',
+        user_id: user?.id || 'demo-user',
+        name: 'Botanical Illustration Template',
+        title_template: 'Botanical {{theme}} Illustration Set - Digital Art - Printable Wall Art - Home Decor',
+        description_template: 'Set of 4 beautiful botanical {{theme}} illustrations. High-resolution files perfect for printing and framing.\n\n✅ INSTANT DOWNLOAD\n✅ High resolution JPG and PDF files\n✅ Set of 4 coordinating prints\n✅ Multiple sizes included: 8x10, 11x14, 16x20, A4, A3\n\nThese botanical prints will bring nature\'s beauty into your home!',
+        tags_template: ['botanical', 'illustration', 'nature', 'plants', 'digital art', 'set', 'printable', 'green'],
+        price_template: 7.99,
+        category: 'Art & Collectibles',
+        is_default: false,
+        created_at: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString(),
+        updated_at: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString()
+      }
+    ];
+    
+    setTemplates(demoTemplates);
+  };
+
+  const createSampleTemplates = async () => {
+    try {
+      setCreatingTemplates(true);
+      console.log('🔄 Creating sample templates...');
+      
+      if (isDemoMode) {
+        loadDemoTemplates();
+        return;
+      }
+      
+      const sampleTemplates = [
+        {
+          user_id: user?.id,
+          name: 'Vintage Poster Template',
+          title_template: 'Vintage {{theme}} Poster - Digital Download - Wall Art - Home Decor - Printable Art',
+          description_template: 'Beautiful vintage-style {{theme}} poster perfect for home decoration. High-quality digital download ready for printing.\n\n✅ INSTANT DOWNLOAD\n✅ High resolution JPG and PDF files\n✅ Multiple sizes included: 8x10, 11x14, 16x20, A4, A3\n\nPerfect for living room, bedroom, office, or as a thoughtful gift!',
+          tags_template: ['vintage', 'poster', 'digital download', 'printable', 'wall art', 'home decor', 'retro', 'design'],
+          price_template: 4.99,
+          category: 'Art & Collectibles',
+          is_default: true
+        },
+        {
+          user_id: user?.id,
+          name: 'Modern Typography Template',
+          title_template: 'Modern {{theme}} Typography Print - Instant Download - Minimalist Wall Art - Home Decor',
+          description_template: 'Clean and modern {{theme}} typography design. Perfect for office or home decoration.\n\n✅ INSTANT DOWNLOAD\n✅ High resolution JPG and PDF files\n✅ Multiple sizes included: 8x10, 11x14, 16x20, A4, A3\n\nThis minimalist design will add a touch of elegance to any space!',
+          tags_template: ['typography', 'modern', 'print', 'instant download', 'office decor', 'minimalist', 'black white', 'wall art'],
+          price_template: 3.99,
+          category: 'Art & Collectibles',
+          is_default: false
+        },
+        {
+          user_id: user?.id,
+          name: 'Botanical Illustration Template',
+          title_template: 'Botanical {{theme}} Illustration Set - Digital Art - Printable Wall Art - Home Decor',
+          description_template: 'Set of 4 beautiful botanical {{theme}} illustrations. High-resolution files perfect for printing and framing.\n\n✅ INSTANT DOWNLOAD\n✅ High resolution JPG and PDF files\n✅ Set of 4 coordinating prints\n✅ Multiple sizes included: 8x10, 11x14, 16x20, A4, A3\n\nThese botanical prints will bring nature\'s beauty into your home!',
+          tags_template: ['botanical', 'illustration', 'nature', 'plants', 'digital art', 'set', 'printable', 'green'],
+          price_template: 7.99,
+          category: 'Art & Collectibles',
+          is_default: false
+        }
+      ];
+      
+      // Insert templates one by one
+      for (const template of sampleTemplates) {
+        const { error } = await supabase
+          .from('listing_templates')
+          .insert(template);
+          
+        if (error) {
+          console.error('❌ Error creating sample template:', error);
+        }
+      }
+      
+      console.log('✅ Sample templates created successfully');
+      
+      // Load templates again
+      const { data, error } = await supabase
+        .from('listing_templates')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
+        
+      if (error) {
+        console.error('❌ Error loading templates after creation:', error);
+        loadDemoTemplates();
+        return;
+      }
+      
+      setTemplates(data || []);
+      
+    } catch (error) {
+      console.error('❌ Error creating sample templates:', error);
+      loadDemoTemplates();
+    } finally {
+      setCreatingTemplates(false);
     }
   };
 
   const loadStores = async () => {
     try {
       console.log('🔄 Loading Etsy stores...');
+      
+      if (isDemoMode) {
+        // Load demo stores
+        const demoStores: EtsyStore[] = [
+          {
+            id: 'store1',
+            store_name: 'My Etsy Store',
+            is_active: true,
+            api_credentials: { connected: true }
+          },
+          {
+            id: 'store2',
+            store_name: 'My Craft Shop',
+            is_active: true,
+            api_credentials: { connected: false }
+          }
+        ];
+        
+        setStores(demoStores);
+        
+        // Auto-select first store
+        if (demoStores.length > 0) {
+          setSelectedStore(demoStores[0].id);
+        }
+        
+        return;
+      }
       
       const { data, error } = await supabase
         .from('stores')
@@ -111,6 +288,29 @@ const ListingTemplatesPage: React.FC = () => {
       }
     } catch (error) {
       console.error('❌ Store loading general error:', error);
+      
+      // Load demo stores on error
+      const demoStores: EtsyStore[] = [
+        {
+          id: 'store1',
+          store_name: 'My Etsy Store',
+          is_active: true,
+          api_credentials: { connected: true }
+        },
+        {
+          id: 'store2',
+          store_name: 'My Craft Shop',
+          is_active: true,
+          api_credentials: { connected: false }
+        }
+      ];
+      
+      setStores(demoStores);
+      
+      // Auto-select first store
+      if (demoStores.length > 0) {
+        setSelectedStore(demoStores[0].id);
+      }
     }
   };
 
@@ -131,7 +331,7 @@ const ListingTemplatesPage: React.FC = () => {
           tags: ['vintage', 'poster', 'digital download', 'printable', 'wall art', 'home decor', 'retro', 'design'],
           price: 4.99,
           category: 'Art & Collectibles',
-          images: ['https://via.placeholder.com/400x400'],
+          images: ['https://images.pexels.com/photos/1070945/pexels-photo-1070945.jpeg?auto=compress&cs=tinysrgb&w=400'],
           created_date: '2024-01-15'
         },
         {
@@ -141,7 +341,7 @@ const ListingTemplatesPage: React.FC = () => {
           tags: ['typography', 'modern', 'print', 'instant download', 'office decor', 'minimalist', 'black white'],
           price: 3.99,
           category: 'Art & Collectibles',
-          images: ['https://via.placeholder.com/400x400'],
+          images: ['https://images.pexels.com/photos/1029141/pexels-photo-1029141.jpeg?auto=compress&cs=tinysrgb&w=400'],
           created_date: '2024-01-10'
         },
         {
@@ -151,8 +351,28 @@ const ListingTemplatesPage: React.FC = () => {
           tags: ['botanical', 'illustration', 'nature', 'plants', 'digital art', 'set', 'printable', 'green'],
           price: 7.99,
           category: 'Art & Collectibles',
-          images: ['https://via.placeholder.com/400x400'],
+          images: ['https://images.pexels.com/photos/1055379/pexels-photo-1055379.jpeg?auto=compress&cs=tinysrgb&w=400'],
           created_date: '2024-01-05'
+        },
+        {
+          id: '4',
+          title: 'Watercolor Floral Bundle - Digital Clipart',
+          description: 'Beautiful watercolor floral elements. Perfect for wedding invitations and crafting projects.',
+          tags: ['watercolor', 'floral', 'clipart', 'wedding', 'invitation', 'digital', 'bundle'],
+          price: 12.99,
+          category: 'Craft Supplies & Tools',
+          images: ['https://images.pexels.com/photos/1070850/pexels-photo-1070850.jpeg?auto=compress&cs=tinysrgb&w=400'],
+          created_date: '2024-01-01'
+        },
+        {
+          id: '5',
+          title: 'Abstract Geometric Art - Printable Wall Art',
+          description: 'Contemporary abstract geometric design. Perfect for modern interiors.',
+          tags: ['abstract', 'geometric', 'modern', 'wall art', 'contemporary', 'printable', 'colorful'],
+          price: 5.99,
+          category: 'Art & Collectibles',
+          images: ['https://images.pexels.com/photos/1109354/pexels-photo-1109354.jpeg?auto=compress&cs=tinysrgb&w=400'],
+          created_date: '2024-01-25'
         }
       ];
       
@@ -174,6 +394,30 @@ const ListingTemplatesPage: React.FC = () => {
   const createTemplateFromDraft = async (draft: EtsyDraftListing) => {
     try {
       console.log('🔄 Creating template from draft:', draft.title);
+      
+      if (isDemoMode) {
+        // Create a demo template
+        const newTemplate: ListingTemplate = {
+          id: `demo-${Date.now()}`,
+          user_id: user?.id || 'demo-user',
+          name: `Template: ${draft.title}`,
+          title_template: draft.title,
+          description_template: draft.description,
+          tags_template: draft.tags,
+          price_template: draft.price,
+          category: draft.category,
+          is_default: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        
+        setTemplates(prev => [newTemplate, ...prev]);
+        setShowDraftModal(false);
+        setSelectedDraft(null);
+        
+        alert('Template created successfully! 🎉');
+        return;
+      }
       
       const templateData = {
         user_id: user?.id,
@@ -209,10 +453,117 @@ const ListingTemplatesPage: React.FC = () => {
     }
   };
 
+  const createTemplate = async () => {
+    if (!templateName.trim()) {
+      alert('Template name is required!');
+      return;
+    }
+    
+    try {
+      console.log('🔄 Creating template manually...');
+      
+      if (isDemoMode) {
+        // Create a demo template
+        const newTemplate: ListingTemplate = {
+          id: `demo-${Date.now()}`,
+          user_id: user?.id || 'demo-user',
+          name: templateName,
+          title_template: templateTitle,
+          description_template: templateDescription,
+          tags_template: templateTags,
+          price_template: templatePrice,
+          category: templateCategory,
+          is_default: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        
+        setTemplates(prev => [newTemplate, ...prev]);
+        resetForm();
+        
+        alert('Template created successfully! 🎉');
+        return;
+      }
+      
+      const templateData = {
+        user_id: user?.id,
+        name: templateName,
+        title_template: templateTitle,
+        description_template: templateDescription,
+        tags_template: templateTags,
+        price_template: templatePrice,
+        category: templateCategory,
+        is_default: false
+      };
+
+      let result;
+      
+      if (editingTemplate) {
+        // Update existing template
+        result = await supabase
+          .from('listing_templates')
+          .update(templateData)
+          .eq('id', editingTemplate.id)
+          .eq('user_id', user?.id)
+          .select()
+          .single();
+      } else {
+        // Create new template
+        result = await supabase
+          .from('listing_templates')
+          .insert(templateData)
+          .select()
+          .single();
+      }
+
+      if (result.error) {
+        console.error('❌ Template creation/update error:', result.error);
+        throw result.error;
+      }
+
+      console.log('✅ Template created/updated successfully:', result.data);
+      await loadTemplates();
+      resetForm();
+      
+      alert(`Template ${editingTemplate ? 'updated' : 'created'} successfully! 🎉`);
+    } catch (error) {
+      console.error('❌ Template creation/update general error:', error);
+      alert(`Error occurred while ${editingTemplate ? 'updating' : 'creating'} template.`);
+    }
+  };
+
+  const resetForm = () => {
+    setTemplateName('');
+    setTemplateTitle('');
+    setTemplateDescription('');
+    setTemplateTags([]);
+    setTemplatePrice(undefined);
+    setTemplateCategory('');
+    setEditingTemplate(null);
+    setShowCreateModal(false);
+  };
+
+  const openEditForm = (template: ListingTemplate) => {
+    setEditingTemplate(template);
+    setTemplateName(template.name);
+    setTemplateTitle(template.title_template);
+    setTemplateDescription(template.description_template);
+    setTemplateTags(template.tags_template);
+    setTemplatePrice(template.price_template);
+    setTemplateCategory(template.category);
+    setShowCreateModal(true);
+  };
+
   const deleteTemplate = async (templateId: string) => {
     if (!window.confirm('Are you sure you want to delete this template?')) return;
 
     try {
+      if (isDemoMode) {
+        setTemplates(prev => prev.filter(t => t.id !== templateId));
+        setSelectedTemplates(prev => prev.filter(id => id !== templateId));
+        return;
+      }
+      
       const { error } = await supabase
         .from('listing_templates')
         .delete()
@@ -231,6 +582,20 @@ const ListingTemplatesPage: React.FC = () => {
 
   const duplicateTemplate = async (template: ListingTemplate) => {
     try {
+      if (isDemoMode) {
+        const newTemplate: ListingTemplate = {
+          ...template,
+          id: `demo-${Date.now()}`,
+          name: `${template.name} (Copy)`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          is_default: false
+        };
+        
+        setTemplates(prev => [newTemplate, ...prev]);
+        return;
+      }
+      
       const { error } = await supabase
         .from('listing_templates')
         .insert({
@@ -290,6 +655,12 @@ const ListingTemplatesPage: React.FC = () => {
     if (!window.confirm(`Are you sure you want to delete ${selectedTemplates.length} template(s)?`)) return;
 
     try {
+      if (isDemoMode) {
+        setTemplates(prev => prev.filter(t => !selectedTemplates.includes(t.id)));
+        setSelectedTemplates([]);
+        return;
+      }
+      
       const { error } = await supabase
         .from('listing_templates')
         .delete()
@@ -306,7 +677,7 @@ const ListingTemplatesPage: React.FC = () => {
     }
   };
 
-  if (loading) {
+  if (loading || creatingTemplates) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center h-64">
@@ -576,11 +947,20 @@ const ListingTemplatesPage: React.FC = () => {
                     </div>
 
                     <div className="flex space-x-2 mt-4">
-                      <Button size="sm" className="flex-1">
+                      <Button 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => openEditForm(template)}
+                      >
                         <Edit className="h-4 w-4 mr-1" />
                         Edit
                       </Button>
-                      <Button variant="secondary" size="sm" className="flex-1">
+                      <Button 
+                        variant="secondary" 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => alert('Template use functionality will be implemented soon')}
+                      >
                         Use
                       </Button>
                     </div>
@@ -662,6 +1042,7 @@ const ListingTemplatesPage: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                         <button
+                          onClick={() => openEditForm(template)}
                           className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300"
                           title="Edit"
                         >
@@ -777,17 +1158,17 @@ const ListingTemplatesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Create Template Modal - TODO: Implement manual template creation */}
+      {/* Create/Edit Template Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  Create Manual Template
+                  {editingTemplate ? 'Edit Template' : 'Create Template'}
                 </h2>
                 <button
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={resetForm}
                   className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                 >
                   ✕
@@ -795,10 +1176,116 @@ const ListingTemplatesPage: React.FC = () => {
               </div>
             </div>
             
-            <div className="p-6">
-              <p className="text-gray-600 dark:text-gray-400 text-center py-8">
-                Manual template creation feature will be added soon...
-              </p>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)] space-y-4">
+              {/* Template Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Template Name:
+                </label>
+                <Input
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  placeholder="e.g. Vintage Poster Template"
+                  className="w-full"
+                />
+              </div>
+              
+              {/* Template Title */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Title Template:
+                </label>
+                <Input
+                  value={templateTitle}
+                  onChange={(e) => setTemplateTitle(e.target.value)}
+                  placeholder="e.g. Vintage {{theme}} Poster - Digital Download"
+                  className="w-full"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Use {{variables}} for dynamic content, e.g. {{theme}}, {{color}}, etc.
+                </p>
+              </div>
+              
+              {/* Template Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Description Template:
+                </label>
+                <textarea
+                  value={templateDescription}
+                  onChange={(e) => setTemplateDescription(e.target.value)}
+                  placeholder="e.g. Beautiful vintage-style {{theme}} poster perfect for home decoration..."
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 resize-none"
+                  rows={6}
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Use {{variables}} for dynamic content, e.g. {{theme}}, {{color}}, etc.
+                </p>
+              </div>
+              
+              {/* Template Tags */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Tags Template:
+                </label>
+                <Input
+                  value={templateTags.join(', ')}
+                  onChange={(e) => setTemplateTags(e.target.value.split(',').map(tag => tag.trim()))}
+                  placeholder="e.g. vintage, poster, digital download, printable"
+                  className="w-full"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Enter tags separated by commas. Maximum 13 tags.
+                </p>
+              </div>
+              
+              {/* Template Price and Category */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Price Template:
+                  </label>
+                  <Input
+                    type="number"
+                    value={templatePrice || ''}
+                    onChange={(e) => setTemplatePrice(e.target.value ? parseFloat(e.target.value) : undefined)}
+                    placeholder="e.g. 4.99"
+                    className="w-full"
+                    step="0.01"
+                    min="0"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Category:
+                  </label>
+                  <Input
+                    value={templateCategory}
+                    onChange={(e) => setTemplateCategory(e.target.value)}
+                    placeholder="e.g. Art & Collectibles"
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex space-x-3">
+                <Button
+                  onClick={createTemplate}
+                  className="flex-1"
+                >
+                  {editingTemplate ? 'Update Template' : 'Create Template'}
+                </Button>
+                <Button
+                  onClick={resetForm}
+                  variant="secondary"
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
             </div>
           </div>
         </div>
