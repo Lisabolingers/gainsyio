@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Stage, Layer, Rect, Transformer, Image as KonvaImage, Group } from 'react-konva';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Image, Plus, Trash2, Save, Download, Eye, EyeOff, Square, Type, Circle } from 'lucide-react';
+import { Image, Plus, Trash2, Save, Download, Eye, EyeOff, Square, Type, Circle, FolderPlus, Folder } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -21,6 +21,8 @@ interface MockupTemplate {
   design_type: 'black' | 'white' | 'color';
   product_category: string;
   store_id?: string;
+  folder_path?: string;
+  folder_name?: string;
 }
 
 interface DesignArea {
@@ -52,19 +54,29 @@ interface LogoArea {
   rotation: number;
 }
 
+interface Folder {
+  id: string;
+  name: string;
+  path: string;
+  template_count: number;
+}
+
 const MockupTemplatesPage: React.FC = () => {
   const { user } = useAuth();
   const [templates, setTemplates] = useState<MockupTemplate[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentTemplate, setCurrentTemplate] = useState<MockupTemplate | null>(null);
   const [templateName, setTemplateName] = useState('');
   const [designType, setDesignType] = useState<'black' | 'white' | 'color'>('black');
-  const [productCategory, setProductCategory] = useState('t-shirt');
+  const [selectedFolder, setSelectedFolder] = useState<string>('');
   const [imageUrl, setImageUrl] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAreas, setShowAreas] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showNewFolderModal, setShowNewFolderModal] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
   
   const stageRef = useRef(null);
   const imageRef = useRef(null);
@@ -76,20 +88,75 @@ const MockupTemplatesPage: React.FC = () => {
   
   useEffect(() => {
     if (user) {
+      loadFolders();
       loadTemplates();
     }
   }, [user]);
+  
+  const loadFolders = async () => {
+    try {
+      console.log('🔄 Loading mockup template folders...');
+      
+      // In a real implementation, this would fetch from the database
+      // For now, we'll use a view or query to get folder information
+      const { data, error } = await supabase
+        .from('mockup_template_folders')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('folder_name', { ascending: true });
+      
+      if (error) {
+        console.error('❌ Folder loading error:', error);
+        throw error;
+      }
+      
+      // If no folders exist, create a default folder
+      if (!data || data.length === 0) {
+        const defaultFolders: Folder[] = [
+          { id: 'default', name: 'Default Templates', path: 'default', template_count: 0 },
+          { id: 'tshirts', name: 'T-Shirts', path: 'tshirts', template_count: 0 },
+          { id: 'mugs', name: 'Mugs', path: 'mugs', template_count: 0 }
+        ];
+        setFolders(defaultFolders);
+        setSelectedFolder('default');
+      } else {
+        console.log(`✅ ${data.length} mockup template folders loaded`);
+        
+        const mappedFolders: Folder[] = data.map(folder => ({
+          id: folder.folder_path,
+          name: folder.folder_name,
+          path: folder.folder_path,
+          template_count: folder.template_count
+        }));
+        
+        setFolders(mappedFolders);
+        
+        // Select the first folder if none is selected
+        if (!selectedFolder && mappedFolders.length > 0) {
+          setSelectedFolder(mappedFolders[0].path);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Folder loading general error:', error);
+    }
+  };
   
   const loadTemplates = async () => {
     try {
       setLoading(true);
       console.log('🔄 Loading mockup templates...');
       
-      const { data, error } = await supabase
+      let query = supabase
         .from('mockup_templates')
         .select('*')
-        .eq('user_id', user?.id)
-        .order('created_at', { ascending: false });
+        .eq('user_id', user?.id);
+      
+      // Filter by folder if one is selected
+      if (selectedFolder) {
+        query = query.eq('folder_path', selectedFolder);
+      }
+      
+      const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) {
         console.error('❌ Template loading error:', error);
@@ -106,7 +173,9 @@ const MockupTemplatesPage: React.FC = () => {
           text_areas: template.text_areas || [],
           logo_area: template.logo_area || null,
           design_type: template.design_type || 'black',
-          product_category: template.product_category || 't-shirt'
+          product_category: template.product_category || 't-shirt',
+          folder_path: template.folder_path || 'default',
+          folder_name: template.folder_name || 'Default Templates'
         };
       }) || [];
       
@@ -129,7 +198,7 @@ const MockupTemplatesPage: React.FC = () => {
     setTemplateName(template.name);
     setImageUrl(template.image_url);
     setDesignType(template.design_type || 'black');
-    setProductCategory(template.product_category || 't-shirt');
+    setSelectedFolder(template.folder_path || 'default');
     setSelectedId(null);
     
     // Load the image
@@ -166,7 +235,6 @@ const MockupTemplatesPage: React.FC = () => {
     setTemplateName('');
     setImageUrl('');
     setDesignType('black');
-    setProductCategory('t-shirt');
     setSelectedId(null);
     setImage(null);
   };
@@ -432,6 +500,45 @@ const MockupTemplatesPage: React.FC = () => {
     }
   };
   
+  const createNewFolder = async () => {
+    if (!newFolderName.trim()) {
+      setError('Please enter a folder name.');
+      return;
+    }
+    
+    try {
+      // Generate a path from the name (lowercase, replace spaces with hyphens)
+      const folderPath = newFolderName.toLowerCase().replace(/\s+/g, '-');
+      
+      // Check if folder already exists
+      const existingFolder = folders.find(f => f.path === folderPath);
+      if (existingFolder) {
+        setError('A folder with this name already exists.');
+        return;
+      }
+      
+      // In a real implementation, you would create the folder in the database
+      // For now, we'll just add it to the state
+      const newFolder: Folder = {
+        id: folderPath,
+        name: newFolderName,
+        path: folderPath,
+        template_count: 0
+      };
+      
+      setFolders([...folders, newFolder]);
+      setSelectedFolder(folderPath);
+      setNewFolderName('');
+      setShowNewFolderModal(false);
+      
+      // In a real implementation, you would reload the folders from the database
+      // For now, we'll just update the state
+    } catch (error: any) {
+      console.error('❌ Folder creation error:', error);
+      setError(`Failed to create folder: ${error.message}`);
+    }
+  };
+  
   const saveTemplate = async () => {
     if (!templateName) {
       setError('Please enter a template name.');
@@ -443,9 +550,18 @@ const MockupTemplatesPage: React.FC = () => {
       return;
     }
     
+    if (!selectedFolder) {
+      setError('Please select a folder.');
+      return;
+    }
+    
     try {
       setSaving(true);
       setError(null);
+      
+      // Find the folder name from the selected folder path
+      const folder = folders.find(f => f.path === selectedFolder);
+      const folderName = folder ? folder.name : 'Default Templates';
       
       const templateData = {
         user_id: user?.id,
@@ -456,7 +572,9 @@ const MockupTemplatesPage: React.FC = () => {
         logo_area: currentTemplate?.logo_area || null,
         is_default: false,
         design_type: designType,
-        product_category: productCategory
+        product_category: 't-shirt', // Default value, not used with folder system
+        folder_path: selectedFolder,
+        folder_name: folderName
       };
       
       let result;
@@ -472,7 +590,8 @@ const MockupTemplatesPage: React.FC = () => {
             text_areas: currentTemplate.text_areas,
             logo_area: currentTemplate.logo_area,
             design_type: designType,
-            product_category: productCategory,
+            folder_path: selectedFolder,
+            folder_name: folderName,
             updated_at: new Date().toISOString()
           })
           .eq('id', currentTemplate.id)
@@ -495,7 +614,8 @@ const MockupTemplatesPage: React.FC = () => {
       
       console.log('✅ Template saved successfully:', result.data);
       
-      // Reload templates
+      // Reload templates and folders
+      await loadFolders();
       await loadTemplates();
       
       // Select the newly created/updated template
@@ -531,7 +651,8 @@ const MockupTemplatesPage: React.FC = () => {
       
       console.log('✅ Template deleted successfully');
       
-      // Reload templates
+      // Reload templates and folders
+      await loadFolders();
       await loadTemplates();
       
       // If the deleted template was the current one, reset the form
@@ -819,27 +940,32 @@ const MockupTemplatesPage: React.FC = () => {
             </div>
           </div>
           
-          {/* Product Category */}
+          {/* Folder Selection */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Product Category
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Folder
+              </label>
+              <Button
+                onClick={() => setShowNewFolderModal(true)}
+                variant="secondary"
+                size="sm"
+                className="flex items-center space-x-1"
+              >
+                <FolderPlus className="h-3 w-3" />
+                <span>New</span>
+              </Button>
+            </div>
             <select
-              value={productCategory}
-              onChange={(e) => setProductCategory(e.target.value)}
+              value={selectedFolder}
+              onChange={(e) => setSelectedFolder(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
-              <option value="t-shirt">T-Shirt</option>
-              <option value="sweatshirt">Sweatshirt</option>
-              <option value="hoodie">Hoodie</option>
-              <option value="mug">Mug</option>
-              <option value="poster">Poster</option>
-              <option value="canvas">Canvas</option>
-              <option value="pillow">Pillow</option>
-              <option value="phone-case">Phone Case</option>
-              <option value="tote-bag">Tote Bag</option>
-              <option value="sticker">Sticker</option>
-              <option value="other">Other</option>
+              {folders.map((folder) => (
+                <option key={folder.id} value={folder.path}>
+                  {folder.name} ({folder.template_count})
+                </option>
+              ))}
             </select>
           </div>
           
@@ -1077,7 +1203,7 @@ const MockupTemplatesPage: React.FC = () => {
                           {template.name}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {template.design_type || 'black'} • {template.product_category || 't-shirt'}
+                          {template.design_type || 'black'} • {template.folder_name || 'Default'}
                         </p>
                       </div>
                     </div>
@@ -1099,6 +1225,53 @@ const MockupTemplatesPage: React.FC = () => {
           )}
         </div>
       </div>
+      
+      {/* New Folder Modal */}
+      {showNewFolderModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Create New Folder
+              </h2>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Folder Name
+                </label>
+                <Input
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  placeholder="Enter folder name"
+                  className="w-full"
+                />
+              </div>
+              
+              <div className="flex space-x-3 pt-4">
+                <Button
+                  onClick={createNewFolder}
+                  className="flex-1"
+                  disabled={!newFolderName.trim()}
+                >
+                  Create Folder
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowNewFolderModal(false);
+                    setNewFolderName('');
+                  }}
+                  variant="secondary"
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
