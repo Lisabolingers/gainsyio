@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, Trash2, Download, Search, Filter, Grid, List, RefreshCw, AlertCircle, Clock, CheckCircle, X, Image as ImageIcon, FileUp, FileDown, FolderOpen, Store, ArrowRight, Send, ChevronLeft, Eye } from 'lucide-react';
+import { Upload, Trash2, Download, Search, Filter, Grid, List, RefreshCw, AlertCircle, Clock, CheckCircle, X, Image as ImageIcon, FileUp, FileDown, FolderOpen, Store, ArrowRight, ArrowLeft, Send } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
@@ -30,10 +30,15 @@ interface EtsyStore {
   is_active: boolean;
 }
 
-interface MockupPreview {
+interface ListingTemplate {
   id: string;
-  imageUrl: string;
-  title: string;
+  name: string;
+}
+
+interface MockupTemplate {
+  id: string;
+  name: string;
+  image_url: string;
 }
 
 const UploadDesignPage: React.FC = () => {
@@ -52,17 +57,17 @@ const UploadDesignPage: React.FC = () => {
   const [selectedStore, setSelectedStore] = useState<string>('');
   const [storeImagesFolders, setStoreImagesFolders] = useState<StoreFolder[]>([]);
   const [selectedStoreImagesFolder, setSelectedStoreImagesFolder] = useState<string>('');
+  const [listingTemplates, setListingTemplates] = useState<ListingTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [mockupTemplates, setMockupTemplates] = useState<MockupTemplate[]>([]);
+  const [selectedMockupFolder, setSelectedMockupFolder] = useState<string>('');
+  const [title, setTitle] = useState('');
+  const [tags, setTags] = useState('');
   const [showPreview, setShowPreview] = useState(false);
-  const [productTitle, setProductTitle] = useState('');
-  const [productTags, setProductTags] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState('');
-  const [selectedMockupFolder, setSelectedMockupFolder] = useState('');
-  const [mockupPreviews, setMockupPreviews] = useState<MockupPreview[]>([]);
-  const [isGeneratingMockups, setIsGeneratingMockups] = useState(false);
+  const [generatingMockups, setGeneratingMockups] = useState(false);
+  const [mockupPreviews, setMockupPreviews] = useState<string[]>([]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const designContainerRef = useRef<HTMLDivElement>(null);
-  const previewContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (user) {
@@ -70,6 +75,8 @@ const UploadDesignPage: React.FC = () => {
       loadFolders();
       loadStores();
       loadStoreImagesFolders();
+      loadListingTemplates();
+      loadMockupTemplates();
     }
   }, [user]);
 
@@ -193,8 +200,44 @@ const UploadDesignPage: React.FC = () => {
       ];
       
       setStores(mockStores);
+      if (mockStores.length > 0) {
+        setSelectedStore(mockStores[0].id);
+      }
     } catch (error) {
       console.error('Error loading stores:', error);
+    }
+  };
+
+  const loadListingTemplates = async () => {
+    try {
+      // Mock listing templates data
+      const mockTemplates: ListingTemplate[] = [
+        { id: '1', name: 'Vintage Poster Template' },
+        { id: '2', name: 'Modern Typography Template' },
+        { id: '3', name: 'Botanical Illustration Template' },
+        { id: '4', name: 'Abstract Art Template' }
+      ];
+      
+      setListingTemplates(mockTemplates);
+    } catch (error) {
+      console.error('Error loading listing templates:', error);
+    }
+  };
+
+  const loadMockupTemplates = async () => {
+    try {
+      // Mock mockup templates data
+      const mockTemplates: MockupTemplate[] = [
+        { id: '1', name: 'T-Shirt Mockup 1', image_url: 'https://images.pexels.com/photos/1484516/pexels-photo-1484516.jpeg?auto=compress&cs=tinysrgb&w=400' },
+        { id: '2', name: 'T-Shirt Mockup 2', image_url: 'https://images.pexels.com/photos/1926620/pexels-photo-1926620.jpeg?auto=compress&cs=tinysrgb&w=400' },
+        { id: '3', name: 'Mug Mockup', image_url: 'https://images.pexels.com/photos/1566308/pexels-photo-1566308.jpeg?auto=compress&cs=tinysrgb&w=400' },
+        { id: '4', name: 'Poster Mockup', image_url: 'https://images.pexels.com/photos/1070945/pexels-photo-1070945.jpeg?auto=compress&cs=tinysrgb&w=400' },
+        { id: '5', name: 'Canvas Mockup', image_url: 'https://images.pexels.com/photos/1109354/pexels-photo-1109354.jpeg?auto=compress&cs=tinysrgb&w=400' }
+      ];
+      
+      setMockupTemplates(mockTemplates);
+    } catch (error) {
+      console.error('Error loading mockup templates:', error);
     }
   };
 
@@ -385,90 +428,35 @@ const UploadDesignPage: React.FC = () => {
     design.file_type.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Generate mockup previews
-  const generateMockupPreviews = () => {
-    setIsGeneratingMockups(true);
+  const handleNextClick = () => {
+    // Generate mockup previews
+    setGeneratingMockups(true);
     
-    // Simulate API call to generate mockups
+    // Simulate mockup generation
     setTimeout(() => {
-      // Mock mockup previews
-      const mockMockups: MockupPreview[] = [
-        {
-          id: '1',
-          imageUrl: 'https://images.pexels.com/photos/1484516/pexels-photo-1484516.jpeg?auto=compress&cs=tinysrgb&w=600',
-          title: 'T-shirt Mockup 1'
-        },
-        {
-          id: '2',
-          imageUrl: 'https://images.pexels.com/photos/1926620/pexels-photo-1926620.jpeg?auto=compress&cs=tinysrgb&w=600',
-          title: 'T-shirt Mockup 2'
-        },
-        {
-          id: '3',
-          imageUrl: 'https://images.pexels.com/photos/1304647/pexels-photo-1304647.jpeg?auto=compress&cs=tinysrgb&w=600',
-          title: 'T-shirt Mockup 3'
-        },
-        {
-          id: '4',
-          imageUrl: 'https://images.pexels.com/photos/1656684/pexels-photo-1656684.jpeg?auto=compress&cs=tinysrgb&w=600',
-          title: 'T-shirt Mockup 4'
-        },
-        {
-          id: '5',
-          imageUrl: 'https://images.pexels.com/photos/1020370/pexels-photo-1020370.jpeg?auto=compress&cs=tinysrgb&w=600',
-          title: 'Mug Mockup 1'
-        },
-        {
-          id: '6',
-          imageUrl: 'https://images.pexels.com/photos/1251833/pexels-photo-1251833.jpeg?auto=compress&cs=tinysrgb&w=600',
-          title: 'Mug Mockup 2'
-        }
-      ];
-      
-      setMockupPreviews(mockMockups);
-      setIsGeneratingMockups(false);
+      // Generate random mockup previews
+      const mockups = mockupTemplates.slice(0, 5).map(template => template.image_url);
+      setMockupPreviews(mockups);
+      setGeneratingMockups(false);
+      setShowPreview(true);
     }, 2000);
   };
 
-  // Handle next button click
-  const handleNextClick = () => {
-    // Validate required fields
-    if (!productTitle.trim()) {
-      alert('Lütfen ürün başlığını girin.');
-      return;
-    }
-    
-    if (!productTags.trim()) {
-      alert('Lütfen ürün etiketlerini girin.');
-      return;
-    }
-    
-    // Animate transition to preview page
-    if (designContainerRef.current && previewContainerRef.current) {
-      designContainerRef.current.style.transform = 'translateX(-100%)';
-      previewContainerRef.current.style.transform = 'translateX(0)';
-    }
-    
-    setShowPreview(true);
-    
-    // Generate mockup previews
-    generateMockupPreviews();
-  };
-
-  // Handle back button click
   const handleBackClick = () => {
-    // Animate transition back to design page
-    if (designContainerRef.current && previewContainerRef.current) {
-      designContainerRef.current.style.transform = 'translateX(0)';
-      previewContainerRef.current.style.transform = 'translateX(100%)';
-    }
-    
     setShowPreview(false);
   };
 
-  // Handle send to Etsy
   const handleSendToEtsy = () => {
-    alert('Ürün Etsy\'e gönderildi! (Bu bir demo mesajıdır)');
+    alert('Ürün Etsy\'e gönderildi! 🎉');
+    setShowPreview(false);
+    // Reset form
+    setTitle('');
+    setTags('');
+    setSelectedStore('');
+    setSelectedTemplate('');
+    setSelectedStoreImagesFolder('');
+    setSelectedMockupFolder('');
+    setMockupPreviews([]);
   };
 
   if (loading) {
@@ -482,97 +470,79 @@ const UploadDesignPage: React.FC = () => {
   }
 
   return (
-    <div className="p-6 space-y-6 relative overflow-hidden">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
-            <Upload className="h-6 w-6 mr-2 text-orange-500" />
-            Upload Design
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Upload and manage your design files ({designs.length} designs)
-          </p>
-        </div>
-        <div className="flex items-center space-x-3 mt-4 sm:mt-0">
-          <div className="flex items-center space-x-2">
-            <select
-              value={designType}
-              onChange={(e) => setDesignType(e.target.value as 'black' | 'white' | 'color')}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-            >
-              <option value="black">Black Design</option>
-              <option value="white">White Design</option>
-              <option value="color">Color Design</option>
-            </select>
-          </div>
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
-            disabled={uploading}
-          >
-            {uploading ? (
-              <>
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                <span>Uploading...</span>
-              </>
-            ) : (
-              <>
-                <Upload className="h-4 w-4" />
-                <span>Upload Design</span>
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
-
-      {/* Main Container with Design and Preview Sections */}
+    <div className="p-6 relative overflow-hidden">
+      {/* Main Container with sliding panels */}
       <div className="relative overflow-hidden" style={{ minHeight: '80vh' }}>
-        {/* Design Section */}
+        {/* Design Upload Panel */}
         <div 
-          ref={designContainerRef}
-          className="transition-transform duration-500 ease-in-out"
+          className="transition-transform duration-500 ease-in-out w-full"
           style={{ 
-            transform: 'translateX(0)', 
-            position: 'relative',
+            transform: showPreview ? 'translateX(-100%)' : 'translateX(0)',
+            position: showPreview ? 'absolute' : 'relative',
             width: '100%'
           }}
         >
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+                <Upload className="h-6 w-6 mr-2 text-orange-500" />
+                Tasarım Yükle
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400 mt-1">
+                Tasarım dosyalarınızı yükleyin ve yönetin ({designs.length} tasarım)
+              </p>
+            </div>
+            <div className="flex items-center space-x-3 mt-4 sm:mt-0">
+              <div className="flex items-center space-x-2">
+                <select
+                  value={designType}
+                  onChange={(e) => setDesignType(e.target.value as 'black' | 'white' | 'color')}
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="black">Siyah Tasarım</option>
+                  <option value="white">Beyaz Tasarım</option>
+                  <option value="color">Renkli Tasarım</option>
+                </select>
+              </div>
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Yükleniyor...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4" />
+                    <span>Tasarım Yükle</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+
           {/* Info Panel */}
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
             <div className="flex items-start space-x-3">
               <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
               <div>
                 <h3 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
-                  ℹ️ Design Files Information
+                  ℹ️ Tasarım Dosyaları Bilgisi
                 </h3>
                 <p className="text-sm text-blue-600 dark:text-blue-300">
-                  <strong>Temporary Storage:</strong> Design files are stored temporarily until they are used in an Etsy listing.
+                  <strong>Geçici Depolama:</strong> Tasarım dosyaları, bir Etsy listesinde kullanılana kadar geçici olarak saklanır.
                   <br />
-                  <strong>Expiration:</strong> Files will be automatically deleted after 24 hours if not used.
+                  <strong>Süre Sonu:</strong> Dosyalar kullanılmazsa 24 saat sonra otomatik olarak silinir.
                   <br />
-                  <strong>File Types:</strong> Upload black, white, or color designs in PNG or JPEG format (max 5MB).
+                  <strong>Dosya Türleri:</strong> PNG veya JPEG formatında siyah, beyaz veya renkli tasarımlar yükleyin (maks. 5MB).
                 </p>
               </div>
             </div>
           </div>
-
-          {/* Error Display */}
-          {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
-              <div className="flex items-center space-x-3">
-                <AlertCircle className="h-5 w-5 text-red-500" />
-                <div>
-                  <h3 className="text-sm font-medium text-red-700 dark:text-red-400">
-                    Error
-                  </h3>
-                  <p className="text-sm text-red-600 dark:text-red-300 mt-1">
-                    {error}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Design Area */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 border-2 overflow-hidden mb-6">
@@ -589,7 +559,7 @@ const UploadDesignPage: React.FC = () => {
                       checked={true}
                       className="text-orange-600 focus:ring-orange-500"
                     />
-                    <span className="text-gray-700 dark:text-gray-300">Upload Design</span>
+                    <span className="text-gray-700 dark:text-gray-300">Tasarım Yükle</span>
                   </label>
                   <label className="flex items-center space-x-2">
                     <input
@@ -598,7 +568,7 @@ const UploadDesignPage: React.FC = () => {
                       checked={false}
                       className="text-orange-600 focus:ring-orange-500"
                     />
-                    <span className="text-gray-700 dark:text-gray-300">Auto Text Design</span>
+                    <span className="text-gray-700 dark:text-gray-300">Otomatik Metin Tasarımı</span>
                   </label>
                 </div>
                 
@@ -608,7 +578,8 @@ const UploadDesignPage: React.FC = () => {
                     <input
                       type="radio"
                       name="colorType"
-                      checked={true}
+                      checked={designType === 'black'}
+                      onChange={() => setDesignType('black')}
                       className="text-orange-600 focus:ring-orange-500"
                     />
                     <span className="text-gray-700 dark:text-gray-300">Siyah</span>
@@ -617,36 +588,59 @@ const UploadDesignPage: React.FC = () => {
                     <input
                       type="radio"
                       name="colorType"
-                      checked={false}
+                      checked={designType === 'white'}
+                      onChange={() => setDesignType('white')}
                       className="text-orange-600 focus:ring-orange-500"
                     />
                     <span className="text-gray-700 dark:text-gray-300">Beyaz</span>
+                  </label>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      name="colorType"
+                      checked={designType === 'color'}
+                      onChange={() => setDesignType('color')}
+                      className="text-orange-600 focus:ring-orange-500"
+                    />
+                    <span className="text-gray-700 dark:text-gray-300">Renkli</span>
                   </label>
                 </div>
                 
                 {/* Upload Buttons and Input Fields */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                  <div className="border border-gray-300 dark:border-gray-600 border-dashed rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <div 
+                    className="border border-gray-300 dark:border-gray-600 border-dashed rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
                     <div className="text-gray-400 mb-2">+</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">Yükle</div>
                   </div>
                   
-                  <div className="bg-gray-800 border border-gray-700 border-dashed rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-700">
-                    <div className="text-gray-400 mb-2">+</div>
-                    <div className="text-xs text-gray-400">Yükle</div>
+                  <div 
+                    className={`border border-dashed rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer ${
+                      designType === 'black' 
+                        ? 'bg-gray-800 border-gray-700 hover:bg-gray-700' 
+                        : designType === 'white' 
+                        ? 'bg-gray-100 border-gray-300 hover:bg-gray-200' 
+                        : 'bg-gradient-to-r from-blue-500 to-purple-500 border-blue-400 hover:opacity-90'
+                    }`}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <div className={`mb-2 ${designType === 'white' ? 'text-gray-800' : 'text-white'}`}>+</div>
+                    <div className={`text-xs ${designType === 'white' ? 'text-gray-800' : 'text-white'}`}>Yükle</div>
                   </div>
                   
                   <div className="col-span-2">
                     <div className="mb-2 flex items-center">
                       <span className="text-orange-500 mr-2">📝</span>
                       <span className="text-gray-700 dark:text-gray-300 text-sm">Başlık</span>
-                      <span className="text-gray-400 text-xs ml-auto">{productTitle.length}/140</span>
+                      <span className="text-gray-400 text-xs ml-auto">{title.length}/140</span>
                     </div>
                     <input
                       type="text"
                       placeholder="Ürün başlığını girin..."
-                      value={productTitle}
-                      onChange={(e) => setProductTitle(e.target.value)}
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       maxLength={140}
                     />
@@ -662,12 +656,12 @@ const UploadDesignPage: React.FC = () => {
                     <div className="mb-2 flex items-center">
                       <span className="text-orange-500 mr-2">🏷️</span>
                       <span className="text-gray-700 dark:text-gray-300 text-sm">Etiketler</span>
-                      <span className="text-gray-400 text-xs ml-auto">{productTags.split(',').filter(tag => tag.trim()).length}/13</span>
+                      <span className="text-gray-400 text-xs ml-auto">{tags.split(',').filter(tag => tag.trim()).length}/13</span>
                     </div>
                     <textarea
                       placeholder="Etiketleri virgülle ayırarak girin..."
-                      value={productTags}
-                      onChange={(e) => setProductTags(e.target.value)}
+                      value={tags}
+                      onChange={(e) => setTags(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
                       rows={4}
                     ></textarea>
@@ -678,7 +672,7 @@ const UploadDesignPage: React.FC = () => {
                   </div>
                   
                   <div className="space-y-4">
-                    {/* Store Images Klasörü */}
+                    {/* Store Images Folder */}
                     <div>
                       <div className="flex items-center mb-2">
                         <span className="text-orange-500 mr-2">🗂️</span>
@@ -689,7 +683,7 @@ const UploadDesignPage: React.FC = () => {
                         onChange={(e) => setSelectedStoreImagesFolder(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       >
-                        <option value="">Store Images klasörü seçin...</option>
+                        <option value="">Klasör seçin...</option>
                         {storeImagesFolders.map(folder => (
                           <option key={folder.id} value={folder.path}>{folder.name}</option>
                         ))}
@@ -703,14 +697,14 @@ const UploadDesignPage: React.FC = () => {
                         <span className="text-gray-700 dark:text-gray-300 text-sm">Listeleme Şablonu</span>
                       </div>
                       <select 
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                         value={selectedTemplate}
                         onChange={(e) => setSelectedTemplate(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       >
                         <option value="">Şablon seçin...</option>
-                        <option value="1">Vintage Poster Template</option>
-                        <option value="2">Modern Typography Template</option>
-                        <option value="3">Botanical Illustration Template</option>
+                        {listingTemplates.map(template => (
+                          <option key={template.id} value={template.id}>{template.name}</option>
+                        ))}
                       </select>
                     </div>
                     
@@ -721,30 +715,30 @@ const UploadDesignPage: React.FC = () => {
                         <span className="text-gray-700 dark:text-gray-300 text-sm">Mockup Klasörü</span>
                       </div>
                       <select 
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                         value={selectedMockupFolder}
                         onChange={(e) => setSelectedMockupFolder(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       >
                         <option value="">Klasör seçin...</option>
-                        <option value="1">T-Shirts</option>
-                        <option value="2">Mugs</option>
-                        <option value="3">Posters</option>
-                        <option value="4">Canvas Prints</option>
+                        <option value="t-shirts">T-Shirts</option>
+                        <option value="mugs">Mugs</option>
+                        <option value="posters">Posters</option>
+                        <option value="canvas">Canvas Prints</option>
                       </select>
                     </div>
                     
-                    {/* Mağaza Seçimi */}
+                    {/* Choose Shop */}
                     <div>
                       <div className="flex items-center mb-2">
                         <span className="text-orange-500 mr-2">🏪</span>
-                        <span className="text-gray-700 dark:text-gray-300 text-sm">Mağaza Seçimi</span>
+                        <span className="text-gray-700 dark:text-gray-300 text-sm">Mağaza Seçin</span>
                       </div>
                       <select
                         value={selectedStore}
                         onChange={(e) => setSelectedStore(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       >
-                        <option value="">Mağaza seçin...</option>
+                        <option value="">Mağaza seçin</option>
                         {stores.map(store => (
                           <option key={store.id} value={store.id}>{store.store_name}</option>
                         ))}
@@ -758,6 +752,7 @@ const UploadDesignPage: React.FC = () => {
                   <Button
                     onClick={handleNextClick}
                     className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
+                    disabled={!title || !tags || !selectedStore}
                   >
                     <span>İleri</span>
                     <ArrowRight className="h-4 w-4" />
@@ -783,7 +778,7 @@ const UploadDesignPage: React.FC = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
               <Input
                 type="text"
-                placeholder="Search designs..."
+                placeholder="Tasarımlarda ara..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
@@ -813,15 +808,15 @@ const UploadDesignPage: React.FC = () => {
             <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4 mb-6">
               <div className="flex items-center justify-between">
                 <span className="text-orange-700 dark:text-orange-400">
-                  {selectedDesigns.length} design(s) selected
+                  {selectedDesigns.length} tasarım seçildi
                 </span>
                 <div className="flex space-x-2">
                   <Button onClick={handleBulkDelete} variant="danger" size="sm">
                     <Trash2 className="h-4 w-4 mr-1" />
-                    Delete Selected
+                    Seçilenleri Sil
                   </Button>
                   <Button onClick={() => setSelectedDesigns([])} variant="secondary" size="sm">
-                    Clear Selection
+                    Seçimi Temizle
                   </Button>
                 </div>
               </div>
@@ -833,12 +828,12 @@ const UploadDesignPage: React.FC = () => {
             <div className="text-center py-12">
               <ImageIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                {searchTerm ? 'No designs found' : 'No designs uploaded yet'}
+                {searchTerm ? 'Tasarım bulunamadı' : 'Henüz tasarım yüklenmemiş'}
               </h3>
               <p className="text-gray-500 dark:text-gray-400 mb-6">
                 {searchTerm
-                  ? 'Try adjusting your search terms'
-                  : 'Upload your first design to get started'
+                  ? 'Arama terimlerinizi değiştirmeyi deneyin'
+                  : 'Başlamak için ilk tasarımınızı yükleyin'
                 }
               </p>
               {!searchTerm && (
@@ -847,7 +842,7 @@ const UploadDesignPage: React.FC = () => {
                   className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
                 >
                   <Upload className="h-4 w-4" />
-                  <span>Upload First Design</span>
+                  <span>İlk Tasarımı Yükle</span>
                 </Button>
               )}
             </div>
@@ -862,7 +857,7 @@ const UploadDesignPage: React.FC = () => {
                   className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
                 />
                 <label className="text-sm text-gray-700 dark:text-gray-300">
-                  Select all ({filteredDesigns.length} designs)
+                  Tümünü seç ({filteredDesigns.length} tasarım)
                 </label>
               </div>
 
@@ -884,14 +879,14 @@ const UploadDesignPage: React.FC = () => {
                             {/* Design Type Badge */}
                             <div className="absolute top-2 left-2">
                               <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDesignTypeColor(design.file_type)}`}>
-                                {design.file_type.charAt(0).toUpperCase() + design.file_type.slice(1)}
+                                {design.file_type === 'black' ? 'Siyah' : design.file_type === 'white' ? 'Beyaz' : 'Renkli'}
                               </span>
                             </div>
 
                             {/* Status Badge */}
                             <div className="absolute top-2 right-2">
                               <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(design.status)}`}>
-                                {design.status === 'active' ? 'Active' : design.status === 'used' ? 'Used' : 'Expired'}
+                                {design.status === 'active' ? 'Aktif' : design.status === 'used' ? 'Kullanıldı' : 'Süresi Doldu'}
                               </span>
                             </div>
                             
@@ -901,14 +896,14 @@ const UploadDesignPage: React.FC = () => {
                                 <button
                                   onClick={() => downloadDesign(design)}
                                   className="p-2 bg-white text-gray-900 rounded-full hover:bg-gray-100"
-                                  title="Download"
+                                  title="İndir"
                                 >
                                   <Download className="h-4 w-4" />
                                 </button>
                                 <button
                                   onClick={() => deleteDesign(design.id)}
                                   className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600"
-                                  title="Delete"
+                                  title="Sil"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </button>
@@ -939,7 +934,7 @@ const UploadDesignPage: React.FC = () => {
                           {/* Expiration Info */}
                           <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
                             <Clock className="h-3 w-3 mr-1" />
-                            <span>Expires in: {getTimeRemaining(design.expires_at)}</span>
+                            <span>Süre sonu: {getTimeRemaining(design.expires_at)}</span>
                           </div>
                         </div>
                       </CardContent>
@@ -963,25 +958,25 @@ const UploadDesignPage: React.FC = () => {
                           />
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Design
+                          Tasarım
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Type
+                          Tür
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Size
+                          Boyut
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Status
+                          Durum
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Created
+                          Oluşturulma
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Expires In
+                          Süre Sonu
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Actions
+                          İşlemler
                         </th>
                       </tr>
                     </thead>
@@ -1014,7 +1009,7 @@ const UploadDesignPage: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDesignTypeColor(design.file_type)}`}>
-                              {design.file_type.charAt(0).toUpperCase() + design.file_type.slice(1)}
+                              {design.file_type === 'black' ? 'Siyah' : design.file_type === 'white' ? 'Beyaz' : 'Renkli'}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -1022,7 +1017,7 @@ const UploadDesignPage: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(design.status)}`}>
-                              {design.status === 'active' ? 'Active' : design.status === 'used' ? 'Used' : 'Expired'}
+                              {design.status === 'active' ? 'Aktif' : design.status === 'used' ? 'Kullanıldı' : 'Süresi Doldu'}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -1036,14 +1031,14 @@ const UploadDesignPage: React.FC = () => {
                               <button
                                 onClick={() => downloadDesign(design)}
                                 className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                                title="Download"
+                                title="İndir"
                               >
                                 <Download className="h-4 w-4" />
                               </button>
                               <button
                                 onClick={() => deleteDesign(design.id)}
                                 className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                                title="Delete"
+                                title="Sil"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>
@@ -1059,28 +1054,35 @@ const UploadDesignPage: React.FC = () => {
           )}
         </div>
 
-        {/* Preview Section */}
+        {/* Preview Panel */}
         <div 
-          ref={previewContainerRef}
-          className="transition-transform duration-500 ease-in-out absolute top-0 left-0 w-full h-full"
+          className="transition-transform duration-500 ease-in-out w-full"
           style={{ 
-            transform: 'translateX(100%)',
-            backgroundColor: 'var(--bg-color, #f9fafb)',
-            zIndex: 10
+            transform: showPreview ? 'translateX(0)' : 'translateX(100%)',
+            position: showPreview ? 'relative' : 'absolute',
+            width: '100%'
           }}
         >
-          {/* Preview Header */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={handleBackClick}
-                  className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Ürün Önizleme</h2>
-              </div>
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+                <ImageIcon className="h-6 w-6 mr-2 text-orange-500" />
+                Mockup Önizleme
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400 mt-1">
+                Etsy'e göndermeden önce ürününüzü önizleyin
+              </p>
+            </div>
+            <div className="flex items-center space-x-3 mt-4 sm:mt-0">
+              <Button
+                onClick={handleBackClick}
+                variant="secondary"
+                className="flex items-center space-x-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Geri</span>
+              </Button>
               <Button
                 onClick={handleSendToEtsy}
                 className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
@@ -1091,210 +1093,175 @@ const UploadDesignPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Preview Content */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column - Mockups */}
-            <div className="lg:col-span-2">
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                  <ImageIcon className="h-5 w-5 mr-2 text-orange-500" />
-                  Mockup Görselleri
-                  <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
-                    (Maksimum 10 görsel)
-                  </span>
+          {/* Mockup Generation Loading */}
+          {generatingMockups && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-8 shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
+              <div className="flex flex-col items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mb-4"></div>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  Mockuplar Oluşturuluyor
                 </h3>
+                <p className="text-gray-500 dark:text-gray-400">
+                  Lütfen bekleyin, tasarımınız mockuplara uygulanıyor...
+                </p>
+              </div>
+            </div>
+          )}
 
-                {isGeneratingMockups ? (
-                  <div className="flex items-center justify-center h-64">
-                    <div className="text-center">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-                      <p className="text-gray-500 dark:text-gray-400">Mockuplar oluşturuluyor...</p>
+          {/* Mockup Previews */}
+          {!generatingMockups && mockupPreviews.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <ImageIcon className="h-5 w-5 mr-2 text-orange-500" />
+                Mockup Görselleri ({mockupPreviews.length}/10)
+              </h2>
+              
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                {mockupPreviews.map((imageUrl, index) => (
+                  <div key={index} className="relative aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden group">
+                    <img
+                      src={imageUrl}
+                      alt={`Mockup ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    
+                    {/* Image Number Badge */}
+                    <div className="absolute top-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded-full text-xs">
+                      {index + 1}
+                    </div>
+                    
+                    {/* Overlay with actions */}
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity flex items-center justify-center opacity-0 group-hover:opacity-100">
+                      <div className="flex space-x-2">
+                        <button
+                          className="p-2 bg-white text-gray-900 rounded-full hover:bg-gray-100"
+                          title="İndir"
+                        >
+                          <Download className="h-4 w-4" />
+                        </button>
+                        <button
+                          className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600"
+                          title="Kaldır"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                ) : mockupPreviews.length > 0 ? (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {mockupPreviews.map((mockup) => (
-                      <div key={mockup.id} className="relative group">
-                        <div className="aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
-                          <img
-                            src={mockup.imageUrl}
-                            alt={mockup.title}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-lg">
-                          <div className="flex space-x-2">
-                            <button
-                              className="p-2 bg-white text-gray-900 rounded-full hover:bg-gray-100"
-                              title="View large"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </button>
-                            <button
-                              className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600"
-                              title="Remove"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
-                          {mockup.title}
-                        </p>
-                      </div>
-                    ))}
-                    
-                    {/* Add More Button (if less than 10) */}
-                    {mockupPreviews.length < 10 && (
-                      <div className="aspect-square border border-gray-300 dark:border-gray-600 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <Plus className="h-8 w-8 text-gray-400 mb-2" />
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Mockup Ekle
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <ImageIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500 dark:text-gray-400 mb-6">
-                      Henüz mockup oluşturulmadı
-                    </p>
-                    <Button
-                      onClick={generateMockupPreviews}
-                      className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      <span>Mockupları Oluştur</span>
-                    </Button>
+                ))}
+                
+                {/* Add More Button (if less than 10 images) */}
+                {mockupPreviews.length < 10 && (
+                  <div 
+                    className="aspect-square border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    <Plus className="h-8 w-8 text-gray-400 mb-2" />
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Mockup Ekle</span>
                   </div>
                 )}
               </div>
             </div>
+          )}
 
-            {/* Right Column - Product Info */}
-            <div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                  Ürün Bilgileri
-                </h3>
-                
-                <div className="space-y-4">
-                  {/* Title */}
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Başlık
-                    </h4>
-                    <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                      <p className="text-gray-900 dark:text-white">
-                        {productTitle || 'Başlık girilmedi'}
-                      </p>
-                    </div>
+          {/* Product Information */}
+          {!generatingMockups && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Ürün Bilgileri
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-md font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Başlık
+                  </h3>
+                  <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <p className="text-gray-900 dark:text-white">
+                      {title || 'Başlık girilmemiş'}
+                    </p>
                   </div>
-                  
-                  {/* Tags */}
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Etiketler
-                    </h4>
-                    <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                      <div className="flex flex-wrap gap-2">
-                        {productTags ? (
-                          productTags.split(',').map((tag, index) => (
-                            tag.trim() && (
-                              <span
-                                key={index}
-                                className="px-2 py-1 bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 text-xs rounded-full"
-                              >
-                                {tag.trim()}
-                              </span>
-                            )
-                          ))
-                        ) : (
-                          <p className="text-gray-500 dark:text-gray-400 text-sm">
-                            Etiket girilmedi
-                          </p>
-                        )}
-                      </div>
+                </div>
+                
+                <div>
+                  <h3 className="text-md font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Etiketler
+                  </h3>
+                  <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div className="flex flex-wrap gap-2">
+                      {tags.split(',').filter(tag => tag.trim()).map((tag, index) => (
+                        <span key={index} className="px-2 py-1 bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 rounded-full text-sm">
+                          {tag.trim()}
+                        </span>
+                      ))}
+                      {tags.split(',').filter(tag => tag.trim()).length === 0 && (
+                        <span className="text-gray-500 dark:text-gray-400">Etiket girilmemiş</span>
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
               
-              {/* Store and Template Info */}
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                  Mağaza ve Şablon
+              <div className="mt-6">
+                <h3 className="text-md font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Seçilen Ayarlar
                 </h3>
-                
-                <div className="space-y-4">
-                  {/* Store */}
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Mağaza
-                    </h4>
-                    <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                      <p className="text-gray-900 dark:text-white flex items-center">
-                        <Store className="h-4 w-4 mr-2 text-orange-500" />
-                        {selectedStore ? 
-                          stores.find(s => s.id === selectedStore)?.store_name || 'Seçili Mağaza' : 
-                          'Mağaza seçilmedi'}
-                      </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div className="flex items-center space-x-2">
+                      <Store className="h-4 w-4 text-orange-500" />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Mağaza:</span>
                     </div>
+                    <p className="text-gray-900 dark:text-white mt-1">
+                      {stores.find(s => s.id === selectedStore)?.store_name || 'Seçilmemiş'}
+                    </p>
                   </div>
                   
-                  {/* Template */}
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Listeleme Şablonu
-                    </h4>
-                    <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                      <p className="text-gray-900 dark:text-white">
-                        {selectedTemplate ? 
-                          (selectedTemplate === '1' ? 'Vintage Poster Template' : 
-                           selectedTemplate === '2' ? 'Modern Typography Template' : 
-                           'Botanical Illustration Template') : 
-                          'Şablon seçilmedi'}
-                      </p>
+                  <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div className="flex items-center space-x-2">
+                      <FileUp className="h-4 w-4 text-orange-500" />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Listeleme Şablonu:</span>
                     </div>
+                    <p className="text-gray-900 dark:text-white mt-1">
+                      {listingTemplates.find(t => t.id === selectedTemplate)?.name || 'Seçilmemiş'}
+                    </p>
                   </div>
                   
-                  {/* Store Images Folder */}
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Store Images Klasörü
-                    </h4>
-                    <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                      <p className="text-gray-900 dark:text-white flex items-center">
-                        <FolderOpen className="h-4 w-4 mr-2 text-orange-500" />
-                        {selectedStoreImagesFolder ? 
-                          storeImagesFolders.find(f => f.path === selectedStoreImagesFolder)?.name || 'Seçili Klasör' : 
-                          'Klasör seçilmedi'}
-                      </p>
+                  <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div className="flex items-center space-x-2">
+                      <FolderOpen className="h-4 w-4 text-orange-500" />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Store Images Klasörü:</span>
                     </div>
+                    <p className="text-gray-900 dark:text-white mt-1">
+                      {storeImagesFolders.find(f => f.path === selectedStoreImagesFolder)?.name || 'Seçilmemiş'}
+                    </p>
                   </div>
                   
-                  {/* Mockup Folder */}
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Mockup Klasörü
-                    </h4>
-                    <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                      <p className="text-gray-900 dark:text-white flex items-center">
-                        <FolderOpen className="h-4 w-4 mr-2 text-orange-500" />
-                        {selectedMockupFolder ? 
-                          (selectedMockupFolder === '1' ? 'T-Shirts' : 
-                           selectedMockupFolder === '2' ? 'Mugs' : 
-                           selectedMockupFolder === '3' ? 'Posters' : 
-                           'Canvas Prints') : 
-                          'Klasör seçilmedi'}
-                      </p>
+                  <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div className="flex items-center space-x-2">
+                      <ImageIcon className="h-4 w-4 text-orange-500" />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Mockup Klasörü:</span>
                     </div>
+                    <p className="text-gray-900 dark:text-white mt-1">
+                      {selectedMockupFolder || 'Seçilmemiş'}
+                    </p>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
+
+          {/* Send to Etsy Button (Bottom) */}
+          {!generatingMockups && (
+            <div className="flex justify-end">
+              <Button
+                onClick={handleSendToEtsy}
+                className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
+              >
+                <Send className="h-4 w-4" />
+                <span>Etsy'e Gönder</span>
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>
