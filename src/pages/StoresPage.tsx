@@ -24,6 +24,7 @@ const StoresPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [addingDemoStore, setAddingDemoStore] = useState(false);
 
   useEffect(() => {
     if (user || isDemoMode) {
@@ -128,6 +129,13 @@ const StoresPage: React.FC = () => {
       }
 
       console.log(`✅ ${data?.length || 0} Etsy stores loaded`);
+      
+      // If no stores found, add sample stores
+      if (data && data.length === 0) {
+        await addSampleStores();
+        return;
+      }
+      
       setStores(data || []);
       
     } catch (error: any) {
@@ -146,6 +154,76 @@ const StoresPage: React.FC = () => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Add sample stores for new users
+  const addSampleStores = async () => {
+    try {
+      setAddingDemoStore(true);
+      console.log('🔄 Adding sample stores for new user...');
+      
+      // Create sample stores
+      const store1 = {
+        user_id: user?.id,
+        platform: 'etsy' as const,
+        store_name: 'My Etsy Store',
+        store_url: 'https://www.etsy.com/shop/myetsystore',
+        api_credentials: { 
+          connected: true,
+          connected_at: new Date().toISOString(),
+          demo: false
+        },
+        is_active: true,
+        last_sync_at: new Date().toISOString()
+      };
+      
+      const store2 = {
+        user_id: user?.id,
+        platform: 'etsy' as const,
+        store_name: 'My Craft Shop',
+        store_url: 'https://www.etsy.com/shop/mycraftshop',
+        api_credentials: { 
+          connected: false,
+          demo: false
+        },
+        is_active: true
+      };
+      
+      // Insert stores
+      const { data: store1Data, error: store1Error } = await supabase
+        .from('stores')
+        .insert(store1)
+        .select()
+        .single();
+        
+      if (store1Error) {
+        console.error('❌ Error creating sample store 1:', store1Error);
+        throw store1Error;
+      }
+      
+      const { data: store2Data, error: store2Error } = await supabase
+        .from('stores')
+        .insert(store2)
+        .select()
+        .single();
+        
+      if (store2Error) {
+        console.error('❌ Error creating sample store 2:', store2Error);
+        throw store2Error;
+      }
+      
+      console.log('✅ Sample stores created successfully');
+      
+      // Load stores again to get the newly created ones
+      await loadStores();
+      
+    } catch (error: any) {
+      console.error('❌ Error adding sample stores:', error);
+      setConnectionError(`Failed to add sample stores: ${error.message}. Using demo data.`);
+      loadDemoStores();
+    } finally {
+      setAddingDemoStore(false);
     }
   };
 
@@ -578,7 +656,7 @@ const StoresPage: React.FC = () => {
     );
   }
 
-  if (loading || authLoading) {
+  if (loading || authLoading || addingDemoStore) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center h-64">
