@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, Trash2, Download, Search, Filter, Grid, List, RefreshCw, AlertCircle, Clock, CheckCircle, X, Image as ImageIcon, FileUp, FileDown, FolderOpen, Store, Zap, Check } from 'lucide-react';
+import { Upload, Trash2, Download, Search, Filter, Grid, List, RefreshCw, AlertCircle, Clock, CheckCircle, X, Image as ImageIcon, FileUp, FileDown, FolderOpen, Store } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
@@ -645,7 +645,7 @@ const DesignUploadPage: React.FC = () => {
                       />
                     </div>
                     <div className="absolute top-2 left-2">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDesignTypeColor(design.file_type)}`}>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDesignTypeColor(design.design_type)}`}>
                         {design.file_type}
                       </span>
                     </div>
