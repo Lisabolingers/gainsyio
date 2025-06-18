@@ -805,7 +805,7 @@ const MockupTemplatesPage: React.FC = () => {
   };
 
   const getSelectedArea = () => {
-    if (!selectedId) return null;
+    if (!selectedId || typeof selectedId !== 'string') return null;
     
     if (selectedId.startsWith('design-')) {
       return designAreas.find(area => area.id === selectedId);
@@ -819,7 +819,7 @@ const MockupTemplatesPage: React.FC = () => {
   };
 
   const updateSelectedArea = (property: string, value: any) => {
-    if (!selectedId) return;
+    if (!selectedId || typeof selectedId !== 'string') return;
     
     if (selectedId.startsWith('design-')) {
       setDesignAreas(prev => prev.map(area => 
