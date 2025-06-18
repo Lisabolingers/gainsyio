@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Stage, Layer, Rect, Transformer, Image as KonvaImage, Group } from 'react-konva';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Image, Plus, Trash2, Save, Download, Eye, EyeOff, Square, Type, Circle, FolderPlus, Folder } from 'lucide-react';
+import { Image, Plus, Trash2, Save, Download, Eye, EyeOff, Square, Type, Circle, FolderPlus, Folder, Edit, ArrowLeft, ChevronRight } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -54,17 +54,20 @@ interface LogoArea {
   rotation: number;
 }
 
-interface Folder {
+interface FolderType {
   id: string;
   name: string;
   path: string;
   template_count: number;
+  black_designs?: number;
+  white_designs?: number;
+  color_designs?: number;
 }
 
 const MockupTemplatesPage: React.FC = () => {
   const { user } = useAuth();
   const [templates, setTemplates] = useState<MockupTemplate[]>([]);
-  const [folders, setFolders] = useState<Folder[]>([]);
+  const [folders, setFolders] = useState<FolderType[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentTemplate, setCurrentTemplate] = useState<MockupTemplate | null>(null);
   const [templateName, setTemplateName] = useState('');
@@ -76,7 +79,10 @@ const MockupTemplatesPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
+  const [showEditFolderModal, setShowEditFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [editingFolder, setEditingFolder] = useState<FolderType | null>(null);
+  const [viewMode, setViewMode] = useState<'folders' | 'templates' | 'editor'>('folders');
   
   const stageRef = useRef(null);
   const imageRef = useRef(null);
@@ -89,9 +95,14 @@ const MockupTemplatesPage: React.FC = () => {
   useEffect(() => {
     if (user) {
       loadFolders();
-      loadTemplates();
     }
   }, [user]);
+  
+  useEffect(() => {
+    if (selectedFolder) {
+      loadTemplates();
+    }
+  }, [selectedFolder]);
   
   const loadFolders = async () => {
     try {
@@ -112,7 +123,7 @@ const MockupTemplatesPage: React.FC = () => {
       
       // If no folders exist, create a default folder
       if (!data || data.length === 0) {
-        const defaultFolders: Folder[] = [
+        const defaultFolders: FolderType[] = [
           { id: 'default', name: 'Default Templates', path: 'default', template_count: 0 },
           { id: 'tshirts', name: 'T-Shirts', path: 'tshirts', template_count: 0 },
           { id: 'mugs', name: 'Mugs', path: 'mugs', template_count: 0 }
@@ -122,11 +133,14 @@ const MockupTemplatesPage: React.FC = () => {
       } else {
         console.log(`✅ ${data.length} mockup template folders loaded`);
         
-        const mappedFolders: Folder[] = data.map(folder => ({
+        const mappedFolders: FolderType[] = data.map(folder => ({
           id: folder.folder_path,
           name: folder.folder_name,
           path: folder.folder_path,
-          template_count: folder.template_count
+          template_count: folder.template_count,
+          black_designs: folder.black_designs,
+          white_designs: folder.white_designs,
+          color_designs: folder.color_designs
         }));
         
         setFolders(mappedFolders);
@@ -182,7 +196,7 @@ const MockupTemplatesPage: React.FC = () => {
       setTemplates(parsedTemplates);
       
       // If there are templates, select the first one
-      if (parsedTemplates.length > 0) {
+      if (parsedTemplates.length > 0 && viewMode === 'editor') {
         selectTemplate(parsedTemplates[0]);
       }
     } catch (error) {
@@ -200,6 +214,7 @@ const MockupTemplatesPage: React.FC = () => {
     setDesignType(template.design_type || 'black');
     setSelectedFolder(template.folder_path || 'default');
     setSelectedId(null);
+    setViewMode('editor');
     
     // Load the image
     const img = new window.Image();
@@ -237,6 +252,7 @@ const MockupTemplatesPage: React.FC = () => {
     setDesignType('black');
     setSelectedId(null);
     setImage(null);
+    setViewMode('editor');
   };
   
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -519,7 +535,7 @@ const MockupTemplatesPage: React.FC = () => {
       
       // In a real implementation, you would create the folder in the database
       // For now, we'll just add it to the state
-      const newFolder: Folder = {
+      const newFolder: FolderType = {
         id: folderPath,
         name: newFolderName,
         path: folderPath,
@@ -536,6 +552,80 @@ const MockupTemplatesPage: React.FC = () => {
     } catch (error: any) {
       console.error('❌ Folder creation error:', error);
       setError(`Failed to create folder: ${error.message}`);
+    }
+  };
+  
+  const editFolder = (folder: FolderType) => {
+    setEditingFolder(folder);
+    setNewFolderName(folder.name);
+    setShowEditFolderModal(true);
+  };
+  
+  const updateFolder = async () => {
+    if (!editingFolder || !newFolderName.trim()) {
+      setError('Please enter a folder name.');
+      return;
+    }
+    
+    try {
+      // In a real implementation, you would update the folder in the database
+      // For now, we'll just update the state
+      const updatedFolders = folders.map(f => 
+        f.id === editingFolder.id ? { ...f, name: newFolderName } : f
+      );
+      
+      setFolders(updatedFolders);
+      setNewFolderName('');
+      setEditingFolder(null);
+      setShowEditFolderModal(false);
+      
+      // Update templates in this folder
+      if (templates.length > 0) {
+        const updatedTemplates = templates.map(t => 
+          t.folder_path === editingFolder.path ? { ...t, folder_name: newFolderName } : t
+        );
+        setTemplates(updatedTemplates);
+      }
+      
+      // In a real implementation, you would reload the folders from the database
+      // For now, we'll just update the state
+    } catch (error: any) {
+      console.error('❌ Folder update error:', error);
+      setError(`Failed to update folder: ${error.message}`);
+    }
+  };
+  
+  const deleteFolder = async (folder: FolderType) => {
+    if (!window.confirm(`Are you sure you want to delete the folder "${folder.name}"? All templates in this folder will be moved to the Default folder.`)) {
+      return;
+    }
+    
+    try {
+      // In a real implementation, you would delete the folder in the database
+      // and move templates to the default folder
+      // For now, we'll just update the state
+      
+      // Remove folder from state
+      const updatedFolders = folders.filter(f => f.id !== folder.id);
+      setFolders(updatedFolders);
+      
+      // If the deleted folder was the selected one, select the default folder
+      if (selectedFolder === folder.path) {
+        const defaultFolder = updatedFolders.find(f => f.path === 'default');
+        if (defaultFolder) {
+          setSelectedFolder(defaultFolder.path);
+        } else if (updatedFolders.length > 0) {
+          setSelectedFolder(updatedFolders[0].path);
+        } else {
+          setSelectedFolder('');
+        }
+      }
+      
+      // In a real implementation, you would reload the folders from the database
+      // For now, we'll just update the state
+    } catch (error: any) {
+      console.error('❌ Folder delete error:', error);
+      setError(`Failed to delete folder: ${error.message}`);
     }
   };
   
@@ -682,32 +772,60 @@ const MockupTemplatesPage: React.FC = () => {
       {/* Header */}
       <div className="p-6 border-b border-gray-200 dark:border-gray-700">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
-              <Image className="h-6 w-6 mr-2 text-orange-500" />
-              Mockup Templates
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Create and manage mockup templates for your products
-            </p>
+          <div className="flex items-center">
+            {viewMode !== 'folders' && (
+              <Button
+                onClick={() => setViewMode('folders')}
+                variant="secondary"
+                className="mr-3"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Folders
+              </Button>
+            )}
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+                <Image className="h-6 w-6 mr-2 text-orange-500" />
+                {viewMode === 'folders' ? 'Mockup Template Folders' : 
+                 viewMode === 'templates' ? `Templates in ${folders.find(f => f.path === selectedFolder)?.name || 'Folder'}` :
+                 currentTemplate ? `Editing: ${currentTemplate.name}` : 'New Template'}
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400 mt-1">
+                {viewMode === 'folders' ? 'Manage your mockup template folders' : 
+                 viewMode === 'templates' ? `${templates.length} templates in this folder` :
+                 'Create and edit mockup templates'}
+              </p>
+            </div>
           </div>
           <div className="flex items-center space-x-3 mt-4 sm:mt-0">
-            <Button
-              onClick={createNewTemplate}
-              variant="secondary"
-              className="flex items-center space-x-2"
-            >
-              <Plus className="h-4 w-4" />
-              <span>New Template</span>
-            </Button>
-            <Button
-              onClick={saveTemplate}
-              className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
-              disabled={saving}
-            >
-              <Save className="h-4 w-4" />
-              <span>{saving ? 'Saving...' : 'Save Template'}</span>
-            </Button>
+            {viewMode === 'folders' && (
+              <Button
+                onClick={() => setShowNewFolderModal(true)}
+                className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
+              >
+                <FolderPlus className="h-4 w-4" />
+                <span>New Folder</span>
+              </Button>
+            )}
+            {viewMode === 'templates' && (
+              <Button
+                onClick={createNewTemplate}
+                className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
+              >
+                <Plus className="h-4 w-4" />
+                <span>New Template</span>
+              </Button>
+            )}
+            {viewMode === 'editor' && (
+              <Button
+                onClick={saveTemplate}
+                className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
+                disabled={saving}
+              >
+                <Save className="h-4 w-4" />
+                <span>{saving ? 'Saving...' : 'Save Template'}</span>
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -719,512 +837,653 @@ const MockupTemplatesPage: React.FC = () => {
         </div>
       )}
       
-      {/* Main Content */}
-      <div className="flex-1 flex">
-        {/* Canvas */}
-        <div className="flex-1 p-6 flex items-center justify-center bg-gray-100 dark:bg-gray-900 overflow-auto">
-          {image ? (
-            <Stage
-              width={stageSize.width}
-              height={stageSize.height}
-              ref={stageRef}
-              onClick={handleStageClick}
-              className="bg-white shadow-lg"
+      {/* Folders View */}
+      {viewMode === 'folders' && (
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {folders.map((folder) => (
+            <Card 
+              key={folder.id} 
+              className="hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => {
+                setSelectedFolder(folder.path);
+                setViewMode('templates');
+              }}
             >
-              <Layer>
-                <KonvaImage
-                  ref={imageRef}
-                  image={image}
-                  width={stageSize.width}
-                  height={stageSize.height}
-                />
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center">
+                    <Folder className="h-10 w-10 text-orange-500 mr-3" />
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {folder.name}
+                    </h3>
+                  </div>
+                  <div className="flex space-x-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        editFolder(folder);
+                      }}
+                      className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </button>
+                    {folder.path !== 'default' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteFolder(folder);
+                        }}
+                        className="p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
                 
-                {/* Design Areas */}
-                {currentTemplate && showAreas && currentTemplate.design_areas.map((area) => (
-                  <Group
-                    key={area.id}
-                    id={area.id}
-                    x={area.x}
-                    y={area.y}
-                    width={area.width}
-                    height={area.height}
-                    rotation={area.rotation}
-                    draggable
-                    onClick={() => handleAreaClick(area.id)}
-                    onDragEnd={(e) => handleDragEnd(e, area.id)}
-                    onTransformEnd={(e) => handleTransformEnd(e, area.id)}
-                  >
-                    <Rect
-                      width={area.width}
-                      height={area.height}
-                      fill="rgba(255, 100, 50, 0.2)"
-                      stroke={selectedId === area.id ? "#FF6432" : "rgba(255, 100, 50, 0.8)"}
-                      strokeWidth={2}
-                      dash={[5, 5]}
-                    />
-                  </Group>
-                ))}
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500 dark:text-gray-400">Templates:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{folder.template_count}</span>
+                  </div>
+                  
+                  {folder.black_designs !== undefined && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500 dark:text-gray-400">Black designs:</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{folder.black_designs}</span>
+                    </div>
+                  )}
+                  
+                  {folder.white_designs !== undefined && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500 dark:text-gray-400">White designs:</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{folder.white_designs}</span>
+                    </div>
+                  )}
+                  
+                  {folder.color_designs !== undefined && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500 dark:text-gray-400">Color designs:</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{folder.color_designs}</span>
+                    </div>
+                  )}
+                </div>
                 
-                {/* Text Areas */}
-                {currentTemplate && showAreas && currentTemplate.text_areas.map((area) => (
-                  <Group
-                    key={area.id}
-                    id={area.id}
-                    x={area.x}
-                    y={area.y}
-                    width={area.width}
-                    height={area.height}
-                    rotation={area.rotation}
-                    draggable
-                    onClick={() => handleAreaClick(area.id)}
-                    onDragEnd={(e) => handleDragEnd(e, area.id)}
-                    onTransformEnd={(e) => handleTransformEnd(e, area.id)}
-                  >
-                    <Rect
-                      width={area.width}
-                      height={area.height}
-                      fill="rgba(50, 100, 255, 0.2)"
-                      stroke={selectedId === area.id ? "#3264FF" : "rgba(50, 100, 255, 0.8)"}
-                      strokeWidth={2}
-                      dash={[5, 5]}
-                    />
-                  </Group>
-                ))}
-                
-                {/* Logo Area */}
-                {currentTemplate && showAreas && currentTemplate.logo_area && (
-                  <Group
-                    key={currentTemplate.logo_area.id}
-                    id={currentTemplate.logo_area.id}
-                    x={currentTemplate.logo_area.x}
-                    y={currentTemplate.logo_area.y}
-                    width={currentTemplate.logo_area.width}
-                    height={currentTemplate.logo_area.height}
-                    rotation={currentTemplate.logo_area.rotation}
-                    draggable
-                    onClick={() => handleAreaClick(currentTemplate.logo_area.id)}
-                    onDragEnd={(e) => handleDragEnd(e, currentTemplate.logo_area.id)}
-                    onTransformEnd={(e) => handleTransformEnd(e, currentTemplate.logo_area.id)}
-                  >
-                    <Rect
-                      width={currentTemplate.logo_area.width}
-                      height={currentTemplate.logo_area.height}
-                      fill="rgba(100, 255, 50, 0.2)"
-                      stroke={selectedId === currentTemplate.logo_area.id ? "#64FF32" : "rgba(100, 255, 50, 0.8)"}
-                      strokeWidth={2}
-                      dash={[5, 5]}
-                    />
-                  </Group>
-                )}
-                
-                {/* Transformer */}
-                {selectedId && (
-                  <Transformer
-                    ref={transformerRef}
-                    boundBoxFunc={(oldBox, newBox) => {
-                      // Limit minimum size
-                      if (newBox.width < 5 || newBox.height < 5) {
-                        return oldBox;
-                      }
-                      return newBox;
-                    }}
-                  />
-                )}
-              </Layer>
-            </Stage>
-          ) : (
-            <div className="text-center">
-              <div className="mb-4">
-                <Image className="h-16 w-16 text-gray-400 mx-auto" />
-              </div>
-              <p className="text-gray-500 dark:text-gray-400 mb-4">
-                No image uploaded. Please upload an image to create a template.
+                <div className="mt-4 flex justify-end">
+                  <button className="flex items-center text-orange-500 hover:text-orange-600 text-sm font-medium">
+                    <span>View Templates</span>
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          
+          {/* Add New Folder Card */}
+          <Card 
+            className="border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-orange-500 dark:hover:border-orange-500 hover:shadow-lg transition-all cursor-pointer bg-transparent"
+            onClick={() => setShowNewFolderModal(true)}
+          >
+            <CardContent className="p-6 flex flex-col items-center justify-center h-full">
+              <FolderPlus className="h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                Create New Folder
+              </h3>
+              <p className="text-gray-500 dark:text-gray-400 text-center">
+                Organize your templates into custom folders
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+      
+      {/* Templates View */}
+      {viewMode === 'templates' && (
+        <div className="p-6">
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
+              <Folder className="h-5 w-5 mr-2 text-orange-500" />
+              {folders.find(f => f.path === selectedFolder)?.name || 'Templates'}
+            </h2>
+            <Button
+              onClick={createNewTemplate}
+              className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
+            >
+              <Plus className="h-4 w-4" />
+              <span>New Template</span>
+            </Button>
+          </div>
+          
+          {templates.length === 0 ? (
+            <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <Image className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                No templates in this folder
+              </h3>
+              <p className="text-gray-500 dark:text-gray-400 mb-6">
+                Create your first template to get started
               </p>
               <Button
-                onClick={() => fileInputRef.current?.click()}
-                className="bg-orange-600 hover:bg-orange-700 text-white"
+                onClick={createNewTemplate}
+                className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
               >
-                Upload Image
+                <Plus className="h-4 w-4" />
+                <span>Create Template</span>
               </Button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {templates.map((template) => (
+                <Card 
+                  key={template.id} 
+                  className="hover:shadow-lg transition-shadow cursor-pointer"
+                  onClick={() => selectTemplate(template)}
+                >
+                  <div className="aspect-square relative overflow-hidden rounded-t-lg">
+                    <img
+                      src={template.image_url}
+                      alt={template.name}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute top-2 right-2">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        template.design_type === 'black' ? 'bg-gray-900 text-white' :
+                        template.design_type === 'white' ? 'bg-gray-100 text-gray-900 border border-gray-300' :
+                        'bg-gradient-to-r from-blue-500 to-purple-500 text-white'
+                      }`}>
+                        {template.design_type.charAt(0).toUpperCase() + template.design_type.slice(1)}
+                      </span>
+                    </div>
+                    <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-50 transition-opacity flex items-center justify-center opacity-0 hover:opacity-100">
+                      <div className="flex space-x-2">
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            selectTemplate(template);
+                          }}
+                          className="bg-white text-gray-900 hover:bg-gray-100"
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteTemplate(template.id);
+                          }}
+                          variant="danger"
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  <CardContent className="p-4">
+                    <h3 className="font-medium text-gray-900 dark:text-white mb-1 truncate">
+                      {template.name}
+                    </h3>
+                    <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+                      <div className="flex items-center">
+                        <Square className="h-3 w-3 mr-1" />
+                        <span>{template.design_areas.length} design areas</span>
+                      </div>
+                      <div className="flex items-center">
+                        <Type className="h-3 w-3 mr-1" />
+                        <span>{template.text_areas.length} text areas</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              
+              {/* Add New Template Card */}
+              <Card 
+                className="border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-orange-500 dark:hover:border-orange-500 hover:shadow-lg transition-all cursor-pointer bg-transparent"
+                onClick={createNewTemplate}
+              >
+                <CardContent className="p-6 flex flex-col items-center justify-center h-full aspect-square">
+                  <Plus className="h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                    Create New Template
+                  </h3>
+                  <p className="text-gray-500 dark:text-gray-400 text-center">
+                    Add a new mockup template to this folder
+                  </p>
+                </CardContent>
+              </Card>
             </div>
           )}
         </div>
-        
-        {/* Sidebar */}
-        <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 p-6 overflow-y-auto">
-          {/* Template Selection */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Template
-            </label>
-            <select
-              value={currentTemplate?.id || ''}
-              onChange={(e) => {
-                const selected = templates.find(t => t.id === e.target.value);
-                if (selected) {
-                  selectTemplate(selected);
-                } else {
-                  createNewTemplate();
-                }
-              }}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              <option value="">-- New Template --</option>
-              {templates.map((template) => (
-                <option key={template.id} value={template.id}>
-                  {template.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          {/* Template Name */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Template Name
-            </label>
-            <Input
-              value={templateName}
-              onChange={(e) => setTemplateName(e.target.value)}
-              placeholder="Enter template name"
-              className="w-full"
-            />
-          </div>
-          
-          {/* Design Type Selection */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Design Type
-            </label>
-            <div className="flex space-x-2">
-              <button
-                type="button"
-                onClick={() => setDesignType('black')}
-                className={`flex-1 px-3 py-2 rounded-lg border ${
-                  designType === 'black' 
-                    ? 'bg-gray-900 text-white border-gray-900' 
-                    : 'bg-white text-gray-900 border-gray-300 hover:bg-gray-50'
-                }`}
+      )}
+      
+      {/* Editor View */}
+      {viewMode === 'editor' && (
+        <div className="flex-1 flex">
+          {/* Canvas */}
+          <div className="flex-1 p-6 flex items-center justify-center bg-gray-100 dark:bg-gray-900 overflow-auto">
+            {image ? (
+              <Stage
+                width={stageSize.width}
+                height={stageSize.height}
+                ref={stageRef}
+                onClick={handleStageClick}
+                className="bg-white shadow-lg"
               >
-                Black
-              </button>
-              <button
-                type="button"
-                onClick={() => setDesignType('white')}
-                className={`flex-1 px-3 py-2 rounded-lg border ${
-                  designType === 'white' 
-                    ? 'bg-gray-100 text-gray-900 border-gray-900' 
-                    : 'bg-white text-gray-900 border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                White
-              </button>
-              <button
-                type="button"
-                onClick={() => setDesignType('color')}
-                className={`flex-1 px-3 py-2 rounded-lg border ${
-                  designType === 'color' 
-                    ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white border-blue-500' 
-                    : 'bg-white text-gray-900 border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                Color
-              </button>
-            </div>
-          </div>
-          
-          {/* Folder Selection */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Folder
-              </label>
-              <Button
-                onClick={() => setShowNewFolderModal(true)}
-                variant="secondary"
-                size="sm"
-                className="flex items-center space-x-1"
-              >
-                <FolderPlus className="h-3 w-3" />
-                <span>New</span>
-              </Button>
-            </div>
-            <select
-              value={selectedFolder}
-              onChange={(e) => setSelectedFolder(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              {folders.map((folder) => (
-                <option key={folder.id} value={folder.path}>
-                  {folder.name} ({folder.template_count})
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          {/* Image Upload */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Template Image
-            </label>
-            <div className="flex items-center space-x-2">
-              <Button
-                onClick={() => fileInputRef.current?.click()}
-                variant="secondary"
-                className="flex-1"
-              >
-                {imageUrl ? 'Change Image' : 'Upload Image'}
-              </Button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              {imageUrl && (
+                <Layer>
+                  <KonvaImage
+                    ref={imageRef}
+                    image={image}
+                    width={stageSize.width}
+                    height={stageSize.height}
+                  />
+                  
+                  {/* Design Areas */}
+                  {currentTemplate && showAreas && currentTemplate.design_areas.map((area) => (
+                    <Group
+                      key={area.id}
+                      id={area.id}
+                      x={area.x}
+                      y={area.y}
+                      width={area.width}
+                      height={area.height}
+                      rotation={area.rotation}
+                      draggable
+                      onClick={() => handleAreaClick(area.id)}
+                      onDragEnd={(e) => handleDragEnd(e, area.id)}
+                      onTransformEnd={(e) => handleTransformEnd(e, area.id)}
+                    >
+                      <Rect
+                        width={area.width}
+                        height={area.height}
+                        fill="rgba(255, 100, 50, 0.2)"
+                        stroke={selectedId === area.id ? "#FF6432" : "rgba(255, 100, 50, 0.8)"}
+                        strokeWidth={2}
+                        dash={[5, 5]}
+                      />
+                    </Group>
+                  ))}
+                  
+                  {/* Text Areas */}
+                  {currentTemplate && showAreas && currentTemplate.text_areas.map((area) => (
+                    <Group
+                      key={area.id}
+                      id={area.id}
+                      x={area.x}
+                      y={area.y}
+                      width={area.width}
+                      height={area.height}
+                      rotation={area.rotation}
+                      draggable
+                      onClick={() => handleAreaClick(area.id)}
+                      onDragEnd={(e) => handleDragEnd(e, area.id)}
+                      onTransformEnd={(e) => handleTransformEnd(e, area.id)}
+                    >
+                      <Rect
+                        width={area.width}
+                        height={area.height}
+                        fill="rgba(50, 100, 255, 0.2)"
+                        stroke={selectedId === area.id ? "#3264FF" : "rgba(50, 100, 255, 0.8)"}
+                        strokeWidth={2}
+                        dash={[5, 5]}
+                      />
+                    </Group>
+                  ))}
+                  
+                  {/* Logo Area */}
+                  {currentTemplate && showAreas && currentTemplate.logo_area && (
+                    <Group
+                      key={currentTemplate.logo_area.id}
+                      id={currentTemplate.logo_area.id}
+                      x={currentTemplate.logo_area.x}
+                      y={currentTemplate.logo_area.y}
+                      width={currentTemplate.logo_area.width}
+                      height={currentTemplate.logo_area.height}
+                      rotation={currentTemplate.logo_area.rotation}
+                      draggable
+                      onClick={() => handleAreaClick(currentTemplate.logo_area.id)}
+                      onDragEnd={(e) => handleDragEnd(e, currentTemplate.logo_area.id)}
+                      onTransformEnd={(e) => handleTransformEnd(e, currentTemplate.logo_area.id)}
+                    >
+                      <Rect
+                        width={currentTemplate.logo_area.width}
+                        height={currentTemplate.logo_area.height}
+                        fill="rgba(100, 255, 50, 0.2)"
+                        stroke={selectedId === currentTemplate.logo_area.id ? "#64FF32" : "rgba(100, 255, 50, 0.8)"}
+                        strokeWidth={2}
+                        dash={[5, 5]}
+                      />
+                    </Group>
+                  )}
+                  
+                  {/* Transformer */}
+                  {selectedId && (
+                    <Transformer
+                      ref={transformerRef}
+                      boundBoxFunc={(oldBox, newBox) => {
+                        // Limit minimum size
+                        if (newBox.width < 5 || newBox.height < 5) {
+                          return oldBox;
+                        }
+                        return newBox;
+                      }}
+                    />
+                  )}
+                </Layer>
+              </Stage>
+            ) : (
+              <div className="text-center">
+                <div className="mb-4">
+                  <Image className="h-16 w-16 text-gray-400 mx-auto" />
+                </div>
+                <p className="text-gray-500 dark:text-gray-400 mb-4">
+                  No image uploaded. Please upload an image to create a template.
+                </p>
                 <Button
-                  onClick={() => {
-                    setImageUrl('');
-                    setImage(null);
-                  }}
-                  variant="danger"
-                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-orange-600 hover:bg-orange-700 text-white"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  Upload Image
                 </Button>
-              )}
-            </div>
-            {imageUrl && (
-              <div className="mt-2 relative">
-                <img
-                  src={imageUrl}
-                  alt="Template Preview"
-                  className="w-full h-auto rounded-lg border border-gray-200 dark:border-gray-700"
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
                 />
               </div>
             )}
           </div>
           
-          {/* Add Elements */}
-          <div className="mb-6">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
-              Add Elements
-            </h3>
-            <div className="space-y-2">
-              <Button
-                onClick={addDesignArea}
-                variant="secondary"
-                className="w-full bg-orange-600 text-white hover:bg-orange-700"
-                disabled={!image}
-              >
-                <Square className="h-4 w-4 mr-2" />
-                Add Design Area
-              </Button>
-              <Button
-                onClick={addTextArea}
-                variant="secondary"
-                className="w-full"
-                disabled={!image}
-              >
-                <Type className="h-4 w-4 mr-2" />
-                Add Text Area
-              </Button>
-              <Button
-                onClick={addLogoArea}
-                variant="secondary"
-                className="w-full"
-                disabled={!image || (currentTemplate?.logo_area !== undefined && currentTemplate?.logo_area !== null)}
-              >
-                <Circle className="h-4 w-4 mr-2" />
-                Add Logo Area
-              </Button>
-            </div>
-          </div>
-          
-          {/* Visibility */}
-          <div className="mb-6">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
-              Visibility
-            </h3>
-            <Button
-              onClick={() => setShowAreas(!showAreas)}
-              variant="secondary"
-              className="w-full"
-            >
-              {showAreas ? (
-                <>
-                  <EyeOff className="h-4 w-4 mr-2" />
-                  Hide Areas
-                </>
-              ) : (
-                <>
-                  <Eye className="h-4 w-4 mr-2" />
-                  Show Areas
-                </>
-              )}
-            </Button>
-          </div>
-          
-          {/* Selected Area Properties */}
-          {selectedArea && (
+          {/* Sidebar */}
+          <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 p-6 overflow-y-auto">
+            {/* Template Name */}
             <div className="mb-6">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
-                Selected Area Properties
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Position
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400">X</label>
-                      <Input
-                        type="number"
-                        value={Math.round(selectedArea.x)}
-                        onChange={(e) => updateSelectedArea({ x: Number(e.target.value) })}
-                        className="w-full"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400">Y</label>
-                      <Input
-                        type="number"
-                        value={Math.round(selectedArea.y)}
-                        onChange={(e) => updateSelectedArea({ y: Number(e.target.value) })}
-                        className="w-full"
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Size
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400">Width</label>
-                      <Input
-                        type="number"
-                        value={Math.round(selectedArea.width)}
-                        onChange={(e) => updateSelectedArea({ width: Number(e.target.value) })}
-                        className="w-full"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400">Height</label>
-                      <Input
-                        type="number"
-                        value={Math.round(selectedArea.height)}
-                        onChange={(e) => updateSelectedArea({ height: Number(e.target.value) })}
-                        className="w-full"
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Rotation
-                  </label>
-                  <Input
-                    type="number"
-                    value={Math.round(selectedArea.rotation)}
-                    onChange={(e) => updateSelectedArea({ rotation: Number(e.target.value) })}
-                    className="w-full"
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Template Name
+              </label>
+              <Input
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder="Enter template name"
+                className="w-full"
+              />
+            </div>
+            
+            {/* Design Type Selection */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Design Type
+              </label>
+              <div className="flex space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setDesignType('black')}
+                  className={`flex-1 px-3 py-2 rounded-lg border ${
+                    designType === 'black' 
+                      ? 'bg-gray-900 text-white border-gray-900' 
+                      : 'bg-white text-gray-900 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Black
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDesignType('white')}
+                  className={`flex-1 px-3 py-2 rounded-lg border ${
+                    designType === 'white' 
+                      ? 'bg-gray-100 text-gray-900 border-gray-900' 
+                      : 'bg-white text-gray-900 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  White
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDesignType('color')}
+                  className={`flex-1 px-3 py-2 rounded-lg border ${
+                    designType === 'color' 
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white border-blue-500' 
+                      : 'bg-white text-gray-900 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Color
+                </button>
+              </div>
+            </div>
+            
+            {/* Folder Selection */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Folder
+                </label>
+                <Button
+                  onClick={() => setShowNewFolderModal(true)}
+                  variant="secondary"
+                  size="sm"
+                  className="flex items-center space-x-1"
+                >
+                  <FolderPlus className="h-3 w-3" />
+                  <span>New</span>
+                </Button>
+              </div>
+              <select
+                value={selectedFolder}
+                onChange={(e) => setSelectedFolder(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              >
+                {folders.map((folder) => (
+                  <option key={folder.id} value={folder.path}>
+                    {folder.name} ({folder.template_count})
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            {/* Image Upload */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Template Image
+              </label>
+              <div className="flex items-center space-x-2">
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  variant="secondary"
+                  className="flex-1"
+                >
+                  {imageUrl ? 'Change Image' : 'Upload Image'}
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                {imageUrl && (
+                  <Button
+                    onClick={() => {
+                      setImageUrl('');
+                      setImage(null);
+                    }}
+                    variant="danger"
+                    size="sm"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+              {imageUrl && (
+                <div className="mt-2 relative">
+                  <img
+                    src={imageUrl}
+                    alt="Template Preview"
+                    className="w-full h-auto rounded-lg border border-gray-200 dark:border-gray-700"
                   />
                 </div>
-                
-                {/* Text area specific properties */}
-                {selectedId && typeof selectedId === 'string' && selectedId.startsWith('text-') && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Font Size
-                    </label>
-                    <Input
-                      type="number"
-                      value={(selectedArea as TextArea).font_size || 16}
-                      onChange={(e) => updateSelectedArea({ font_size: Number(e.target.value) })}
-                      className="w-full"
-                    />
-                  </div>
-                )}
-                
+              )}
+            </div>
+            
+            {/* Add Elements */}
+            <div className="mb-6">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                Add Elements
+              </h3>
+              <div className="space-y-2">
                 <Button
-                  onClick={deleteSelectedArea}
-                  variant="danger"
-                  className="w-full"
+                  onClick={addDesignArea}
+                  variant="secondary"
+                  className="w-full bg-orange-600 text-white hover:bg-orange-700"
+                  disabled={!image}
                 >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Area
+                  <Square className="h-4 w-4 mr-2" />
+                  Add Design Area
+                </Button>
+                <Button
+                  onClick={addTextArea}
+                  variant="secondary"
+                  className="w-full"
+                  disabled={!image}
+                >
+                  <Type className="h-4 w-4 mr-2" />
+                  Add Text Area
+                </Button>
+                <Button
+                  onClick={addLogoArea}
+                  variant="secondary"
+                  className="w-full"
+                  disabled={!image || (currentTemplate?.logo_area !== undefined && currentTemplate?.logo_area !== null)}
+                >
+                  <Circle className="h-4 w-4 mr-2" />
+                  Add Logo Area
                 </Button>
               </div>
             </div>
-          )}
-          
-          {/* Template List */}
-          {templates.length > 0 && (
-            <div>
+            
+            {/* Visibility */}
+            <div className="mb-6">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
-                Your Templates
+                Visibility
               </h3>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {templates.map((template) => (
-                  <div
-                    key={template.id}
-                    className={`p-2 rounded-lg cursor-pointer flex items-center justify-between ${
-                      currentTemplate?.id === template.id
-                        ? 'bg-orange-100 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800'
-                        : 'hover:bg-gray-100 dark:hover:bg-gray-700 border border-transparent'
-                    }`}
-                    onClick={() => selectTemplate(template)}
-                  >
-                    <div className="flex items-center">
-                      <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded overflow-hidden mr-2">
-                        {template.image_url && (
-                          <img
-                            src={template.image_url}
-                            alt={template.name}
-                            className="w-full h-full object-cover"
-                          />
-                        )}
+              <Button
+                onClick={() => setShowAreas(!showAreas)}
+                variant="secondary"
+                className="w-full"
+              >
+                {showAreas ? (
+                  <>
+                    <EyeOff className="h-4 w-4 mr-2" />
+                    Hide Areas
+                  </>
+                ) : (
+                  <>
+                    <Eye className="h-4 w-4 mr-2" />
+                    Show Areas
+                  </>
+                )}
+              </Button>
+            </div>
+            
+            {/* Selected Area Properties */}
+            {selectedArea && (
+              <div className="mb-6">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                  Selected Area Properties
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Position
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs text-gray-500 dark:text-gray-400">X</label>
+                        <Input
+                          type="number"
+                          value={Math.round(selectedArea.x)}
+                          onChange={(e) => updateSelectedArea({ x: Number(e.target.value) })}
+                          className="w-full"
+                        />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                          {template.name}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {template.design_type || 'black'} • {template.folder_name || 'Default'}
-                        </p>
+                      <div>
+                        <label className="block text-xs text-gray-500 dark:text-gray-400">Y</label>
+                        <Input
+                          type="number"
+                          value={Math.round(selectedArea.y)}
+                          onChange={(e) => updateSelectedArea({ y: Number(e.target.value) })}
+                          className="w-full"
+                        />
                       </div>
                     </div>
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteTemplate(template.id);
-                      }}
-                      variant="danger"
-                      size="sm"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
                   </div>
-                ))}
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Size
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs text-gray-500 dark:text-gray-400">Width</label>
+                        <Input
+                          type="number"
+                          value={Math.round(selectedArea.width)}
+                          onChange={(e) => updateSelectedArea({ width: Number(e.target.value) })}
+                          className="w-full"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 dark:text-gray-400">Height</label>
+                        <Input
+                          type="number"
+                          value={Math.round(selectedArea.height)}
+                          onChange={(e) => updateSelectedArea({ height: Number(e.target.value) })}
+                          className="w-full"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Rotation
+                    </label>
+                    <Input
+                      type="number"
+                      value={Math.round(selectedArea.rotation)}
+                      onChange={(e) => updateSelectedArea({ rotation: Number(e.target.value) })}
+                      className="w-full"
+                    />
+                  </div>
+                  
+                  {/* Text area specific properties */}
+                  {selectedId && typeof selectedId === 'string' && selectedId.startsWith('text-') && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Font Size
+                      </label>
+                      <Input
+                        type="number"
+                        value={(selectedArea as TextArea).font_size || 16}
+                        onChange={(e) => updateSelectedArea({ font_size: Number(e.target.value) })}
+                        className="w-full"
+                      />
+                    </div>
+                  )}
+                  
+                  <Button
+                    onClick={deleteSelectedArea}
+                    variant="danger"
+                    className="w-full"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Area
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
       
       {/* New Folder Modal */}
       {showNewFolderModal && (
@@ -1261,6 +1520,54 @@ const MockupTemplatesPage: React.FC = () => {
                   onClick={() => {
                     setShowNewFolderModal(false);
                     setNewFolderName('');
+                  }}
+                  variant="secondary"
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Edit Folder Modal */}
+      {showEditFolderModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Edit Folder
+              </h2>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Folder Name
+                </label>
+                <Input
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  placeholder="Enter folder name"
+                  className="w-full"
+                />
+              </div>
+              
+              <div className="flex space-x-3 pt-4">
+                <Button
+                  onClick={updateFolder}
+                  className="flex-1"
+                  disabled={!newFolderName.trim()}
+                >
+                  Update Folder
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowEditFolderModal(false);
+                    setNewFolderName('');
+                    setEditingFolder(null);
                   }}
                   variant="secondary"
                   className="flex-1"
