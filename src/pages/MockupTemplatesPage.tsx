@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Stage, Layer, Rect, Transformer, Image as KonvaImage, Group } from 'react-konva';
+import { Image, Plus, Edit, Trash2, Copy, Search, Filter, Grid, List, Save, Download, Store, Upload, Move, FolderPlus, Folder, FolderOpen, ArrowLeft, Eye, EyeOff, X, Square, Type, CheckSquare, Circle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Image, Plus, Trash2, Save, Download, Eye, EyeOff, Square, Type, Circle, FolderPlus, Folder, FolderOpen, ArrowLeft, Search, Filter } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -12,9 +11,9 @@ interface MockupTemplate {
   user_id: string;
   name: string;
   image_url: string;
-  design_areas: DesignArea[];
-  text_areas: TextArea[];
-  logo_area?: LogoArea;
+  design_areas: any[];
+  text_areas: any[];
+  logo_area?: any;
   is_default: boolean;
   created_at: string;
   updated_at: string;
@@ -25,121 +24,87 @@ interface MockupTemplate {
   folder_name?: string;
 }
 
-interface DesignArea {
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  rotation: number;
-}
-
-interface TextArea {
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  rotation: number;
-  font_size?: number;
-  font_family?: string;
-}
-
-interface LogoArea {
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  rotation: number;
-}
-
-interface Folder {
+interface TemplateFolder {
   id: string;
   name: string;
   path: string;
-  templateCount: number;
+  template_count: number;
+  black_designs: number;
+  white_designs: number;
+  color_designs: number;
+  first_created: string;
+  last_updated: string;
+}
+
+interface EtsyStore {
+  id: string;
+  store_name: string;
+  is_active: boolean;
 }
 
 const MockupTemplatesPage: React.FC = () => {
   const { user } = useAuth();
   const [templates, setTemplates] = useState<MockupTemplate[]>([]);
-  const [folders, setFolders] = useState<Folder[]>([]);
+  const [folders, setFolders] = useState<TemplateFolder[]>([]);
+  const [stores, setStores] = useState<EtsyStore[]>([]);
+  const [selectedStore, setSelectedStore] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [currentTemplate, setCurrentTemplate] = useState<MockupTemplate | null>(null);
-  const [templateName, setTemplateName] = useState('');
-  const [designType, setDesignType] = useState<'black' | 'white' | 'color'>('black');
-  const [productCategory, setProductCategory] = useState('t-shirt');
-  const [imageUrl, setImageUrl] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showAreas, setShowAreas] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [currentFolder, setCurrentFolder] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
-  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+  const [currentFolder, setCurrentFolder] = useState<string>('');
+  const [editingTemplate, setEditingTemplate] = useState<MockupTemplate | null>(null);
+  const [showEditor, setShowEditor] = useState(false);
   
-  const stageRef = useRef(null);
-  const imageRef = useRef(null);
-  const transformerRef = useRef(null);
+  // Template editor states
+  const [templateName, setTemplateName] = useState('');
+  const [templateImage, setTemplateImage] = useState<File | null>(null);
+  const [templateImageUrl, setTemplateImageUrl] = useState('');
+  const [designType, setDesignType] = useState<'black' | 'white' | 'color'>('black');
+  const [designAreas, setDesignAreas] = useState<any[]>([]);
+  const [textAreas, setTextAreas] = useState<any[]>([]);
+  const [logoArea, setLogoArea] = useState<any | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
+  const [areaType, setAreaType] = useState<'design' | 'text' | 'logo'>('design');
+  
+  const canvasRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const [stageSize, setStageSize] = useState({ width: 500, height: 500 });
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
   
   useEffect(() => {
     if (user) {
       loadFolders();
       loadTemplates();
+      loadStores();
     }
   }, [user, currentFolder]);
-  
+
   const loadFolders = async () => {
     try {
       console.log('🔄 Loading template folders...');
       
-      // In a real implementation, this would fetch from the database
-      // For now, we'll query the mockup_templates table and group by folder_path
       const { data, error } = await supabase
         .from('mockup_template_folders')
         .select('*')
-        .eq('user_id', user?.id);
-      
+        .eq('user_id', user?.id)
+        .order('folder_name', { ascending: true });
+
       if (error) {
         console.error('❌ Folder loading error:', error);
         throw error;
       }
-      
-      // If no folders exist yet, create a default one
-      if (!data || data.length === 0) {
-        // Create default folders
-        const defaultFolders: Folder[] = [
-          { id: '1', name: 'T-Shirts', path: 't-shirts', templateCount: 0 },
-          { id: '2', name: 'Mugs', path: 'mugs', templateCount: 0 },
-          { id: '3', name: 'Posters', path: 'posters', templateCount: 0 }
-        ];
-        
-        setFolders(defaultFolders);
-      } else {
-        // Map the data to our Folder interface
-        const mappedFolders: Folder[] = data.map(folder => ({
-          id: folder.folder_path,
-          name: folder.folder_name || folder.folder_path,
-          path: folder.folder_path,
-          templateCount: folder.template_count || 0
-        }));
-        
-        setFolders(mappedFolders);
-      }
-      
-      console.log('✅ Folders loaded successfully');
+
+      console.log(`✅ ${data?.length || 0} template folders loaded`);
+      setFolders(data || []);
     } catch (error) {
-      console.error('❌ Folder loading error:', error);
+      console.error('❌ Folder loading general error:', error);
     }
   };
-  
+
   const loadTemplates = async () => {
     try {
       setLoading(true);
@@ -149,505 +114,249 @@ const MockupTemplatesPage: React.FC = () => {
         .from('mockup_templates')
         .select('*')
         .eq('user_id', user?.id);
-      
-      // If a folder is selected, filter by folder
+        
+      // Filter by folder if a folder is selected
       if (currentFolder) {
         query = query.eq('folder_path', currentFolder);
       }
       
-      // Order by creation date
-      query = query.order('created_at', { ascending: false });
-      
-      const { data, error } = await query;
-      
+      const { data, error } = await query.order('created_at', { ascending: false });
+
       if (error) {
         console.error('❌ Template loading error:', error);
         throw error;
       }
-      
+
       console.log(`✅ ${data?.length || 0} mockup templates loaded`);
-      
-      // Parse the stored JSON data
-      const parsedTemplates = data?.map(template => {
-        return {
-          ...template,
-          design_areas: template.design_areas || [],
-          text_areas: template.text_areas || [],
-          logo_area: template.logo_area || null,
-          design_type: template.design_type || 'black',
-          product_category: template.product_category || 't-shirt',
-          folder_path: template.folder_path || 'default',
-          folder_name: template.folder_name || 'Default Templates'
-        };
-      }) || [];
-      
-      setTemplates(parsedTemplates);
-      
-      // If there are templates and we're not in template editor mode, select the first one
-      if (parsedTemplates.length > 0 && !showTemplateEditor) {
-        selectTemplate(parsedTemplates[0]);
-      }
+      setTemplates(data || []);
     } catch (error) {
       console.error('❌ Template loading general error:', error);
-      setError('Failed to load templates. Please try again later.');
     } finally {
       setLoading(false);
     }
   };
-  
-  const selectTemplate = (template: MockupTemplate) => {
-    setCurrentTemplate(template);
-    setTemplateName(template.name);
-    setImageUrl(template.image_url);
-    setDesignType(template.design_type || 'black');
-    setProductCategory(template.product_category || 't-shirt');
-    setSelectedId(null);
-    
-    // Load the image
-    const img = new window.Image();
-    img.src = template.image_url;
-    img.onload = () => {
-      setImage(img);
+
+  const loadStores = async () => {
+    try {
+      console.log('🔄 Loading Etsy stores...');
       
-      // Set stage size based on image dimensions
-      const maxWidth = 800;
-      const maxHeight = 600;
+      const { data, error } = await supabase
+        .from('stores')
+        .select('*')
+        .eq('user_id', user?.id)
+        .eq('platform', 'etsy')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Store loading error:', error);
+        throw error;
+      }
+
+      console.log(`✅ ${data?.length || 0} Etsy stores loaded`);
+      setStores(data || []);
       
-      let width = img.width;
-      let height = img.height;
+      if (data && data.length > 0) {
+        setSelectedStore(data[0].id);
+      }
+    } catch (error) {
+      console.error('❌ Store loading general error:', error);
+    }
+  };
+
+  const createFolder = async () => {
+    if (!newFolderName.trim()) {
+      alert('Folder name is required!');
+      return;
+    }
+
+    try {
+      console.log('🔄 Creating new folder...');
       
-      if (width > maxWidth) {
-        const ratio = maxWidth / width;
-        width = maxWidth;
-        height = height * ratio;
+      // Generate a folder path from the name (lowercase, replace spaces with hyphens)
+      const folderPath = newFolderName.toLowerCase().replace(/\s+/g, '-');
+      
+      // Check if folder already exists
+      const { data: existingFolder, error: checkError } = await supabase
+        .from('mockup_templates')
+        .select('id')
+        .eq('user_id', user?.id)
+        .eq('folder_path', folderPath)
+        .limit(1);
+        
+      if (checkError) {
+        console.error('❌ Folder check error:', checkError);
+        throw checkError;
       }
       
-      if (height > maxHeight) {
-        const ratio = maxHeight / height;
-        height = height * ratio;
-        width = width * ratio;
+      if (existingFolder && existingFolder.length > 0) {
+        alert('A folder with this name already exists!');
+        return;
       }
       
-      setStageSize({ width, height });
-    };
-    
-    // Show template editor
-    setShowTemplateEditor(true);
+      // Create a sample template in the new folder to make it visible
+      const { error } = await supabase
+        .from('mockup_templates')
+        .insert({
+          user_id: user?.id,
+          name: 'Sample Template',
+          image_url: 'https://images.pexels.com/photos/1566412/pexels-photo-1566412.jpeg?auto=compress&cs=tinysrgb&w=400',
+          design_areas: [],
+          text_areas: [],
+          is_default: false,
+          design_type: 'black',
+          product_category: 't-shirt',
+          folder_path: folderPath,
+          folder_name: newFolderName
+        });
+
+      if (error) {
+        console.error('❌ Folder creation error:', error);
+        throw error;
+      }
+
+      console.log('✅ Folder created successfully');
+      setNewFolderName('');
+      setShowFolderModal(false);
+      
+      // Reload folders and templates
+      await loadFolders();
+      
+      // Navigate to the new folder
+      setCurrentFolder(folderPath);
+      await loadTemplates();
+      
+    } catch (error) {
+      console.error('❌ Folder creation general error:', error);
+      alert('Error occurred while creating folder.');
+    }
   };
-  
-  const createNewTemplate = () => {
-    setCurrentTemplate(null);
-    setTemplateName('');
-    setImageUrl('');
-    setDesignType('black');
-    setProductCategory('t-shirt');
-    setSelectedId(null);
-    setImage(null);
-    
-    // Show template editor
-    setShowTemplateEditor(true);
+
+  const deleteFolder = async (folderPath: string) => {
+    if (!window.confirm('Are you sure you want to delete this folder and all templates inside it?')) {
+      return;
+    }
+
+    try {
+      console.log(`🔄 Deleting folder: ${folderPath}`);
+      
+      // Delete all templates in the folder
+      const { error } = await supabase
+        .from('mockup_templates')
+        .delete()
+        .eq('user_id', user?.id)
+        .eq('folder_path', folderPath);
+
+      if (error) {
+        console.error('❌ Folder deletion error:', error);
+        throw error;
+      }
+
+      console.log('✅ Folder deleted successfully');
+      
+      // If we're in the deleted folder, go back to root
+      if (currentFolder === folderPath) {
+        setCurrentFolder('');
+      }
+      
+      // Reload folders and templates
+      await loadFolders();
+      await loadTemplates();
+      
+    } catch (error) {
+      console.error('❌ Folder deletion general error:', error);
+      alert('Error occurred while deleting folder.');
+    }
   };
-  
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     
     // Check if file is an image
     if (!file.type.startsWith('image/')) {
-      setError('Please select an image file.');
+      alert('Please select an image file.');
       return;
     }
     
-    // Create object URL for the image
-    const url = URL.createObjectURL(file);
-    setImageUrl(url);
-    
-    // Load the image
-    const img = new window.Image();
-    img.src = url;
-    img.onload = () => {
-      setImage(img);
-      
-      // Set stage size based on image dimensions
-      const maxWidth = 800;
-      const maxHeight = 600;
-      
-      let width = img.width;
-      let height = img.height;
-      
-      if (width > maxWidth) {
-        const ratio = maxWidth / width;
-        width = maxWidth;
-        height = height * ratio;
-      }
-      
-      if (height > maxHeight) {
-        const ratio = maxHeight / height;
-        height = height * ratio;
-        width = width * ratio;
-      }
-      
-      setStageSize({ width, height });
-    };
-    
-    // Reset file input
-    if (event.target) {
-      event.target.value = '';
-    }
+    setTemplateImage(file);
+    setTemplateImageUrl(URL.createObjectURL(file));
   };
-  
-  const addDesignArea = () => {
-    if (!image) {
-      setError('Please upload an image first.');
-      return;
-    }
-    
-    const newArea: DesignArea = {
-      id: `design-${Date.now()}`,
-      x: stageSize.width / 2 - 50,
-      y: stageSize.height / 2 - 50,
-      width: 100,
-      height: 100,
-      rotation: 0
-    };
-    
-    if (currentTemplate) {
-      setCurrentTemplate({
-        ...currentTemplate,
-        design_areas: [...currentTemplate.design_areas, newArea]
-      });
-    } else {
-      // Create a new template with this design area
-      setCurrentTemplate({
-        id: '',
-        user_id: user?.id || '',
-        name: templateName,
-        image_url: imageUrl,
-        design_areas: [newArea],
-        text_areas: [],
-        is_default: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        design_type: designType,
-        product_category: productCategory,
-        folder_path: currentFolder || 'default',
-        folder_name: folders.find(f => f.path === currentFolder)?.name || 'Default Templates'
-      });
-    }
-    
-    setSelectedId(newArea.id);
-  };
-  
-  const addTextArea = () => {
-    if (!image) {
-      setError('Please upload an image first.');
-      return;
-    }
-    
-    const newArea: TextArea = {
-      id: `text-${Date.now()}`,
-      x: stageSize.width / 2 - 75,
-      y: stageSize.height / 2 - 25,
-      width: 150,
-      height: 50,
-      rotation: 0,
-      font_size: 16,
-      font_family: 'Arial'
-    };
-    
-    if (currentTemplate) {
-      setCurrentTemplate({
-        ...currentTemplate,
-        text_areas: [...currentTemplate.text_areas, newArea]
-      });
-    } else {
-      // Create a new template with this text area
-      setCurrentTemplate({
-        id: '',
-        user_id: user?.id || '',
-        name: templateName,
-        image_url: imageUrl,
-        design_areas: [],
-        text_areas: [newArea],
-        is_default: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        design_type: designType,
-        product_category: productCategory,
-        folder_path: currentFolder || 'default',
-        folder_name: folders.find(f => f.path === currentFolder)?.name || 'Default Templates'
-      });
-    }
-    
-    setSelectedId(newArea.id);
-  };
-  
-  const addLogoArea = () => {
-    if (!image) {
-      setError('Please upload an image first.');
-      return;
-    }
-    
-    // Check if logo area already exists
-    if (currentTemplate?.logo_area) {
-      setError('A logo area already exists. You can only have one logo area per template.');
-      return;
-    }
-    
-    const newArea: LogoArea = {
-      id: `logo-${Date.now()}`,
-      x: stageSize.width / 2 - 40,
-      y: stageSize.height / 2 - 40,
-      width: 80,
-      height: 80,
-      rotation: 0
-    };
-    
-    if (currentTemplate) {
-      setCurrentTemplate({
-        ...currentTemplate,
-        logo_area: newArea
-      });
-    } else {
-      // Create a new template with this logo area
-      setCurrentTemplate({
-        id: '',
-        user_id: user?.id || '',
-        name: templateName,
-        image_url: imageUrl,
-        design_areas: [],
-        text_areas: [],
-        logo_area: newArea,
-        is_default: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        design_type: designType,
-        product_category: productCategory,
-        folder_path: currentFolder || 'default',
-        folder_name: folders.find(f => f.path === currentFolder)?.name || 'Default Templates'
-      });
-    }
-    
-    setSelectedId(newArea.id);
-  };
-  
-  const handleStageClick = (e: any) => {
-    // Clicked on stage but not on any shape
-    if (e.target === e.target.getStage()) {
-      setSelectedId(null);
-      return;
-    }
-  };
-  
-  const handleAreaClick = (id: string) => {
-    setSelectedId(id);
-  };
-  
-  const handleDragEnd = (e: any, id: string) => {
-    if (!currentTemplate) return;
-    
-    const { x, y } = e.target.position();
-    
-    // Update the appropriate area based on the id
-    if (id.startsWith('design-')) {
-      const updatedAreas = currentTemplate.design_areas.map(area => 
-        area.id === id ? { ...area, x, y } : area
-      );
-      setCurrentTemplate({ ...currentTemplate, design_areas: updatedAreas });
-    } else if (id.startsWith('text-')) {
-      const updatedAreas = currentTemplate.text_areas.map(area => 
-        area.id === id ? { ...area, x, y } : area
-      );
-      setCurrentTemplate({ ...currentTemplate, text_areas: updatedAreas });
-    } else if (id.startsWith('logo-') && currentTemplate.logo_area) {
-      setCurrentTemplate({ 
-        ...currentTemplate, 
-        logo_area: { ...currentTemplate.logo_area, x, y } 
-      });
-    }
-  };
-  
-  const handleTransformEnd = (e: any, id: string) => {
-    if (!currentTemplate) return;
-    
-    const node = e.target;
-    const scaleX = node.scaleX();
-    const scaleY = node.scaleY();
-    const rotation = node.rotation();
-    
-    // Reset scale to avoid accumulation
-    node.scaleX(1);
-    node.scaleY(1);
-    
-    const { x, y } = node.position();
-    const width = Math.max(5, node.width() * scaleX);
-    const height = Math.max(5, node.height() * scaleY);
-    
-    // Update the appropriate area based on the id
-    if (typeof id !== 'string') return;
-    
-    if (id.startsWith('design-')) {
-      const updatedAreas = currentTemplate.design_areas.map(area => 
-        area.id === id ? { ...area, x, y, width, height, rotation } : area
-      );
-      setCurrentTemplate({ ...currentTemplate, design_areas: updatedAreas });
-    } else if (id.startsWith('text-')) {
-      const updatedAreas = currentTemplate.text_areas.map(area => 
-        area.id === id ? { ...area, x, y, width, height, rotation } : area
-      );
-      setCurrentTemplate({ ...currentTemplate, text_areas: updatedAreas });
-    } else if (id.startsWith('logo-') && currentTemplate.logo_area) {
-      setCurrentTemplate({ 
-        ...currentTemplate, 
-        logo_area: { ...currentTemplate.logo_area, x, y, width, height, rotation } 
-      });
-    }
-  };
-  
-  const deleteSelectedArea = () => {
-    if (!currentTemplate || !selectedId) return;
-    
-    if (typeof selectedId !== 'string') return;
-    
-    if (selectedId.startsWith('design-')) {
-      const updatedAreas = currentTemplate.design_areas.filter(area => area.id !== selectedId);
-      setCurrentTemplate({ ...currentTemplate, design_areas: updatedAreas });
-    } else if (selectedId.startsWith('text-')) {
-      const updatedAreas = currentTemplate.text_areas.filter(area => area.id !== selectedId);
-      setCurrentTemplate({ ...currentTemplate, text_areas: updatedAreas });
-    } else if (selectedId.startsWith('logo-')) {
-      setCurrentTemplate({ ...currentTemplate, logo_area: undefined });
-    }
-    
+
+  const resetEditor = () => {
+    setTemplateName('');
+    setTemplateImage(null);
+    setTemplateImageUrl('');
+    setDesignType('black');
+    setDesignAreas([]);
+    setTextAreas([]);
+    setLogoArea(null);
     setSelectedId(null);
+    setEditingTemplate(null);
   };
-  
-  const getSelectedArea = () => {
-    if (!currentTemplate || !selectedId) return null;
-    
-    if (typeof selectedId !== 'string') return null;
-    
-    if (selectedId.startsWith('design-')) {
-      return currentTemplate.design_areas.find(area => area.id === selectedId);
-    } else if (selectedId.startsWith('text-')) {
-      return currentTemplate.text_areas.find(area => area.id === selectedId);
-    } else if (selectedId.startsWith('logo-')) {
-      return currentTemplate.logo_area;
+
+  const openEditor = (template?: MockupTemplate) => {
+    if (template) {
+      setEditingTemplate(template);
+      setTemplateName(template.name);
+      setTemplateImageUrl(template.image_url);
+      setDesignType(template.design_type);
+      setDesignAreas(template.design_areas || []);
+      setTextAreas(template.text_areas || []);
+      setLogoArea(template.logo_area || null);
+    } else {
+      resetEditor();
     }
     
-    return null;
+    setShowEditor(true);
   };
-  
-  const updateSelectedArea = (updates: Partial<DesignArea | TextArea | LogoArea>) => {
-    if (!currentTemplate || !selectedId) return;
-    
-    if (typeof selectedId !== 'string') return;
-    
-    if (selectedId.startsWith('design-')) {
-      const updatedAreas = currentTemplate.design_areas.map(area => 
-        area.id === selectedId ? { ...area, ...updates } : area
-      );
-      setCurrentTemplate({ ...currentTemplate, design_areas: updatedAreas });
-    } else if (selectedId.startsWith('text-')) {
-      const updatedAreas = currentTemplate.text_areas.map(area => 
-        area.id === selectedId ? { ...area, ...updates } : area
-      );
-      setCurrentTemplate({ ...currentTemplate, text_areas: updatedAreas });
-    } else if (selectedId.startsWith('logo-') && currentTemplate.logo_area) {
-      setCurrentTemplate({ 
-        ...currentTemplate, 
-        logo_area: { ...currentTemplate.logo_area, ...updates } 
-      });
-    }
-  };
-  
-  const createFolder = async () => {
-    if (!newFolderName.trim()) {
-      setError('Please enter a folder name.');
-      return;
-    }
-    
-    try {
-      // Generate a folder path from the name (lowercase, replace spaces with hyphens)
-      const folderPath = newFolderName.toLowerCase().replace(/\s+/g, '-');
-      
-      // Check if folder already exists
-      if (folders.some(f => f.path === folderPath)) {
-        setError('A folder with this name already exists.');
-        return;
-      }
-      
-      // In a real implementation, we would create the folder in the database
-      // For now, we'll just add it to the local state
-      const newFolder: Folder = {
-        id: Date.now().toString(),
-        name: newFolderName,
-        path: folderPath,
-        templateCount: 0
-      };
-      
-      setFolders([...folders, newFolder]);
-      setNewFolderName('');
-      setShowFolderModal(false);
-      
-      // Navigate to the new folder
-      setCurrentFolder(folderPath);
-      
-      console.log('✅ Folder created successfully');
-    } catch (error: any) {
-      console.error('❌ Folder creation error:', error);
-      setError(`Failed to create folder: ${error.message}`);
-    }
-  };
-  
+
   const saveTemplate = async () => {
-    if (!templateName) {
-      setError('Please enter a template name.');
+    if (!templateName.trim()) {
+      alert('Template name is required!');
       return;
     }
     
-    if (!imageUrl) {
-      setError('Please upload an image.');
+    if (!templateImageUrl && !templateImage) {
+      alert('Template image is required!');
       return;
     }
     
     try {
-      setSaving(true);
-      setError(null);
+      console.log('🔄 Saving template...');
+      
+      let imageUrl = templateImageUrl;
+      
+      // If a new image was uploaded, save it to Supabase Storage
+      if (templateImage) {
+        // In a real implementation, this would upload to Supabase Storage
+        // For now, we'll just use the object URL
+        imageUrl = URL.createObjectURL(templateImage);
+      }
       
       const templateData = {
         user_id: user?.id,
         name: templateName,
         image_url: imageUrl,
-        design_areas: currentTemplate?.design_areas || [],
-        text_areas: currentTemplate?.text_areas || [],
-        logo_area: currentTemplate?.logo_area || null,
+        design_areas: designAreas,
+        text_areas: textAreas,
+        logo_area: logoArea,
         is_default: false,
         design_type: designType,
-        product_category: productCategory,
+        product_category: 't-shirt', // Default value
+        store_id: selectedStore || null,
         folder_path: currentFolder || 'default',
-        folder_name: folders.find(f => f.path === currentFolder)?.name || 'Default Templates'
+        folder_name: currentFolder ? folders.find(f => f.path === currentFolder)?.name || 'Default' : 'Default'
       };
       
       let result;
       
-      if (currentTemplate?.id) {
+      if (editingTemplate) {
         // Update existing template
         result = await supabase
           .from('mockup_templates')
-          .update({
-            name: templateName,
-            image_url: imageUrl,
-            design_areas: currentTemplate.design_areas,
-            text_areas: currentTemplate.text_areas,
-            logo_area: currentTemplate.logo_area,
-            design_type: designType,
-            product_category: productCategory,
-            folder_path: currentFolder || currentTemplate.folder_path || 'default',
-            folder_name: folders.find(f => f.path === currentFolder)?.name || currentTemplate.folder_name || 'Default Templates',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', currentTemplate.id)
+          .update(templateData)
+          .eq('id', editingTemplate.id)
           .eq('user_id', user?.id)
           .select()
           .single();
@@ -665,67 +374,289 @@ const MockupTemplatesPage: React.FC = () => {
         throw result.error;
       }
       
-      console.log('✅ Template saved successfully:', result.data);
+      console.log('✅ Template saved successfully');
       
-      // Reload templates and folders
+      // Reset editor and reload templates
+      resetEditor();
+      setShowEditor(false);
       await loadTemplates();
-      await loadFolders();
       
-      // Select the newly created/updated template
-      if (result.data) {
-        selectTemplate(result.data);
-      }
-      
-      alert('Template saved successfully!');
-    } catch (error: any) {
-      console.error('❌ Template save error:', error);
-      setError(`Failed to save template: ${error.message}`);
-    } finally {
-      setSaving(false);
+    } catch (error) {
+      console.error('❌ Template save general error:', error);
+      alert('Error occurred while saving template.');
     }
   };
-  
+
   const deleteTemplate = async (templateId: string) => {
     if (!window.confirm('Are you sure you want to delete this template?')) {
       return;
     }
-    
+
     try {
+      console.log(`🔄 Deleting template: ${templateId}`);
+      
       const { error } = await supabase
         .from('mockup_templates')
         .delete()
         .eq('id', templateId)
         .eq('user_id', user?.id);
-      
+
       if (error) {
-        console.error('❌ Template delete error:', error);
+        console.error('❌ Template deletion error:', error);
         throw error;
       }
-      
+
       console.log('✅ Template deleted successfully');
       
-      // Reload templates and folders
-      await loadTemplates();
-      await loadFolders();
+      // Remove from selected templates if it was selected
+      setSelectedTemplates(prev => prev.filter(id => id !== templateId));
       
-      // If the deleted template was the current one, reset the form
-      if (currentTemplate?.id === templateId) {
-        createNewTemplate();
-      }
-    } catch (error: any) {
-      console.error('❌ Template delete error:', error);
-      setError(`Failed to delete template: ${error.message}`);
+      // Reload templates
+      await loadTemplates();
+      
+    } catch (error) {
+      console.error('❌ Template deletion general error:', error);
+      alert('Error occurred while deleting template.');
     }
   };
-  
-  const selectedArea = getSelectedArea();
-  
-  // Filter templates based on search term
-  const filteredTemplates = templates.filter(template => 
-    template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    template.product_category.toLowerCase().includes(searchTerm.toLowerCase())
+
+  const duplicateTemplate = async (template: MockupTemplate) => {
+    try {
+      console.log(`🔄 Duplicating template: ${template.id}`);
+      
+      const { error } = await supabase
+        .from('mockup_templates')
+        .insert({
+          ...template,
+          id: undefined, // Let Supabase generate a new ID
+          name: `${template.name} (Copy)`,
+          is_default: false,
+          created_at: undefined, // Let Supabase set the timestamp
+          updated_at: undefined
+        });
+
+      if (error) {
+        console.error('❌ Template duplication error:', error);
+        throw error;
+      }
+
+      console.log('✅ Template duplicated successfully');
+      
+      // Reload templates
+      await loadTemplates();
+      
+    } catch (error) {
+      console.error('❌ Template duplication general error:', error);
+      alert('Error occurred while duplicating template.');
+    }
+  };
+
+  const handleAddDesignArea = () => {
+    setAreaType('design');
+    setIsDrawing(false);
+  };
+
+  const handleAddTextArea = () => {
+    setAreaType('text');
+    setIsDrawing(false);
+  };
+
+  const handleAddLogoArea = () => {
+    setAreaType('logo');
+    setIsDrawing(false);
+  };
+
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!canvasRef.current) return;
+    
+    // Get canvas bounds
+    const rect = canvasRef.current.getBoundingClientRect();
+    
+    // Calculate position relative to canvas
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    setStartPoint({ x, y });
+    setIsDrawing(true);
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDrawing || !canvasRef.current) return;
+    
+    // Get canvas bounds
+    const rect = canvasRef.current.getBoundingClientRect();
+    
+    // Calculate position relative to canvas
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Calculate width and height
+    const width = x - startPoint.x;
+    const height = y - startPoint.y;
+    
+    // Update the currently drawing area
+    const newArea = {
+      id: Date.now().toString(),
+      x: startPoint.x,
+      y: startPoint.y,
+      width: Math.abs(width),
+      height: Math.abs(height),
+      // If width or height is negative, adjust the position
+      ...(width < 0 && { x: x }),
+      ...(height < 0 && { y: y })
+    };
+    
+    // Update the appropriate area type
+    if (areaType === 'design') {
+      setDesignAreas([...designAreas.filter(a => a.id !== 'temp'), { ...newArea, id: 'temp' }]);
+    } else if (areaType === 'text') {
+      setTextAreas([...textAreas.filter(a => a.id !== 'temp'), { ...newArea, id: 'temp' }]);
+    } else if (areaType === 'logo') {
+      setLogoArea({ ...newArea, id: 'temp' });
+    }
+  };
+
+  const handleCanvasMouseUp = () => {
+    if (!isDrawing) return;
+    
+    // Finalize the area
+    if (areaType === 'design') {
+      const tempArea = designAreas.find(a => a.id === 'temp');
+      if (tempArea) {
+        const newArea = { ...tempArea, id: Date.now().toString() };
+        setDesignAreas([...designAreas.filter(a => a.id !== 'temp'), newArea]);
+        setSelectedId(newArea.id);
+      }
+    } else if (areaType === 'text') {
+      const tempArea = textAreas.find(a => a.id === 'temp');
+      if (tempArea) {
+        const newArea = { ...tempArea, id: Date.now().toString() };
+        setTextAreas([...textAreas.filter(a => a.id !== 'temp'), newArea]);
+        setSelectedId(newArea.id);
+      }
+    } else if (areaType === 'logo') {
+      if (logoArea && logoArea.id === 'temp') {
+        const newArea = { ...logoArea, id: Date.now().toString() };
+        setLogoArea(newArea);
+        setSelectedId(newArea.id);
+      }
+    }
+    
+    setIsDrawing(false);
+  };
+
+  const handleAreaClick = (id: string, type: 'design' | 'text' | 'logo') => {
+    setSelectedId(id);
+    setAreaType(type);
+  };
+
+  const deleteArea = () => {
+    if (!selectedId) return;
+    
+    if (selectedId === 'temp') {
+      // Clear temp area
+      if (areaType === 'design') {
+        setDesignAreas(designAreas.filter(a => a.id !== 'temp'));
+      } else if (areaType === 'text') {
+        setTextAreas(textAreas.filter(a => a.id !== 'temp'));
+      } else if (areaType === 'logo') {
+        setLogoArea(null);
+      }
+    } else {
+      // Delete selected area
+      if (areaType === 'design') {
+        setDesignAreas(designAreas.filter(a => a.id !== selectedId));
+      } else if (areaType === 'text') {
+        setTextAreas(textAreas.filter(a => a.id !== selectedId));
+      } else if (areaType === 'logo') {
+        setLogoArea(null);
+      }
+    }
+    
+    setSelectedId(null);
+  };
+
+  const getSelectedArea = () => {
+    if (!selectedId) return null;
+    
+    if (areaType === 'design') {
+      return designAreas.find(a => a.id === selectedId);
+    } else if (areaType === 'text') {
+      return textAreas.find(a => a.id === selectedId);
+    } else if (areaType === 'logo') {
+      return logoArea && logoArea.id === selectedId ? logoArea : null;
+    }
+    
+    return null;
+  };
+
+  const filteredTemplates = templates.filter(template =>
+    template.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
-  
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const toggleTemplateSelection = (templateId: string) => {
+    setSelectedTemplates(prev =>
+      prev.includes(templateId)
+        ? prev.filter(id => id !== templateId)
+        : [...prev, templateId]
+    );
+  };
+
+  const selectAllTemplates = () => {
+    if (selectedTemplates.length === filteredTemplates.length) {
+      setSelectedTemplates([]);
+    } else {
+      setSelectedTemplates(filteredTemplates.map(t => t.id));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedTemplates.length === 0) return;
+
+    if (!window.confirm(`Are you sure you want to delete ${selectedTemplates.length} template(s)?`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('mockup_templates')
+        .delete()
+        .in('id', selectedTemplates)
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      setTemplates(prev => prev.filter(t => !selectedTemplates.includes(t.id)));
+      setSelectedTemplates([]);
+    } catch (error) {
+      console.error('Bulk deletion error:', error);
+      alert('Error occurred while deleting templates');
+    }
+  };
+
+  const getCurrentFolderName = () => {
+    if (!currentFolder) return 'All Templates';
+    const folder = folders.find(f => f.path === currentFolder);
+    return folder ? folder.name : currentFolder;
+  };
+
+  const breadcrumbs = () => {
+    const parts = [];
+    if (currentFolder) {
+      const folder = folders.find(f => f.path === currentFolder);
+      if (folder) {
+        parts.push(folder.name);
+      }
+    }
+    return parts;
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -735,69 +666,511 @@ const MockupTemplatesPage: React.FC = () => {
       </div>
     );
   }
-  
-  // Render folder view if not in template editor mode
-  if (!showTemplateEditor) {
+
+  // Template Editor View
+  if (showEditor) {
     return (
       <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
-              <Image className="h-6 w-6 mr-2 text-orange-500" />
-              Mockup Templates
+        {/* Editor Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => {
+                if (window.confirm('Are you sure you want to exit? Any unsaved changes will be lost.')) {
+                  setShowEditor(false);
+                  resetEditor();
+                }
+              }}
+              className="p-2 bg-gray-200 dark:bg-gray-700 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600"
+            >
+              <ArrowLeft className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+            </button>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {editingTemplate ? 'Edit Template' : 'Create New Template'}
             </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Create and manage mockup templates for your products
-            </p>
           </div>
-          <div className="flex items-center space-x-3 mt-4 sm:mt-0">
+          <div className="flex space-x-3">
             <Button
-              onClick={() => setShowFolderModal(true)}
-              variant="secondary"
-              className="flex items-center space-x-2"
+              onClick={saveTemplate}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+              disabled={!templateName || (!templateImageUrl && !templateImage)}
             >
-              <FolderPlus className="h-4 w-4" />
-              <span>New Folder</span>
-            </Button>
-            <Button
-              onClick={createNewTemplate}
-              className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
-            >
-              <Plus className="h-4 w-4" />
-              <span>New Template</span>
+              <Save className="h-4 w-4 mr-2" />
+              {editingTemplate ? 'Update Template' : 'Save Template'}
             </Button>
           </div>
         </div>
-        
-        {/* Error Display */}
-        {error && (
-          <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-            <p className="text-red-700 dark:text-red-400">{error}</p>
+
+        {/* Editor Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Template Settings */}
+          <div className="space-y-6">
+            {/* Basic Info */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Template Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Template Name:
+                  </label>
+                  <Input
+                    value={templateName}
+                    onChange={(e) => setTemplateName(e.target.value)}
+                    placeholder="e.g. T-Shirt Mockup Front View"
+                    className="w-full"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Store:
+                  </label>
+                  <select
+                    value={selectedStore}
+                    onChange={(e) => setSelectedStore(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                  >
+                    <option value="">No store (global template)</option>
+                    {stores.map((store) => (
+                      <option key={store.id} value={store.id}>
+                        {store.store_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Folder:
+                  </label>
+                  <select
+                    value={currentFolder}
+                    onChange={(e) => setCurrentFolder(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                  >
+                    <option value="default">Default</option>
+                    {folders.map((folder) => (
+                      <option key={folder.path} value={folder.path}>
+                        {folder.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Design Type:
+                  </label>
+                  <div className="flex space-x-4">
+                    <button
+                      type="button"
+                      onClick={() => setDesignType('black')}
+                      className={`flex-1 py-2 px-4 rounded-lg flex items-center justify-center space-x-2 ${
+                        designType === 'black'
+                          ? 'bg-gray-900 text-white'
+                          : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      <span>Black</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDesignType('white')}
+                      className={`flex-1 py-2 px-4 rounded-lg flex items-center justify-center space-x-2 ${
+                        designType === 'white'
+                          ? 'bg-gray-100 text-gray-900 border-2 border-gray-900'
+                          : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      <span>White</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDesignType('color')}
+                      className={`flex-1 py-2 px-4 rounded-lg flex items-center justify-center space-x-2 ${
+                        designType === 'color'
+                          ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white'
+                          : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      <span>Color</span>
+                    </button>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Template Image:
+                  </label>
+                  {templateImageUrl ? (
+                    <div className="relative">
+                      <img
+                        src={templateImageUrl}
+                        alt="Template Preview"
+                        className="w-full h-auto rounded-lg border border-gray-300 dark:border-gray-600"
+                      />
+                      <button
+                        onClick={() => {
+                          setTemplateImageUrl('');
+                          setTemplateImage(null);
+                        }}
+                        className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer hover:border-orange-500 dark:hover:border-orange-500"
+                    >
+                      <Upload className="h-8 w-8 text-gray-400 mb-2" />
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Click to upload template image
+                      </p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                        PNG, JPG or JPEG (max. 5MB)
+                      </p>
+                    </div>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Add Elements */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Add Elements</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button
+                  onClick={handleAddDesignArea}
+                  variant="secondary"
+                  className="w-full flex items-center justify-center space-x-2"
+                >
+                  <Square className="h-4 w-4" />
+                  <span>Add Design Area</span>
+                </Button>
+                <Button
+                  onClick={handleAddTextArea}
+                  variant="secondary"
+                  className="w-full flex items-center justify-center space-x-2"
+                >
+                  <Type className="h-4 w-4" />
+                  <span>Add Text Area</span>
+                </Button>
+                <Button
+                  onClick={handleAddLogoArea}
+                  variant="secondary"
+                  className="w-full flex items-center justify-center space-x-2"
+                >
+                  <Circle className="h-4 w-4" />
+                  <span>Add Logo Area</span>
+                </Button>
+              </CardContent>
+            </Card>
+            
+            {/* Selected Area Properties */}
+            {selectedId && (
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>Area Properties</CardTitle>
+                  <Button
+                    onClick={deleteArea}
+                    variant="danger"
+                    size="sm"
+                    className="h-8 w-8 p-0 flex items-center justify-center"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        X Position:
+                      </label>
+                      <Input
+                        type="number"
+                        value={getSelectedArea()?.x || 0}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value);
+                          if (areaType === 'design') {
+                            setDesignAreas(designAreas.map(a => a.id === selectedId ? { ...a, x: value } : a));
+                          } else if (areaType === 'text') {
+                            setTextAreas(textAreas.map(a => a.id === selectedId ? { ...a, x: value } : a));
+                          } else if (areaType === 'logo' && logoArea) {
+                            setLogoArea({ ...logoArea, x: value });
+                          }
+                        }}
+                        className="w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Y Position:
+                      </label>
+                      <Input
+                        type="number"
+                        value={getSelectedArea()?.y || 0}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value);
+                          if (areaType === 'design') {
+                            setDesignAreas(designAreas.map(a => a.id === selectedId ? { ...a, y: value } : a));
+                          } else if (areaType === 'text') {
+                            setTextAreas(textAreas.map(a => a.id === selectedId ? { ...a, y: value } : a));
+                          } else if (areaType === 'logo' && logoArea) {
+                            setLogoArea({ ...logoArea, y: value });
+                          }
+                        }}
+                        className="w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Width:
+                      </label>
+                      <Input
+                        type="number"
+                        value={getSelectedArea()?.width || 0}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value);
+                          if (areaType === 'design') {
+                            setDesignAreas(designAreas.map(a => a.id === selectedId ? { ...a, width: value } : a));
+                          } else if (areaType === 'text') {
+                            setTextAreas(textAreas.map(a => a.id === selectedId ? { ...a, width: value } : a));
+                          } else if (areaType === 'logo' && logoArea) {
+                            setLogoArea({ ...logoArea, width: value });
+                          }
+                        }}
+                        className="w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Height:
+                      </label>
+                      <Input
+                        type="number"
+                        value={getSelectedArea()?.height || 0}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value);
+                          if (areaType === 'design') {
+                            setDesignAreas(designAreas.map(a => a.id === selectedId ? { ...a, height: value } : a));
+                          } else if (areaType === 'text') {
+                            setTextAreas(textAreas.map(a => a.id === selectedId ? { ...a, height: value } : a));
+                          } else if (areaType === 'logo' && logoArea) {
+                            setLogoArea({ ...logoArea, height: value });
+                          }
+                        }}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Area Type:
+                    </label>
+                    <div className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white">
+                      {areaType === 'design' ? 'Design Area' : areaType === 'text' ? 'Text Area' : 'Logo Area'}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
-        )}
-        
-        {/* Breadcrumb Navigation */}
-        <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-          <button
-            onClick={() => setCurrentFolder(null)}
-            className={`hover:text-orange-500 flex items-center space-x-1 ${!currentFolder ? 'font-medium text-orange-500' : ''}`}
+          
+          {/* Middle Column - Canvas */}
+          <div className="lg:col-span-2">
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle>Template Canvas</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {templateImageUrl ? (
+                  <div 
+                    ref={canvasRef}
+                    className="relative border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden"
+                    style={{ 
+                      backgroundImage: `url(${templateImageUrl})`,
+                      backgroundSize: 'contain',
+                      backgroundPosition: 'center',
+                      backgroundRepeat: 'no-repeat',
+                      height: '500px'
+                    }}
+                    onMouseDown={handleCanvasMouseDown}
+                    onMouseMove={handleCanvasMouseMove}
+                    onMouseUp={handleCanvasMouseUp}
+                    onMouseLeave={handleCanvasMouseUp}
+                  >
+                    {/* Design Areas */}
+                    {designAreas.map((area) => (
+                      <div
+                        key={area.id}
+                        className={`absolute border-2 ${
+                          selectedId === area.id
+                            ? 'border-orange-500'
+                            : 'border-blue-500'
+                        } bg-blue-500 bg-opacity-20`}
+                        style={{
+                          left: `${area.x}px`,
+                          top: `${area.y}px`,
+                          width: `${area.width}px`,
+                          height: `${area.height}px`,
+                          cursor: 'pointer'
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAreaClick(area.id, 'design');
+                        }}
+                      >
+                        {selectedId === area.id && (
+                          <div className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded">
+                            Design Area
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    
+                    {/* Text Areas */}
+                    {textAreas.map((area) => (
+                      <div
+                        key={area.id}
+                        className={`absolute border-2 ${
+                          selectedId === area.id
+                            ? 'border-orange-500'
+                            : 'border-green-500'
+                        } bg-green-500 bg-opacity-20`}
+                        style={{
+                          left: `${area.x}px`,
+                          top: `${area.y}px`,
+                          width: `${area.width}px`,
+                          height: `${area.height}px`,
+                          cursor: 'pointer'
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAreaClick(area.id, 'text');
+                        }}
+                      >
+                        {selectedId === area.id && (
+                          <div className="absolute -top-6 left-0 bg-green-500 text-white text-xs px-2 py-1 rounded">
+                            Text Area
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    
+                    {/* Logo Area */}
+                    {logoArea && (
+                      <div
+                        className={`absolute border-2 ${
+                          selectedId === logoArea.id
+                            ? 'border-orange-500'
+                            : 'border-purple-500'
+                        } bg-purple-500 bg-opacity-20`}
+                        style={{
+                          left: `${logoArea.x}px`,
+                          top: `${logoArea.y}px`,
+                          width: `${logoArea.width}px`,
+                          height: `${logoArea.height}px`,
+                          cursor: 'pointer'
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAreaClick(logoArea.id, 'logo');
+                        }}
+                      >
+                        {selectedId === logoArea.id && (
+                          <div className="absolute -top-6 left-0 bg-purple-500 text-white text-xs px-2 py-1 rounded">
+                            Logo Area
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-64 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                    <p className="text-gray-500 dark:text-gray-400">
+                      Please upload a template image
+                    </p>
+                  </div>
+                )}
+                
+                <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                  <p>Click and drag on the image to create areas. Select an area to edit its properties.</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Main View (Folders and Templates)
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+            <Image className="h-6 w-6 mr-2 text-orange-500" />
+            Mockup Templates
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
+            {currentFolder ? getCurrentFolderName() : 'All Templates'} ({templates.length} templates)
+          </p>
+        </div>
+        <div className="flex items-center space-x-3 mt-4 sm:mt-0">
+          <Button
+            onClick={() => setShowFolderModal(true)}
+            variant="secondary"
+            className="flex items-center space-x-2"
           >
-            <Folder className="h-4 w-4" />
-            <span>All Folders</span>
-          </button>
-          {currentFolder && (
-            <>
-              <span>/</span>
-              <span className="font-medium text-gray-900 dark:text-white">
-                {folders.find(f => f.path === currentFolder)?.name || currentFolder}
-              </span>
-            </>
-          )}
+            <FolderPlus className="h-4 w-4" />
+            <span>New Folder</span>
+          </Button>
+          <Button
+            onClick={() => openEditor()}
+            className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Create Template</span>
+          </Button>
         </div>
-        
-        {/* Search */}
-        <div className="relative">
+      </div>
+
+      {/* Breadcrumb Navigation */}
+      <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+        <button
+          onClick={() => setCurrentFolder('')}
+          className={`hover:text-orange-500 flex items-center space-x-1 ${!currentFolder ? 'font-medium text-orange-500' : ''}`}
+        >
+          <Folder className="h-4 w-4" />
+          <span>All Templates</span>
+        </button>
+        {breadcrumbs().map((part, index) => (
+          <React.Fragment key={index}>
+            <span>/</span>
+            <span className="text-gray-900 dark:text-white font-medium">{part}</span>
+          </React.Fragment>
+        ))}
+      </div>
+
+      {/* Search and Filters */}
+      <div className="flex flex-col sm:flex-row gap-4 items-center">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
           <Input
             type="text"
@@ -807,665 +1180,389 @@ const MockupTemplatesPage: React.FC = () => {
             className="pl-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
           />
         </div>
-        
-        {/* Folder View */}
-        {!currentFolder && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+
+        <div className="flex items-center space-x-2">
+          <div className="flex border border-gray-300 dark:border-gray-600 rounded-lg">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-2 ${viewMode === 'grid' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400'} rounded-l-lg`}
+            >
+              <Grid className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-2 ${viewMode === 'list' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400'} rounded-r-lg`}
+            >
+              <List className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Bulk Actions */}
+      {selectedTemplates.length > 0 && (
+        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-orange-700 dark:text-orange-400">
+              {selectedTemplates.length} template(s) selected
+            </span>
+            <div className="flex space-x-2">
+              <Button onClick={handleBulkDelete} variant="danger" size="sm">
+                <Trash2 className="h-4 w-4 mr-1" />
+                Delete Selected
+              </Button>
+              <Button onClick={() => setSelectedTemplates([])} variant="secondary" size="sm">
+                Clear Selection
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Folders Section - Show when in root directory */}
+      {!currentFolder && folders.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+            <Folder className="h-5 w-5 mr-2 text-orange-500" />
+            Folders ({folders.length})
+          </h2>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
             {folders.map((folder) => (
-              <Card 
-                key={folder.id} 
-                className="hover:shadow-lg transition-shadow cursor-pointer"
+              <div
+                key={folder.path}
+                className="group relative bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow cursor-pointer"
                 onClick={() => setCurrentFolder(folder.path)}
               >
-                <CardContent className="p-6">
-                  <div className="flex flex-col items-center text-center">
-                    <FolderOpen className="h-16 w-16 text-orange-500 mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">
-                      {folder.name}
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {folder.templateCount} templates
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+                <div className="text-center">
+                  <FolderOpen className="h-12 w-12 text-orange-500 mx-auto mb-2" />
+                  <h3 className="font-medium text-gray-900 dark:text-white truncate">
+                    {folder.name}
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {folder.template_count} templates
+                  </p>
+                </div>
+                
+                {/* Folder Actions */}
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteFolder(folder.path);
+                    }}
+                    className="p-1 bg-red-500 text-white rounded hover:bg-red-600"
+                    title="Delete folder"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
-        )}
-        
-        {/* Template Grid */}
-        {(currentFolder || searchTerm) && (
+        </div>
+      )}
+
+      {/* Templates Display */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+          <Image className="h-5 w-5 mr-2 text-orange-500" />
+          {currentFolder ? getCurrentFolderName() : 'All Templates'} ({filteredTemplates.length} templates)
+        </h2>
+
+        {filteredTemplates.length === 0 ? (
+          <div className="text-center py-12">
+            <Image className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              {searchTerm ? 'No templates found' : 'No templates in this folder'}
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-6">
+              {searchTerm
+                ? 'Try adjusting your search terms'
+                : 'Start by creating your first template'
+              }
+            </p>
+            {!searchTerm && (
+              <Button
+                onClick={() => openEditor()}
+                className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Create First Template</span>
+              </Button>
+            )}
+          </div>
+        ) : (
           <>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              {searchTerm 
-                ? `Search Results: "${searchTerm}"`
-                : `Templates in ${folders.find(f => f.path === currentFolder)?.name || currentFolder}`}
-              <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
-                ({filteredTemplates.length} templates)
-              </span>
-            </h2>
-            
-            {filteredTemplates.length === 0 ? (
-              <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <Image className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                  {searchTerm ? 'No templates found' : 'No templates in this folder'}
-                </h3>
-                <p className="text-gray-500 dark:text-gray-400 mb-6">
-                  {searchTerm
-                    ? 'Try adjusting your search terms'
-                    : 'Create your first template in this folder'
-                  }
-                </p>
-                <Button
-                  onClick={createNewTemplate}
-                  className="bg-orange-600 hover:bg-orange-700 text-white"
-                >
-                  Create Template
-                </Button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {/* Select All Checkbox */}
+            <div className="flex items-center space-x-2 pb-4 border-b border-gray-200 dark:border-gray-700">
+              <input
+                type="checkbox"
+                checked={selectedTemplates.length === filteredTemplates.length}
+                onChange={selectAllTemplates}
+                className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+              />
+              <label className="text-sm text-gray-700 dark:text-gray-300">
+                Select all ({filteredTemplates.length} templates)
+              </label>
+            </div>
+
+            {/* Grid View */}
+            {viewMode === 'grid' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
                 {filteredTemplates.map((template) => (
-                  <Card 
-                    key={template.id} 
-                    className="hover:shadow-lg transition-shadow cursor-pointer group"
-                    onClick={() => selectTemplate(template)}
-                  >
-                    <div className="aspect-square relative overflow-hidden rounded-t-lg">
-                      <img
-                        src={template.image_url}
-                        alt={template.name}
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity flex items-center justify-center opacity-0 group-hover:opacity-100">
-                        <Button
-                          className="bg-orange-600 hover:bg-orange-700 text-white"
-                          size="sm"
-                        >
-                          Edit Template
-                        </Button>
+                  <Card key={template.id} className="hover:shadow-lg transition-shadow">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedTemplates.includes(template.id)}
+                            onChange={() => toggleTemplateSelection(template.id)}
+                            className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                          />
+                          <CardTitle className="text-lg truncate">{template.name}</CardTitle>
+                        </div>
+                        <div className="flex space-x-1">
+                          <button
+                            onClick={() => openEditor(template)}
+                            className="text-blue-500 hover:text-blue-700 p-1"
+                            title="Edit template"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => duplicateTemplate(template)}
+                            className="text-blue-500 hover:text-blue-700 p-1"
+                            title="Duplicate template"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => deleteTemplate(template.id)}
+                            className="text-red-500 hover:text-red-700 p-1"
+                            title="Delete template"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
-                      
-                      {/* Design Type Badge */}
-                      <div className="absolute top-2 left-2">
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          template.design_type === 'black' ? 'bg-gray-900 text-white' :
-                          template.design_type === 'white' ? 'bg-gray-100 text-gray-900 border border-gray-300' :
-                          'bg-gradient-to-r from-blue-500 to-purple-500 text-white'
-                        }`}>
-                          {template.design_type.charAt(0).toUpperCase() + template.design_type.slice(1)}
-                        </span>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {/* Template Preview */}
+                        <div className="aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
+                          <img
+                            src={template.image_url}
+                            alt={template.name}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                        
+                        {/* Template Info */}
+                        <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+                          <div className="flex items-center space-x-2">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              template.design_type === 'black' ? 'bg-gray-900 text-white' :
+                              template.design_type === 'white' ? 'bg-gray-100 text-gray-900 border border-gray-300' :
+                              'bg-gradient-to-r from-blue-500 to-purple-500 text-white'
+                            }`}>
+                              {template.design_type.charAt(0).toUpperCase() + template.design_type.slice(1)}
+                            </span>
+                          </div>
+                          <span>
+                            {formatDate(template.created_at)}
+                          </span>
+                        </div>
+                        
+                        {/* Areas Count */}
+                        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                          <span>
+                            {template.design_areas?.length || 0} design areas
+                          </span>
+                          <span>
+                            {template.text_areas?.length || 0} text areas
+                          </span>
+                          <span>
+                            {template.logo_area ? '1 logo area' : 'No logo area'}
+                          </span>
+                        </div>
                       </div>
-                      
-                      {/* Delete Button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteTemplate(template.id);
-                        }}
-                        className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <CardContent className="p-4">
-                      <h3 className="font-medium text-gray-900 dark:text-white truncate">
-                        {template.name}
-                      </h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {template.product_category}
-                      </p>
                     </CardContent>
                   </Card>
                 ))}
               </div>
             )}
-          </>
-        )}
-        
-        {/* New Folder Modal */}
-        {showFolderModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full">
-              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  Create New Folder
-                </h2>
-              </div>
-              
-              <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Folder Name
-                  </label>
-                  <Input
-                    value={newFolderName}
-                    onChange={(e) => setNewFolderName(e.target.value)}
-                    placeholder="e.g. T-Shirts, Mugs, Posters"
-                    className="w-full"
-                  />
-                </div>
-                
-                <div className="flex space-x-3 pt-4">
-                  <Button
-                    onClick={createFolder}
-                    className="flex-1 bg-orange-600 hover:bg-orange-700 text-white"
-                    disabled={!newFolderName.trim()}
-                  >
-                    Create Folder
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setShowFolderModal(false);
-                      setNewFolderName('');
-                    }}
-                    variant="secondary"
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-  
-  // Template Editor View
-  return (
-    <div className="h-screen flex flex-col">
-      {/* Header */}
-      <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center">
-            <Button
-              onClick={() => {
-                setShowTemplateEditor(false);
-                setCurrentTemplate(null);
-              }}
-              variant="secondary"
-              size="sm"
-              className="mr-4"
-            >
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              Back to Templates
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
-                {currentTemplate?.id ? 'Edit Template' : 'Create New Template'}
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-1">
-                {currentFolder 
-                  ? `Folder: ${folders.find(f => f.path === currentFolder)?.name || currentFolder}`
-                  : 'No folder selected'
-                }
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-3 mt-4 sm:mt-0">
-            <Button
-              onClick={saveTemplate}
-              className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
-              disabled={saving}
-            >
-              <Save className="h-4 w-4" />
-              <span>{saving ? 'Saving...' : 'Save Template'}</span>
-            </Button>
-          </div>
-        </div>
-      </div>
-      
-      {/* Error Display */}
-      {error && (
-        <div className="mx-6 mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-          <p className="text-red-700 dark:text-red-400">{error}</p>
-        </div>
-      )}
-      
-      {/* Main Content */}
-      <div className="flex-1 flex">
-        {/* Canvas */}
-        <div className="flex-1 p-6 flex items-center justify-center bg-gray-100 dark:bg-gray-900 overflow-auto">
-          {image ? (
-            <Stage
-              width={stageSize.width}
-              height={stageSize.height}
-              ref={stageRef}
-              onClick={handleStageClick}
-              className="bg-white shadow-lg"
-            >
-              <Layer>
-                <KonvaImage
-                  ref={imageRef}
-                  image={image}
-                  width={stageSize.width}
-                  height={stageSize.height}
-                />
-                
-                {/* Design Areas */}
-                {currentTemplate && showAreas && currentTemplate.design_areas.map((area) => (
-                  <Group
-                    key={area.id}
-                    id={area.id}
-                    x={area.x}
-                    y={area.y}
-                    width={area.width}
-                    height={area.height}
-                    rotation={area.rotation}
-                    draggable
-                    onClick={() => handleAreaClick(area.id)}
-                    onDragEnd={(e) => handleDragEnd(e, area.id)}
-                    onTransformEnd={(e) => handleTransformEnd(e, area.id)}
-                  >
-                    <Rect
-                      width={area.width}
-                      height={area.height}
-                      fill="rgba(255, 100, 50, 0.2)"
-                      stroke={selectedId === area.id ? "#FF6432" : "rgba(255, 100, 50, 0.8)"}
-                      strokeWidth={2}
-                      dash={[5, 5]}
-                    />
-                  </Group>
-                ))}
-                
-                {/* Text Areas */}
-                {currentTemplate && showAreas && currentTemplate.text_areas.map((area) => (
-                  <Group
-                    key={area.id}
-                    id={area.id}
-                    x={area.x}
-                    y={area.y}
-                    width={area.width}
-                    height={area.height}
-                    rotation={area.rotation}
-                    draggable
-                    onClick={() => handleAreaClick(area.id)}
-                    onDragEnd={(e) => handleDragEnd(e, area.id)}
-                    onTransformEnd={(e) => handleTransformEnd(e, area.id)}
-                  >
-                    <Rect
-                      width={area.width}
-                      height={area.height}
-                      fill="rgba(50, 100, 255, 0.2)"
-                      stroke={selectedId === area.id ? "#3264FF" : "rgba(50, 100, 255, 0.8)"}
-                      strokeWidth={2}
-                      dash={[5, 5]}
-                    />
-                  </Group>
-                ))}
-                
-                {/* Logo Area */}
-                {currentTemplate && showAreas && currentTemplate.logo_area && (
-                  <Group
-                    key={currentTemplate.logo_area.id}
-                    id={currentTemplate.logo_area.id}
-                    x={currentTemplate.logo_area.x}
-                    y={currentTemplate.logo_area.y}
-                    width={currentTemplate.logo_area.width}
-                    height={currentTemplate.logo_area.height}
-                    rotation={currentTemplate.logo_area.rotation}
-                    draggable
-                    onClick={() => handleAreaClick(currentTemplate.logo_area.id)}
-                    onDragEnd={(e) => handleDragEnd(e, currentTemplate.logo_area.id)}
-                    onTransformEnd={(e) => handleTransformEnd(e, currentTemplate.logo_area.id)}
-                  >
-                    <Rect
-                      width={currentTemplate.logo_area.width}
-                      height={currentTemplate.logo_area.height}
-                      fill="rgba(100, 255, 50, 0.2)"
-                      stroke={selectedId === currentTemplate.logo_area.id ? "#64FF32" : "rgba(100, 255, 50, 0.8)"}
-                      strokeWidth={2}
-                      dash={[5, 5]}
-                    />
-                  </Group>
-                )}
-                
-                {/* Transformer */}
-                {selectedId && (
-                  <Transformer
-                    ref={transformerRef}
-                    boundBoxFunc={(oldBox, newBox) => {
-                      // Limit minimum size
-                      if (newBox.width < 5 || newBox.height < 5) {
-                        return oldBox;
-                      }
-                      return newBox;
-                    }}
-                  />
-                )}
-              </Layer>
-            </Stage>
-          ) : (
-            <div className="text-center">
-              <div className="mb-4">
-                <Image className="h-16 w-16 text-gray-400 mx-auto" />
-              </div>
-              <p className="text-gray-500 dark:text-gray-400 mb-4">
-                No image uploaded. Please upload an image to create a template.
-              </p>
-              <Button
-                onClick={() => fileInputRef.current?.click()}
-                className="bg-orange-600 hover:bg-orange-700 text-white"
-              >
-                Upload Image
-              </Button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-            </div>
-          )}
-        </div>
-        
-        {/* Sidebar */}
-        <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 p-6 overflow-y-auto">
-          {/* Template Name */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Template Name
-            </label>
-            <Input
-              value={templateName}
-              onChange={(e) => setTemplateName(e.target.value)}
-              placeholder="Enter template name"
-              className="w-full"
-            />
-          </div>
-          
-          {/* Folder Selection */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Folder
-            </label>
-            <select
-              value={currentFolder || (currentTemplate?.folder_path || 'default')}
-              onChange={(e) => setCurrentFolder(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              <option value="default">Default Templates</option>
-              {folders.map((folder) => (
-                <option key={folder.id} value={folder.path}>
-                  {folder.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          {/* Design Type Selection */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Design Type
-            </label>
-            <div className="flex space-x-2">
-              <button
-                type="button"
-                onClick={() => setDesignType('black')}
-                className={`flex-1 px-3 py-2 rounded-lg border ${
-                  designType === 'black' 
-                    ? 'bg-gray-900 text-white border-gray-900' 
-                    : 'bg-white text-gray-900 border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                Black
-              </button>
-              <button
-                type="button"
-                onClick={() => setDesignType('white')}
-                className={`flex-1 px-3 py-2 rounded-lg border ${
-                  designType === 'white' 
-                    ? 'bg-gray-100 text-gray-900 border-gray-900' 
-                    : 'bg-white text-gray-900 border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                White
-              </button>
-              <button
-                type="button"
-                onClick={() => setDesignType('color')}
-                className={`flex-1 px-3 py-2 rounded-lg border ${
-                  designType === 'color' 
-                    ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white border-blue-500' 
-                    : 'bg-white text-gray-900 border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                Color
-              </button>
-            </div>
-          </div>
-          
-          {/* Product Category */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Product Category
-            </label>
-            <select
-              value={productCategory}
-              onChange={(e) => setProductCategory(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              <option value="t-shirt">T-Shirt</option>
-              <option value="sweatshirt">Sweatshirt</option>
-              <option value="hoodie">Hoodie</option>
-              <option value="mug">Mug</option>
-              <option value="poster">Poster</option>
-              <option value="canvas">Canvas</option>
-              <option value="pillow">Pillow</option>
-              <option value="phone-case">Phone Case</option>
-              <option value="tote-bag">Tote Bag</option>
-              <option value="sticker">Sticker</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-          
-          {/* Image Upload */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Template Image
-            </label>
-            <div className="flex items-center space-x-2">
-              <Button
-                onClick={() => fileInputRef.current?.click()}
-                variant="secondary"
-                className="flex-1"
-              >
-                {imageUrl ? 'Change Image' : 'Upload Image'}
-              </Button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              {imageUrl && (
-                <Button
-                  onClick={() => {
-                    setImageUrl('');
-                    setImage(null);
-                  }}
-                  variant="danger"
-                  size="sm"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-            {imageUrl && (
-              <div className="mt-2 relative">
-                <img
-                  src={imageUrl}
-                  alt="Template Preview"
-                  className="w-full h-auto rounded-lg border border-gray-200 dark:border-gray-700"
-                />
+
+            {/* List View */}
+            {viewMode === 'list' && (
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden mt-4">
+                <table className="w-full">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        <input
+                          type="checkbox"
+                          checked={selectedTemplates.length === filteredTemplates.length}
+                          onChange={selectAllTemplates}
+                          className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                        />
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Template
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Design Type
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Areas
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Created
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {filteredTemplates.map((template) => (
+                      <tr key={template.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={selectedTemplates.includes(template.id)}
+                            onChange={() => toggleTemplateSelection(template.id)}
+                            className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                          />
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center space-x-3">
+                            <div className="flex-shrink-0 h-10 w-10 rounded overflow-hidden">
+                              <img
+                                src={template.image_url}
+                                alt={template.name}
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                {template.name}
+                              </p>
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                {template.folder_name || 'Default'}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            template.design_type === 'black' ? 'bg-gray-900 text-white' :
+                            template.design_type === 'white' ? 'bg-gray-100 text-gray-900 border border-gray-300' :
+                            'bg-gradient-to-r from-blue-500 to-purple-500 text-white'
+                          }`}>
+                            {template.design_type.charAt(0).toUpperCase() + template.design_type.slice(1)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          <div className="flex space-x-2">
+                            <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-400 rounded-full text-xs">
+                              {template.design_areas?.length || 0} design
+                            </span>
+                            <span className="px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400 rounded-full text-xs">
+                              {template.text_areas?.length || 0} text
+                            </span>
+                            {template.logo_area && (
+                              <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-400 rounded-full text-xs">
+                                1 logo
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {formatDate(template.created_at)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => openEditor(template)}
+                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                              title="Edit template"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => duplicateTemplate(template)}
+                              className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                              title="Duplicate template"
+                            >
+                              <Copy className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => deleteTemplate(template.id)}
+                              className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                              title="Delete template"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
-          </div>
-          
-          {/* Add Elements */}
-          <div className="mb-6">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
-              Add Elements
-            </h3>
-            <div className="space-y-2">
-              <Button
-                onClick={addDesignArea}
-                variant="secondary"
-                className="w-full bg-orange-600 text-white hover:bg-orange-700"
-                disabled={!image}
-              >
-                <Square className="h-4 w-4 mr-2" />
-                Add Design Area
-              </Button>
-              <Button
-                onClick={addTextArea}
-                variant="secondary"
-                className="w-full"
-                disabled={!image}
-              >
-                <Type className="h-4 w-4 mr-2" />
-                Add Text Area
-              </Button>
-              <Button
-                onClick={addLogoArea}
-                variant="secondary"
-                className="w-full"
-                disabled={!image || (currentTemplate?.logo_area !== undefined && currentTemplate?.logo_area !== null)}
-              >
-                <Circle className="h-4 w-4 mr-2" />
-                Add Logo Area
-              </Button>
+          </>
+        )}
+      </div>
+
+      {/* Create Folder Modal */}
+      {showFolderModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Create New Folder
+              </h2>
             </div>
-          </div>
-          
-          {/* Visibility */}
-          <div className="mb-6">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
-              Visibility
-            </h3>
-            <Button
-              onClick={() => setShowAreas(!showAreas)}
-              variant="secondary"
-              className="w-full"
-            >
-              {showAreas ? (
-                <>
-                  <EyeOff className="h-4 w-4 mr-2" />
-                  Hide Areas
-                </>
-              ) : (
-                <>
-                  <Eye className="h-4 w-4 mr-2" />
-                  Show Areas
-                </>
-              )}
-            </Button>
-          </div>
-          
-          {/* Selected Area Properties */}
-          {selectedArea && (
-            <div className="mb-6">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
-                Selected Area Properties
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Position
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400">X</label>
-                      <Input
-                        type="number"
-                        value={Math.round(selectedArea.x)}
-                        onChange={(e) => updateSelectedArea({ x: Number(e.target.value) })}
-                        className="w-full"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400">Y</label>
-                      <Input
-                        type="number"
-                        value={Math.round(selectedArea.y)}
-                        onChange={(e) => updateSelectedArea({ y: Number(e.target.value) })}
-                        className="w-full"
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Size
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400">Width</label>
-                      <Input
-                        type="number"
-                        value={Math.round(selectedArea.width)}
-                        onChange={(e) => updateSelectedArea({ width: Number(e.target.value) })}
-                        className="w-full"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400">Height</label>
-                      <Input
-                        type="number"
-                        value={Math.round(selectedArea.height)}
-                        onChange={(e) => updateSelectedArea({ height: Number(e.target.value) })}
-                        className="w-full"
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Rotation
-                  </label>
-                  <Input
-                    type="number"
-                    value={Math.round(selectedArea.rotation)}
-                    onChange={(e) => updateSelectedArea({ rotation: Number(e.target.value) })}
-                    className="w-full"
-                  />
-                </div>
-                
-                {/* Text area specific properties */}
-                {selectedId && typeof selectedId === 'string' && selectedId.startsWith('text-') && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Font Size
-                    </label>
-                    <Input
-                      type="number"
-                      value={(selectedArea as TextArea).font_size || 16}
-                      onChange={(e) => updateSelectedArea({ font_size: Number(e.target.value) })}
-                      className="w-full"
-                    />
-                  </div>
-                )}
-                
-                <Button
-                  onClick={deleteSelectedArea}
-                  variant="danger"
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Folder Name:
+                </label>
+                <Input
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  placeholder="e.g. T-Shirts, Mugs, Posters..."
                   className="w-full"
+                />
+              </div>
+              
+              <div className="flex space-x-3">
+                <Button
+                  onClick={createFolder}
+                  className="flex-1"
+                  disabled={!newFolderName.trim()}
                 >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Area
+                  Create
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowFolderModal(false);
+                    setNewFolderName('');
+                  }}
+                  variant="secondary"
+                  className="flex-1"
+                >
+                  Cancel
                 </Button>
               </div>
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
