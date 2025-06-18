@@ -559,7 +559,7 @@ const UploadDesignPage: React.FC = () => {
                 </button>
               </div>
               
-              <div className="space-y-4">
+              <div className="space-y-2">
                 {/* Store Images Folder */}
                 <div>
                   <div className="flex items-center mb-2">
@@ -591,7 +591,8 @@ const UploadDesignPage: React.FC = () => {
                     <option value="3">Botanical Illustration Template</option>
                   </select>
                 </div>
-                
+                </div>
+                <div className="space-y-2">
                 {/* Mockup Klasörü */}
                 <div>
                   <div className="flex items-center mb-2">
