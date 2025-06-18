@@ -1,13 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import Konva from 'konva';
-import { Stage, Layer, Rect, Text as KonvaText, Transformer, Group, Image as KonvaImage } from 'react-konva';
-import { Image, Plus, Edit, Trash2, Copy, Search, Filter, Grid, List, Save, Download, Upload, Eye, EyeOff, Move, RotateCw, Palette, Type, Square, Circle, Store, RefreshCw, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Stage, Layer, Rect, Transformer, Image as KonvaImage, Group } from 'react-konva';
 import { useAuth } from '../context/AuthContext';
-import { supabase, executeWithTimeout, isConfigValid } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { Image, Plus, Trash2, Save, Download, Eye, EyeOff, Square, Type, Circle } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
-import LogoSelector from '../components/AutoTextToImage/LogoSelector';
 
 interface MockupTemplate {
   id: string;
@@ -17,14 +15,12 @@ interface MockupTemplate {
   design_areas: DesignArea[];
   text_areas: TextArea[];
   logo_area?: LogoArea;
-  store_id?: string;
   is_default: boolean;
   created_at: string;
   updated_at: string;
-  design_type?: 'black' | 'white' | 'color';
-  product_category?: string;
-  folder_path?: string;
-  folder_name?: string;
+  design_type: 'black' | 'white' | 'color';
+  product_category: string;
+  store_id?: string;
 }
 
 interface DesignArea {
@@ -34,8 +30,6 @@ interface DesignArea {
   width: number;
   height: number;
   rotation: number;
-  opacity: number;
-  visible: boolean;
 }
 
 interface TextArea {
@@ -45,14 +39,8 @@ interface TextArea {
   width: number;
   height: number;
   rotation: number;
-  text: string;
-  fontSize: number;
-  fontFamily: string;
-  color: string;
-  align: 'left' | 'center' | 'right';
-  placeholder: string;
-  maxChars: number;
-  visible: boolean;
+  font_size?: number;
+  font_family?: string;
 }
 
 interface LogoArea {
@@ -62,791 +50,503 @@ interface LogoArea {
   width: number;
   height: number;
   rotation: number;
-  opacity: number;
-  visible: boolean;
-  logoUrl?: string;
-}
-
-interface EtsyStore {
-  id: string;
-  store_name: string;
-  is_active: boolean;
 }
 
 const MockupTemplatesPage: React.FC = () => {
-  const { user, isDemoMode } = useAuth();
+  const { user } = useAuth();
   const [templates, setTemplates] = useState<MockupTemplate[]>([]);
-  const [stores, setStores] = useState<EtsyStore[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
-  const [showEditor, setShowEditor] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<MockupTemplate | null>(null);
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
-
-  // Editor States
-  const [canvasSize, setCanvasSize] = useState({ width: 2000, height: 2000 });
+  const [currentTemplate, setCurrentTemplate] = useState<MockupTemplate | null>(null);
   const [templateName, setTemplateName] = useState('');
-  const [backgroundImage, setBackgroundImage] = useState<string>('');
-  const [selectedStore, setSelectedStore] = useState<string>('');
-  const [designAreas, setDesignAreas] = useState<DesignArea[]>([]);
-  const [textAreas, setTextAreas] = useState<TextArea[]>([]);
-  const [logoArea, setLogoArea] = useState<LogoArea | null>(null);
+  const [designType, setDesignType] = useState<'black' | 'white' | 'color'>('black');
+  const [productCategory, setProductCategory] = useState('t-shirt');
+  const [imageUrl, setImageUrl] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showAreaVisibility, setShowAreaVisibility] = useState(true);
-
-  // Transformer visibility control state
-  const [showTransformer, setShowTransformer] = useState(false);
-
-  // Logo Selector States
-  const [showLogoSelector, setShowLogoSelector] = useState(false);
-  const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null);
-
-  const stageRef = useRef<any>();
-  const transformerRef = useRef<any>();
-  const groupRefs = useRef<any>({});
+  const [showAreas, setShowAreas] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  const stageRef = useRef(null);
+  const imageRef = useRef(null);
+  const transformerRef = useRef(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Canvas scaling
-  const maxContainerSize = 600;
-  const scale = Math.min(maxContainerSize / canvasSize.width, maxContainerSize / canvasSize.height, 1);
-
-  // Memoized load templates function to prevent unnecessary rerenders
-  const loadTemplates = useCallback(async () => {
+  
+  const [stageSize, setStageSize] = useState({ width: 500, height: 500 });
+  const [image, setImage] = useState<HTMLImageElement | null>(null);
+  
+  useEffect(() => {
+    if (user) {
+      loadTemplates();
+    }
+  }, [user]);
+  
+  const loadTemplates = async () => {
     try {
       setLoading(true);
-      setError(null);
       console.log('🔄 Loading mockup templates...');
       
-      // Check if in demo mode
-      if (isDemoMode || !isConfigValid) {
-        console.log('🎭 Using demo data for mockup templates');
-        loadDemoTemplates();
-        return;
-      }
-
-      // Check if supabase client is properly initialized
-      if (!supabase) {
-        throw new Error('Supabase client is not initialized');
-      }
-
-      // Check if user is authenticated
-      if (!user?.id) {
-        throw new Error('User is not authenticated');
-      }
-
-      console.log('📡 Making request to Supabase for user:', user.id);
+      const { data, error } = await supabase
+        .from('mockup_templates')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
       
-      // Use executeWithTimeout for better error handling
-      const { data, error } = await executeWithTimeout(
-        () => supabase
-          .from('mockup_templates')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false }),
-        15000, // 15 second timeout
-        2 // 2 retries
-      );
-
       if (error) {
-        console.error('❌ Supabase query error:', error);
-        throw new Error(`Database query failed: ${error.message}`);
-      }
-
-      console.log(`✅ ${data?.length || 0} mockup templates loaded successfully`);
-      setTemplates(data || []);
-      setInitialLoadComplete(true);
-    } catch (error: any) {
-      console.error('❌ Template loading error:', error);
-      
-      // Provide more specific error messages
-      let errorMessage = 'Failed to load templates';
-      
-      if (error.message?.includes('Failed to fetch')) {
-        errorMessage = 'Network connection failed. Please check your internet connection and try again.';
-      } else if (error.message?.includes('not authenticated')) {
-        errorMessage = 'Authentication required. Please log in again.';
-      } else if (error.message?.includes('Database query failed')) {
-        errorMessage = `Database error: ${error.message}`;
-      } else if (error.message) {
-        errorMessage = error.message;
+        console.error('❌ Template loading error:', error);
+        throw error;
       }
       
-      setError(errorMessage);
+      console.log(`✅ ${data?.length || 0} mockup templates loaded`);
       
-      // Load demo data as fallback
-      loadDemoTemplates();
+      // Parse the stored JSON data
+      const parsedTemplates = data?.map(template => {
+        return {
+          ...template,
+          design_areas: template.design_areas || [],
+          text_areas: template.text_areas || [],
+          logo_area: template.logo_area || null,
+          design_type: template.design_type || 'black',
+          product_category: template.product_category || 't-shirt'
+        };
+      }) || [];
+      
+      setTemplates(parsedTemplates);
+      
+      // If there are templates, select the first one
+      if (parsedTemplates.length > 0) {
+        selectTemplate(parsedTemplates[0]);
+      }
+    } catch (error) {
+      console.error('❌ Template loading general error:', error);
+      setError('Failed to load templates. Please try again later.');
     } finally {
       setLoading(false);
     }
-  }, [user, isDemoMode]);
-
-  const loadDemoTemplates = () => {
-    console.log('🎭 Loading demo mockup templates');
-    
-    // Create demo templates
-    const demoTemplates: MockupTemplate[] = [
-      {
-        id: 'demo-1',
-        user_id: user?.id || 'demo-user',
-        name: 'T-Shirt Mockup Template',
-        image_url: 'https://images.pexels.com/photos/1566412/pexels-photo-1566412.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-        design_areas: [
-          {
-            id: 'design-1',
-            x: 500,
-            y: 400,
-            width: 300,
-            height: 300,
-            rotation: 0,
-            opacity: 0.8,
-            visible: true
-          }
-        ],
-        text_areas: [
-          {
-            id: 'text-1',
-            x: 500,
-            y: 700,
-            width: 400,
-            height: 100,
-            rotation: 0,
-            text: 'Sample Text',
-            fontSize: 36,
-            fontFamily: 'Arial',
-            color: '#000000',
-            align: 'center',
-            placeholder: 'Enter text...',
-            maxChars: 50,
-            visible: true
-          }
-        ],
-        is_default: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        design_type: 'black',
-        product_category: 't-shirt',
-        folder_path: 'default',
-        folder_name: 'Default Templates'
-      },
-      {
-        id: 'demo-2',
-        user_id: user?.id || 'demo-user',
-        name: 'Mug Mockup Template',
-        image_url: 'https://images.pexels.com/photos/1566298/pexels-photo-1566298.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-        design_areas: [
-          {
-            id: 'design-1',
-            x: 400,
-            y: 300,
-            width: 200,
-            height: 200,
-            rotation: 0,
-            opacity: 0.8,
-            visible: true
-          }
-        ],
-        text_areas: [],
-        is_default: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        design_type: 'white',
-        product_category: 'mug',
-        folder_path: 'default',
-        folder_name: 'Default Templates'
-      }
-    ];
-    
-    setTemplates(demoTemplates);
-    setError('Using demo data - Database connection not available');
-    setInitialLoadComplete(true);
   };
-
-  // Memoized load stores function to prevent unnecessary rerenders
-  const loadStores = useCallback(async () => {
-    try {
-      console.log('🔄 Loading Etsy stores...');
-      
-      // Check if in demo mode
-      if (isDemoMode || !isConfigValid) {
-        console.log('🎭 Using demo data for stores');
-        setStores([
-          { id: 'demo-store-1', store_name: 'Demo Etsy Store', is_active: true },
-          { id: 'demo-store-2', store_name: 'Demo Craft Shop', is_active: true }
-        ]);
-        return;
-      }
-
-      // Check if supabase client is properly initialized
-      if (!supabase) {
-        throw new Error('Supabase client is not initialized');
-      }
-
-      // Check if user is authenticated
-      if (!user?.id) {
-        throw new Error('User is not authenticated');
-      }
-
-      console.log('📡 Making request to Supabase for stores for user:', user.id);
-      
-      // Use executeWithTimeout for better error handling
-      const { data, error } = await executeWithTimeout(
-        () => supabase
-          .from('stores')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('platform', 'etsy')
-          .eq('is_active', true)
-          .order('created_at', { ascending: false }),
-        10000, // 10 second timeout
-        2 // 2 retries
-      );
-
-      if (error) {
-        console.error('❌ Store loading error:', error);
-        throw error;
-      }
-
-      console.log(`✅ ${data?.length || 0} Etsy stores loaded`);
-      setStores(data || []);
-      
-      if (data && data.length > 0) {
-        setSelectedStore(data[0].id);
-      }
-    } catch (error: any) {
-      console.error('❌ Store loading error:', error);
-      // Don't set error state for stores as it's not critical for the page to function
-    }
-  }, [user, isDemoMode]);
-
-  // Load data on component mount
-  useEffect(() => {
-    if (user || isDemoMode) {
-      loadTemplates();
-      loadStores();
-    }
-  }, [user, isDemoMode, loadTemplates, loadStores]);
-
-  // Memoized filtered templates to prevent unnecessary recalculations
-  const filteredTemplates = React.useMemo(() => {
-    return templates.filter(template =>
-      template.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [templates, searchTerm]);
-
-  const createNewTemplate = () => {
-    setEditingTemplate(null);
-    setTemplateName('');
-    setBackgroundImage('');
-    setSelectedStore(stores.length > 0 ? stores[0].id : '');
-    setDesignAreas([]);
-    setTextAreas([]);
-    setLogoArea(null);
-    setLogoImage(null);
-    setSelectedId(null);
-    setShowTransformer(false);
-    setCanvasSize({ width: 2000, height: 2000 });
-    setShowEditor(true);
-  };
-
-  const editTemplate = (template: MockupTemplate) => {
-    setEditingTemplate(template);
+  
+  const selectTemplate = (template: MockupTemplate) => {
+    setCurrentTemplate(template);
     setTemplateName(template.name);
-    setBackgroundImage(template.image_url);
-    setSelectedStore(template.store_id || (stores.length > 0 ? stores[0].id : ''));
-    setDesignAreas(template.design_areas || []);
-    setTextAreas(template.text_areas || []);
-    setLogoArea(template.logo_area || null);
+    setImageUrl(template.image_url);
+    setDesignType(template.design_type || 'black');
+    setProductCategory(template.product_category || 't-shirt');
     setSelectedId(null);
-    setShowTransformer(false);
     
-    // Load logo image
-    if (template.logo_area?.logoUrl) {
-      const img = new window.Image();
-      img.onload = () => {
-        setLogoImage(img);
-      };
-      img.src = template.logo_area.logoUrl;
-    } else {
-      setLogoImage(null);
-    }
-    
-    if (template.image_url) {
-      const img = new window.Image();
-      img.onload = () => {
-        setCanvasSize({ width: img.width, height: img.height });
-      };
-      img.src = template.image_url;
-    }
-    
-    setShowEditor(true);
-  };
-
-  const saveTemplate = async () => {
-    if (!templateName.trim()) {
-      alert('Template name is required!');
-      return;
-    }
-
-    if (!backgroundImage) {
-      alert('Background image is required!');
-      return;
-    }
-
-    if (!selectedStore) {
-      alert('Store selection is required!');
-      return;
-    }
-
-    try {
-      console.log('💾 Saving template...');
-
-      // If in demo mode, just update the state
-      if (isDemoMode || !isConfigValid) {
-        console.log('🎭 Demo mode: Simulating template save');
-        
-        const templateData = {
-          id: editingTemplate?.id || `demo-${Date.now()}`,
-          user_id: user?.id || 'demo-user',
-          name: templateName,
-          image_url: backgroundImage,
-          design_areas: designAreas,
-          text_areas: textAreas,
-          logo_area: logoArea,
-          store_id: selectedStore,
-          is_default: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          design_type: 'black' as const,
-          product_category: 't-shirt',
-          folder_path: 'default',
-          folder_name: 'Default Templates'
-        };
-        
-        if (editingTemplate) {
-          setTemplates(prev => prev.map(t => t.id === editingTemplate.id ? templateData : t));
-        } else {
-          setTemplates(prev => [templateData, ...prev]);
-        }
-        
-        setShowEditor(false);
-        alert('Template saved successfully! 🎉');
-        return;
+    // Load the image
+    const img = new window.Image();
+    img.src = template.image_url;
+    img.onload = () => {
+      setImage(img);
+      
+      // Set stage size based on image dimensions
+      const maxWidth = 800;
+      const maxHeight = 600;
+      
+      let width = img.width;
+      let height = img.height;
+      
+      if (width > maxWidth) {
+        const ratio = maxWidth / width;
+        width = maxWidth;
+        height = height * ratio;
       }
-
+      
+      if (height > maxHeight) {
+        const ratio = maxHeight / height;
+        height = height * ratio;
+        width = width * ratio;
+      }
+      
+      setStageSize({ width, height });
+    };
+  };
+  
+  const createNewTemplate = () => {
+    setCurrentTemplate(null);
+    setTemplateName('');
+    setImageUrl('');
+    setDesignType('black');
+    setProductCategory('t-shirt');
+    setSelectedId(null);
+    setImage(null);
+  };
+  
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    // Check if file is an image
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file.');
+      return;
+    }
+    
+    // Create object URL for the image
+    const url = URL.createObjectURL(file);
+    setImageUrl(url);
+    
+    // Load the image
+    const img = new window.Image();
+    img.src = url;
+    img.onload = () => {
+      setImage(img);
+      
+      // Set stage size based on image dimensions
+      const maxWidth = 800;
+      const maxHeight = 600;
+      
+      let width = img.width;
+      let height = img.height;
+      
+      if (width > maxWidth) {
+        const ratio = maxWidth / width;
+        width = maxWidth;
+        height = height * ratio;
+      }
+      
+      if (height > maxHeight) {
+        const ratio = maxHeight / height;
+        height = height * ratio;
+        width = width * ratio;
+      }
+      
+      setStageSize({ width, height });
+    };
+    
+    // Reset file input
+    if (event.target) {
+      event.target.value = '';
+    }
+  };
+  
+  const addDesignArea = () => {
+    if (!currentTemplate && !image) {
+      setError('Please upload an image first.');
+      return;
+    }
+    
+    const newArea: DesignArea = {
+      id: `design-${Date.now()}`,
+      x: stageSize.width / 2 - 50,
+      y: stageSize.height / 2 - 50,
+      width: 100,
+      height: 100,
+      rotation: 0
+    };
+    
+    if (currentTemplate) {
+      setCurrentTemplate({
+        ...currentTemplate,
+        design_areas: [...currentTemplate.design_areas, newArea]
+      });
+    }
+    
+    setSelectedId(newArea.id);
+  };
+  
+  const addTextArea = () => {
+    if (!currentTemplate && !image) {
+      setError('Please upload an image first.');
+      return;
+    }
+    
+    const newArea: TextArea = {
+      id: `text-${Date.now()}`,
+      x: stageSize.width / 2 - 75,
+      y: stageSize.height / 2 - 25,
+      width: 150,
+      height: 50,
+      rotation: 0,
+      font_size: 16,
+      font_family: 'Arial'
+    };
+    
+    if (currentTemplate) {
+      setCurrentTemplate({
+        ...currentTemplate,
+        text_areas: [...currentTemplate.text_areas, newArea]
+      });
+    }
+    
+    setSelectedId(newArea.id);
+  };
+  
+  const addLogoArea = () => {
+    if (!currentTemplate && !image) {
+      setError('Please upload an image first.');
+      return;
+    }
+    
+    // Check if logo area already exists
+    if (currentTemplate?.logo_area) {
+      setError('A logo area already exists. You can only have one logo area per template.');
+      return;
+    }
+    
+    const newArea: LogoArea = {
+      id: `logo-${Date.now()}`,
+      x: stageSize.width / 2 - 40,
+      y: stageSize.height / 2 - 40,
+      width: 80,
+      height: 80,
+      rotation: 0
+    };
+    
+    if (currentTemplate) {
+      setCurrentTemplate({
+        ...currentTemplate,
+        logo_area: newArea
+      });
+    }
+    
+    setSelectedId(newArea.id);
+  };
+  
+  const handleStageClick = (e: any) => {
+    // Clicked on stage but not on any shape
+    if (e.target === e.target.getStage()) {
+      setSelectedId(null);
+      return;
+    }
+  };
+  
+  const handleAreaClick = (id: string) => {
+    setSelectedId(id);
+  };
+  
+  const handleDragEnd = (e: any, id: string) => {
+    if (!currentTemplate) return;
+    
+    const { x, y } = e.target.position();
+    
+    // Update the appropriate area based on the id
+    if (id.startsWith('design-')) {
+      const updatedAreas = currentTemplate.design_areas.map(area => 
+        area.id === id ? { ...area, x, y } : area
+      );
+      setCurrentTemplate({ ...currentTemplate, design_areas: updatedAreas });
+    } else if (id.startsWith('text-')) {
+      const updatedAreas = currentTemplate.text_areas.map(area => 
+        area.id === id ? { ...area, x, y } : area
+      );
+      setCurrentTemplate({ ...currentTemplate, text_areas: updatedAreas });
+    } else if (id.startsWith('logo-') && currentTemplate.logo_area) {
+      setCurrentTemplate({ 
+        ...currentTemplate, 
+        logo_area: { ...currentTemplate.logo_area, x, y } 
+      });
+    }
+  };
+  
+  const handleTransformEnd = (e: any, id: string) => {
+    if (!currentTemplate) return;
+    
+    const node = e.target;
+    const scaleX = node.scaleX();
+    const scaleY = node.scaleY();
+    const rotation = node.rotation();
+    
+    // Reset scale to avoid accumulation
+    node.scaleX(1);
+    node.scaleY(1);
+    
+    const { x, y } = node.position();
+    const width = Math.max(5, node.width() * scaleX);
+    const height = Math.max(5, node.height() * scaleY);
+    
+    // Update the appropriate area based on the id
+    if (typeof id !== 'string') return;
+    
+    if (id.startsWith('design-')) {
+      const updatedAreas = currentTemplate.design_areas.map(area => 
+        area.id === id ? { ...area, x, y, width, height, rotation } : area
+      );
+      setCurrentTemplate({ ...currentTemplate, design_areas: updatedAreas });
+    } else if (id.startsWith('text-')) {
+      const updatedAreas = currentTemplate.text_areas.map(area => 
+        area.id === id ? { ...area, x, y, width, height, rotation } : area
+      );
+      setCurrentTemplate({ ...currentTemplate, text_areas: updatedAreas });
+    } else if (id.startsWith('logo-') && currentTemplate.logo_area) {
+      setCurrentTemplate({ 
+        ...currentTemplate, 
+        logo_area: { ...currentTemplate.logo_area, x, y, width, height, rotation } 
+      });
+    }
+  };
+  
+  const deleteSelectedArea = () => {
+    if (!currentTemplate || !selectedId) return;
+    
+    if (typeof selectedId !== 'string') return;
+    
+    if (selectedId.startsWith('design-')) {
+      const updatedAreas = currentTemplate.design_areas.filter(area => area.id !== selectedId);
+      setCurrentTemplate({ ...currentTemplate, design_areas: updatedAreas });
+    } else if (selectedId.startsWith('text-')) {
+      const updatedAreas = currentTemplate.text_areas.filter(area => area.id !== selectedId);
+      setCurrentTemplate({ ...currentTemplate, text_areas: updatedAreas });
+    } else if (selectedId.startsWith('logo-')) {
+      setCurrentTemplate({ ...currentTemplate, logo_area: undefined });
+    }
+    
+    setSelectedId(null);
+  };
+  
+  const getSelectedArea = () => {
+    if (!currentTemplate || !selectedId) return null;
+    
+    if (typeof selectedId !== 'string') return null;
+    
+    if (selectedId.startsWith('design-')) {
+      return currentTemplate.design_areas.find(area => area.id === selectedId);
+    } else if (selectedId.startsWith('text-')) {
+      return currentTemplate.text_areas.find(area => area.id === selectedId);
+    } else if (selectedId.startsWith('logo-')) {
+      return currentTemplate.logo_area;
+    }
+    
+    return null;
+  };
+  
+  const updateSelectedArea = (updates: Partial<DesignArea | TextArea | LogoArea>) => {
+    if (!currentTemplate || !selectedId) return;
+    
+    if (typeof selectedId !== 'string') return;
+    
+    if (selectedId.startsWith('design-')) {
+      const updatedAreas = currentTemplate.design_areas.map(area => 
+        area.id === selectedId ? { ...area, ...updates } : area
+      );
+      setCurrentTemplate({ ...currentTemplate, design_areas: updatedAreas });
+    } else if (selectedId.startsWith('text-')) {
+      const updatedAreas = currentTemplate.text_areas.map(area => 
+        area.id === selectedId ? { ...area, ...updates } : area
+      );
+      setCurrentTemplate({ ...currentTemplate, text_areas: updatedAreas });
+    } else if (selectedId.startsWith('logo-') && currentTemplate.logo_area) {
+      setCurrentTemplate({ 
+        ...currentTemplate, 
+        logo_area: { ...currentTemplate.logo_area, ...updates } 
+      });
+    }
+  };
+  
+  const saveTemplate = async () => {
+    if (!templateName) {
+      setError('Please enter a template name.');
+      return;
+    }
+    
+    if (!imageUrl) {
+      setError('Please upload an image.');
+      return;
+    }
+    
+    try {
+      setSaving(true);
+      setError(null);
+      
       const templateData = {
         user_id: user?.id,
         name: templateName,
-        image_url: backgroundImage,
-        design_areas: designAreas,
-        text_areas: textAreas,
-        logo_area: logoArea,
-        store_id: selectedStore,
+        image_url: imageUrl,
+        design_areas: currentTemplate?.design_areas || [],
+        text_areas: currentTemplate?.text_areas || [],
+        logo_area: currentTemplate?.logo_area || null,
         is_default: false,
-        design_type: 'black' as const,
-        product_category: 't-shirt',
-        folder_path: 'default',
-        folder_name: 'Default Templates'
+        design_type: designType,
+        product_category: productCategory
       };
-
+      
       let result;
-
-      if (editingTemplate) {
+      
+      if (currentTemplate?.id) {
+        // Update existing template
         result = await supabase
           .from('mockup_templates')
           .update({
-            ...templateData,
+            name: templateName,
+            image_url: imageUrl,
+            design_areas: currentTemplate.design_areas,
+            text_areas: currentTemplate.text_areas,
+            logo_area: currentTemplate.logo_area,
+            design_type: designType,
+            product_category: productCategory,
             updated_at: new Date().toISOString()
           })
-          .eq('id', editingTemplate.id)
+          .eq('id', currentTemplate.id)
           .eq('user_id', user?.id)
           .select()
           .single();
       } else {
+        // Create new template
         result = await supabase
           .from('mockup_templates')
           .insert(templateData)
           .select()
           .single();
       }
-
+      
       if (result.error) {
         console.error('❌ Template save error:', result.error);
-        alert('Template could not be saved: ' + result.error.message);
-        return;
+        throw result.error;
       }
-
+      
       console.log('✅ Template saved successfully:', result.data);
+      
+      // Reload templates
       await loadTemplates();
-      setShowEditor(false);
-      alert('Template saved successfully! 🎉');
-
-    } catch (error) {
-      console.error('❌ Template save general error:', error);
-      alert('Template could not be saved: ' + (error as Error).message);
+      
+      // Select the newly created/updated template
+      if (result.data) {
+        selectTemplate(result.data);
+      }
+      
+      alert('Template saved successfully!');
+    } catch (error: any) {
+      console.error('❌ Template save error:', error);
+      setError(`Failed to save template: ${error.message}`);
+    } finally {
+      setSaving(false);
     }
   };
-
+  
   const deleteTemplate = async (templateId: string) => {
-    if (!window.confirm('Are you sure you want to delete this template?')) return;
-
+    if (!window.confirm('Are you sure you want to delete this template?')) {
+      return;
+    }
+    
     try {
-      // If in demo mode, just update the state
-      if (isDemoMode || !isConfigValid) {
-        console.log('🎭 Demo mode: Simulating template deletion');
-        setTemplates(prev => prev.filter(t => t.id !== templateId));
-        setSelectedTemplates(prev => prev.filter(id => id !== templateId));
-        return;
-      }
-
       const { error } = await supabase
         .from('mockup_templates')
         .delete()
         .eq('id', templateId)
         .eq('user_id', user?.id);
-
-      if (error) throw error;
-
-      setTemplates(prev => prev.filter(t => t.id !== templateId));
-      setSelectedTemplates(prev => prev.filter(id => id !== templateId));
-    } catch (error) {
-      console.error('Template deletion error:', error);
-      alert('Error occurred while deleting template');
-    }
-  };
-
-  const duplicateTemplate = async (template: MockupTemplate) => {
-    try {
-      // If in demo mode, just update the state
-      if (isDemoMode || !isConfigValid) {
-        console.log('🎭 Demo mode: Simulating template duplication');
-        
-        const duplicatedTemplate = {
-          ...template,
-          id: `demo-${Date.now()}`,
-          name: `${template.name} (Copy)`,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        
-        setTemplates(prev => [duplicatedTemplate, ...prev]);
-        return;
+      
+      if (error) {
+        console.error('❌ Template delete error:', error);
+        throw error;
       }
-
-      const { error } = await supabase
-        .from('mockup_templates')
-        .insert({
-          user_id: user?.id,
-          name: `${template.name} (Copy)`,
-          image_url: template.image_url,
-          design_areas: template.design_areas,
-          text_areas: template.text_areas,
-          logo_area: template.logo_area,
-          store_id: template.store_id,
-          is_default: false,
-          design_type: template.design_type || 'black',
-          product_category: template.product_category || 't-shirt',
-          folder_path: template.folder_path || 'default',
-          folder_name: template.folder_name || 'Default Templates'
-        });
-
-      if (error) throw error;
-
+      
+      console.log('✅ Template deleted successfully');
+      
+      // Reload templates
       await loadTemplates();
-    } catch (error) {
-      console.error('Template duplication error:', error);
-      alert('Error occurred while duplicating template');
+      
+      // If the deleted template was the current one, reset the form
+      if (currentTemplate?.id === templateId) {
+        createNewTemplate();
+      }
+    } catch (error: any) {
+      console.error('❌ Template delete error:', error);
+      setError(`Failed to delete template: ${error.message}`);
     }
   };
-
-  const handleBackgroundUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      alert('Only image files can be uploaded!');
-      return;
-    }
-
-    if (file.size > 20 * 1024 * 1024) {
-      alert('File size must be smaller than 20MB!');
-      return;
-    }
-
-    try {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const base64 = e.target?.result as string;
-        setBackgroundImage(base64);
-        
-        const img = new window.Image();
-        img.onload = () => {
-          setCanvasSize({ width: img.width, height: img.height });
-        };
-        img.src = base64;
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error('Background upload error:', error);
-      alert('Error occurred while uploading background');
-    }
-  };
-
-  const addDesignArea = () => {
-    if (designAreas.length >= 1) {
-      alert('You can only add 1 design area!');
-      return;
-    }
-
-    const newArea: DesignArea = {
-      id: `design-${Date.now()}`,
-      x: canvasSize.width / 2,
-      y: canvasSize.height / 2,
-      width: 600,
-      height: 600,
-      rotation: 0,
-      opacity: 0.7,
-      visible: true
-    };
-
-    setDesignAreas([newArea]);
-    setSelectedId(newArea.id);
-    setShowTransformer(true);
-  };
-
-  const addTextArea = () => {
-    const newArea: TextArea = {
-      id: `text-${Date.now()}`,
-      x: canvasSize.width / 2,
-      y: canvasSize.height / 2,
-      width: 800,
-      height: 150,
-      rotation: 0,
-      text: 'Sample Text',
-      fontSize: 72,
-      fontFamily: 'Arial',
-      color: '#000000',
-      align: 'center',
-      placeholder: 'Enter your text...',
-      maxChars: 100,
-      visible: true
-    };
-
-    setTextAreas(prev => [...prev, newArea]);
-    setSelectedId(newArea.id);
-    setShowTransformer(true);
-  };
-
-  const addLogoArea = () => {
-    if (logoArea) {
-      alert('You can only add 1 logo area!');
-      return;
-    }
-
-    const newArea: LogoArea = {
-      id: `logo-${Date.now()}`,
-      x: canvasSize.width / 2,
-      y: canvasSize.height / 2,
-      width: 450,
-      height: 450,
-      rotation: 0,
-      opacity: 0.8,
-      visible: true
-    };
-
-    setLogoArea(newArea);
-    setSelectedId(newArea.id);
-    setShowTransformer(true);
-    
-    // Open logo selector
-    setShowLogoSelector(true);
-  };
-
-  const handleLogoSelect = (logoUrl: string) => {
-    console.log('🖼️ Logo selected:', logoUrl);
-    
-    const img = new window.Image();
-    img.onload = () => {
-      setLogoImage(img);
-      console.log('✅ Logo image loaded:', img.width, 'x', img.height);
-    };
-    img.onerror = () => {
-      console.error('❌ Logo image could not be loaded:', logoUrl);
-      alert('Error occurred while loading logo');
-    };
-    img.src = logoUrl;
-    
-    if (logoArea) {
-      setLogoArea(prev => prev ? { ...prev, logoUrl } : null);
-    }
-    
-    setShowLogoSelector(false);
-  };
-
-  const handleLogoAreaClick = () => {
-    console.log('🖼️ Logo area clicked, opening logo selector...');
-    setSelectedId(logoArea?.id || null);
-    setShowTransformer(true);
-    setShowLogoSelector(true);
-  };
-
-  const deleteArea = (areaId: string) => {
-    if (areaId.startsWith('design-')) {
-      setDesignAreas([]);
-    } else if (areaId.startsWith('text-')) {
-      setTextAreas(prev => prev.filter(area => area.id !== areaId));
-    } else if (areaId.startsWith('logo-')) {
-      setLogoArea(null);
-      setLogoImage(null);
-    }
-    
-    if (selectedId === areaId) {
-      setSelectedId(null);
-      setShowTransformer(false);
-    }
-  };
-
-  // Canvas click handler - clear selection when clicking empty area
-  const handleStageClick = (e: any) => {
-    if (e.target === e.target.getStage()) {
-      console.log('🖱️ Empty area clicked, clearing selection and hiding transformer');
-      setSelectedId(null);
-      setShowTransformer(false);
-    }
-  };
-
-  // Area click handler - show transformer
-  const handleAreaClick = (areaId: string) => {
-    console.log('🎯 Area clicked, showing transformer:', areaId);
-    setSelectedId(areaId);
-    setShowTransformer(true);
-  };
-
-  const handleDragEnd = (areaId: string, e: any) => {
-    const newX = e.target.x();
-    const newY = e.target.y();
-
-    if (areaId.startsWith('design-')) {
-      setDesignAreas(prev => prev.map(area => 
-        area.id === areaId ? { ...area, x: newX, y: newY } : area
-      ));
-    } else if (areaId.startsWith('text-')) {
-      setTextAreas(prev => prev.map(area => 
-        area.id === areaId ? { ...area, x: newX, y: newY } : area
-      ));
-    } else if (areaId.startsWith('logo-')) {
-      setLogoArea(prev => prev ? { ...prev, x: newX, y: newY } : null);
-    }
-  };
-
-  const handleTransformEnd = (areaId: string, e: any) => {
-    const node = e.target;
-    const scaleX = node.scaleX();
-    const scaleY = node.scaleY();
-    
-    node.scaleX(1);
-    node.scaleY(1);
-
-    if (areaId.startsWith('design-')) {
-      setDesignAreas(prev => prev.map(area => 
-        area.id === areaId ? {
-          ...area,
-          x: node.x(),
-          y: node.y(),
-          width: Math.max(100, area.width * scaleX),
-          height: Math.max(100, area.height * scaleY),
-        } : area
-      ));
-    } else if (areaId.startsWith('text-')) {
-      setTextAreas(prev => prev.map(area => 
-        area.id === areaId ? {
-          ...area,
-          x: node.x(),
-          y: node.y(),
-          width: Math.max(200, area.width * scaleX),
-          height: Math.max(60, area.height * scaleY),
-        } : area
-      ));
-    } else if (areaId.startsWith('logo-')) {
-      setLogoArea(prev => prev ? {
-        ...prev,
-        x: node.x(),
-        y: node.y(),
-        width: Math.max(150, prev.width * scaleX),
-        height: Math.max(150, prev.height * scaleY),
-      } : null);
-    }
-  };
-
-  // Show transformer only when showTransformer is true
-  useEffect(() => {
-    if (!showTransformer || !selectedId) {
-      transformerRef.current?.nodes([]);
-      return;
-    }
-
-    const node = groupRefs.current[selectedId];
-    if (node && transformerRef.current) {
-      transformerRef.current.nodes([node]);
-      transformerRef.current.getLayer()?.batchDraw();
-    }
-  }, [selectedId, showTransformer]);
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const getSelectedArea = () => {
-    if (!selectedId || typeof selectedId !== 'string') return null;
-    
-    if (selectedId.startsWith('design-')) {
-      return designAreas.find(area => area.id === selectedId);
-    } else if (selectedId.startsWith('text-')) {
-      return textAreas.find(area => area.id === selectedId);
-    } else if (selectedId.startsWith('logo-')) {
-      return logoArea;
-    }
-    
-    return null;
-  };
-
-  const updateSelectedArea = (property: string, value: any) => {
-    if (!selectedId || typeof selectedId !== 'string') return;
-    
-    if (selectedId.startsWith('design-')) {
-      setDesignAreas(prev => prev.map(area => 
-        area.id === selectedId ? { ...area, [property]: value } : area
-      ));
-    } else if (selectedId.startsWith('text-')) {
-      setTextAreas(prev => prev.map(area => 
-        area.id === selectedId ? { ...area, [property]: value } : area
-      ));
-    } else if (selectedId.startsWith('logo-')) {
-      setLogoArea(prev => prev ? { ...prev, [property]: value } : null);
-    }
-  };
-
-  const getStoreName = (storeId?: string) => {
-    if (!storeId) return 'No store selected';
-    const store = stores.find(s => s.id === storeId);
-    return store ? store.store_name : 'Unknown store';
-  };
-
-  const retryLoadTemplates = () => {
-    setError(null);
-    loadTemplates();
-  };
-
-  // Show loading state only on initial load
-  if (loading && !initialLoadComplete) {
+  
+  const selectedArea = getSelectedArea();
+  
+  if (loading) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center h-64">
@@ -855,610 +555,550 @@ const MockupTemplatesPage: React.FC = () => {
       </div>
     );
   }
-
-  // Show error state with retry option
-  if (error && !isDemoMode && !initialLoadComplete) {
-    return (
-      <div className="p-6">
-        <div className="flex flex-col items-center justify-center h-64 space-y-4">
-          <div className="text-red-500 text-center">
-            <h3 className="text-lg font-semibold mb-2">Connection Error</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{error}</p>
-            <Button onClick={retryLoadTemplates} className="bg-orange-600 hover:bg-orange-700">
-              Try Again
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Editor View
-  if (showEditor) {
-    return (
-      <div className="h-screen flex flex-col">
-        {/* Editor Header */}
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Button
-                onClick={() => setShowEditor(false)}
-                variant="secondary"
-                size="sm"
-              >
-                ← Back
-              </Button>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                {editingTemplate ? 'Edit Template' : 'Create New Template'}
-              </h1>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Button onClick={saveTemplate} disabled={!templateName || !backgroundImage || !selectedStore}>
-                💾 Save
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Editor Content */}
-        <div className="flex-1 flex">
-          {/* Canvas Area */}
-          <div className="flex-1 p-6 bg-gray-100 dark:bg-gray-900">
-            <div className="flex flex-col items-center">
-              {/* Canvas Controls */}
-              <div className="mb-4 flex items-center space-x-4">
-                <Input
-                  placeholder="Template name"
-                  value={templateName}
-                  onChange={(e) => setTemplateName(e.target.value)}
-                  className="w-64"
-                />
-                <div className="flex items-center space-x-2">
-                  <Store className="h-5 w-5 text-orange-500" />
-                  <select
-                    value={selectedStore}
-                    onChange={(e) => setSelectedStore(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  >
-                    <option value="">Select store...</option>
-                    {stores.map((store) => (
-                      <option key={store.id} value={store.id}>
-                        {store.store_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  variant="secondary"
-                  size="sm"
-                >
-                  📁 Upload Mockup
-                </Button>
-              </div>
-
-              {/* Canvas */}
-              <div 
-                className="bg-white border-2 border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden shadow-lg"
-                style={{ 
-                  width: `${maxContainerSize}px`, 
-                  height: `${maxContainerSize}px` 
-                }}
-              >
-                <div
-                  style={{
-                    width: `${canvasSize.width}px`,
-                    height: `${canvasSize.height}px`,
-                    transform: `scale(${scale})`,
-                    transformOrigin: 'top left',
-                    position: 'relative'
-                  }}
-                >
-                  <Stage
-                    width={canvasSize.width}
-                    height={canvasSize.height}
-                    ref={stageRef}
-                    onClick={handleStageClick}
-                  >
-                    <Layer>
-                      {/* Background Image */}
-                      {backgroundImage && (
-                        <KonvaImage
-                          image={(() => {
-                            const img = new window.Image();
-                            img.src = backgroundImage;
-                            return img;
-                          })()}
-                          width={canvasSize.width}
-                          height={canvasSize.height}
-                        />
-                      )}
-
-                      {/* Design Areas */}
-                      {showAreaVisibility && designAreas.map((area) => (
-                        <Group
-                          key={area.id}
-                          ref={(node) => (groupRefs.current[area.id] = node)}
-                          x={area.x}
-                          y={area.y}
-                          draggable={showTransformer && selectedId === area.id}
-                          onClick={() => handleAreaClick(area.id)}
-                          onDragEnd={(e) => handleDragEnd(area.id, e)}
-                          onTransformEnd={(e) => handleTransformEnd(area.id, e)}
-                        >
-                          <Rect
-                            width={area.width}
-                            height={area.height}
-                            fill="rgba(59, 130, 246, 0.3)"
-                            stroke="#3b82f6"
-                            strokeWidth={4}
-                            offsetX={area.width / 2}
-                            offsetY={area.height / 2}
-                            opacity={area.opacity}
-                            rotation={area.rotation}
-                          />
-                          <KonvaText
-                            text="DESIGN"
-                            fontSize={48}
-                            fontFamily="Arial"
-                            fill="#3b82f6"
-                            width={area.width}
-                            height={area.height}
-                            align="center"
-                            verticalAlign="middle"
-                            offsetX={area.width / 2}
-                            offsetY={area.height / 2}
-                          />
-                        </Group>
-                      ))}
-
-                      {/* Text Areas */}
-                      {showAreaVisibility && textAreas.map((area) => (
-                        <Group
-                          key={area.id}
-                          ref={(node) => (groupRefs.current[area.id] = node)}
-                          x={area.x}
-                          y={area.y}
-                          draggable={showTransformer && selectedId === area.id}
-                          onClick={() => handleAreaClick(area.id)}
-                          onDragEnd={(e) => handleDragEnd(area.id, e)}
-                          onTransformEnd={(e) => handleTransformEnd(area.id, e)}
-                        >
-                          <Rect
-                            width={area.width}
-                            height={area.height}
-                            fill="transparent"
-                            stroke="transparent"
-                            strokeWidth={0}
-                            offsetX={area.width / 2}
-                            offsetY={area.height / 2}
-                            opacity={0}
-                            rotation={area.rotation}
-                          />
-                          <KonvaText
-                            text={area.text}
-                            fontSize={area.fontSize}
-                            fontFamily={area.fontFamily}
-                            fill={area.color}
-                            width={area.width}
-                            height={area.height}
-                            align={area.align}
-                            verticalAlign="middle"
-                            offsetX={area.width / 2}
-                            offsetY={area.height / 2}
-                          />
-                        </Group>
-                      ))}
-
-                      {/* Logo Area */}
-                      {showAreaVisibility && logoArea && (
-                        <Group
-                          key={logoArea.id}
-                          ref={(node) => (groupRefs.current[logoArea.id] = node)}
-                          x={logoArea.x}
-                          y={logoArea.y}
-                          draggable={showTransformer && selectedId === logoArea.id}
-                          onClick={handleLogoAreaClick}
-                          onDragEnd={(e) => handleDragEnd(logoArea.id, e)}
-                          onTransformEnd={(e) => handleTransformEnd(logoArea.id, e)}
-                        >
-                          {logoImage ? (
-                            <KonvaImage
-                              image={logoImage}
-                              width={logoArea.width}
-                              height={logoArea.height}
-                              offsetX={logoArea.width / 2}
-                              offsetY={logoArea.height / 2}
-                              opacity={logoArea.opacity}
-                              rotation={logoArea.rotation}
-                            />
-                          ) : (
-                            <>
-                              <Rect
-                                width={logoArea.width}
-                                height={logoArea.height}
-                                fill="rgba(168, 85, 247, 0.3)"
-                                stroke="#a855f7"
-                                strokeWidth={4}
-                                offsetX={logoArea.width / 2}
-                                offsetY={logoArea.height / 2}
-                                opacity={logoArea.opacity}
-                                rotation={logoArea.rotation}
-                              />
-                              <KonvaText
-                                text="LOGO\n(Click)"
-                                fontSize={36}
-                                fontFamily="Arial"
-                                fill="#a855f7"
-                                width={logoArea.width}
-                                height={logoArea.height}
-                                align="center"
-                                verticalAlign="middle"
-                                offsetX={logoArea.width / 2}
-                                offsetY={logoArea.height / 2}
-                              />
-                            </>
-                          )}
-                        </Group>
-                      )}
-
-                      {/* Show transformer only when showTransformer is true */}
-                      {selectedId && showTransformer && showAreaVisibility && (
-                        <Transformer
-                          ref={transformerRef}
-                          borderStroke="#0066ff"
-                          borderStrokeWidth={Math.max(2, 4 / scale)}
-                          anchorSize={Math.max(8, 16 / scale)}
-                          anchorStroke="#0066ff"
-                          anchorFill="#ffffff"
-                        />
-                      )}
-                    </Layer>
-                  </Stage>
-                </div>
-              </div>
-
-              {/* Canvas Info */}
-              <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
-                <p>💡 <strong>Tip:</strong> To save the template, please add a template name and design area. Logo and text are optional.</p>
-                <p>Canvas size: {canvasSize.width} × {canvasSize.height} px</p>
-                <p className="mt-2 text-orange-600 dark:text-orange-400">
-                  🖱️ <strong>Click empty area to clear selection and view areas only</strong>
-                </p>
-                {logoArea && !logoImage && (
-                  <p className="text-orange-600 dark:text-orange-400 mt-2">
-                    🖼️ <strong>Click logo area to select logo from Store Images</strong>
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Right Panel - Tools */}
-          <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 p-6 overflow-y-auto">
-            <div className="space-y-6">
-              {/* Add Elements */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add Elements</h3>
-                <div className="space-y-3">
-                  <Button
-                    onClick={addDesignArea}
-                    className="w-full flex items-center space-x-2"
-                    disabled={designAreas.length >= 1}
-                  >
-                    <Square className="h-4 w-4" />
-                    <span>Add Design Area</span>
-                  </Button>
-                  <Button
-                    onClick={addTextArea}
-                    variant="secondary"
-                    className="w-full flex items-center space-x-2"
-                  >
-                    <Type className="h-4 w-4" />
-                    <span>Add Text Area</span>
-                  </Button>
-                  <Button
-                    onClick={addLogoArea}
-                    variant="secondary"
-                    className="w-full flex items-center space-x-2"
-                    disabled={!!logoArea}
-                  >
-                    <Circle className="h-4 w-4" />
-                    <span>Add Logo Area</span>
-                  </Button>
-                </div>
-              </div>
-
-              {/* Area Visibility */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Visibility</h3>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => setShowAreaVisibility(!showAreaVisibility)}
-                    className="flex items-center space-x-2 text-gray-700 dark:text-gray-300"
-                  >
-                    {showAreaVisibility ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                    <span>{showAreaVisibility ? 'Hide Areas' : 'Show Areas'}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Selected Area Properties */}
-              {selectedId && getSelectedArea() && (
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Properties</h3>
-                  <div className="space-y-3">
-                    {selectedId.startsWith('text-') && (
-                      <>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Text:
-                          </label>
-                          <Input
-                            value={(getSelectedArea() as TextArea)?.text || ''}
-                            onChange={(e) => updateSelectedArea('text', e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Font Size:
-                          </label>
-                          <Input
-                            type="number"
-                            value={(getSelectedArea() as TextArea)?.fontSize || 72}
-                            onChange={(e) => updateSelectedArea('fontSize', parseInt(e.target.value))}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Color:
-                          </label>
-                          <input
-                            type="color"
-                            value={(getSelectedArea() as TextArea)?.color || '#000000'}
-                            onChange={(e) => updateSelectedArea('color', e.target.value)}
-                            className="w-full h-10 rounded border border-gray-300 dark:border-gray-600"
-                          />
-                        </div>
-                      </>
-                    )}
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Opacity:
-                      </label>
-                      <Input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.1"
-                        value={getSelectedArea()?.opacity || 1}
-                        onChange={(e) => updateSelectedArea('opacity', parseFloat(e.target.value))}
-                      />
-                    </div>
-                    
-                    <Button
-                      onClick={() => deleteArea(selectedId)}
-                      variant="danger"
-                      className="w-full"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete Area
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Hidden File Input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleBackgroundUpload}
-          className="hidden"
-        />
-
-        {/* Logo Selector Modal */}
-        {showLogoSelector && (
-          <LogoSelector
-            onSelect={handleLogoSelect}
-            onClose={() => setShowLogoSelector(false)}
-          />
-        )}
-      </div>
-    );
-  }
-
-  // Templates List View
+  
   return (
-    <div className="p-6 space-y-6">
+    <div className="h-screen flex flex-col">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
-            <Image className="h-6 w-6 mr-2 text-orange-500" />
-            Mockup Templates
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Create and manage your mockup templates ({templates.length} templates)
-          </p>
-        </div>
-        <div className="flex items-center space-x-3 mt-4 sm:mt-0">
-          <Button
-            onClick={createNewTemplate}
-            className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Create Template</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* Connection Error Warning */}
-      {error && (
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-          <div className="flex items-start space-x-3">
-            <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
-            <div>
-              <h3 className="text-sm font-medium text-yellow-700 dark:text-yellow-400 mb-1">
-                Connection Notice
-              </h3>
-              <p className="text-sm text-yellow-600 dark:text-yellow-300">
-                {error}
-              </p>
-              <div className="mt-2">
-                <Button
-                  onClick={retryLoadTemplates}
-                  variant="secondary"
-                  size="sm"
-                  className="flex items-center space-x-2"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  <span>Retry Connection</span>
-                </Button>
-              </div>
-            </div>
+      <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+              <Image className="h-6 w-6 mr-2 text-orange-500" />
+              Mockup Templates
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">
+              Create and manage mockup templates for your products
+            </p>
           </div>
-        </div>
-      )}
-
-      {/* Search */}
-      <div className="flex flex-col sm:flex-row gap-4 items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
-          <Input
-            type="text"
-            placeholder="Search templates..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-          />
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <div className="flex border border-gray-300 dark:border-gray-600 rounded-lg">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 ${viewMode === 'grid' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400'} rounded-l-lg`}
-            >
-              <Grid className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-2 ${viewMode === 'list' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400'} rounded-r-lg`}
-            >
-              <List className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Templates Display */}
-      {filteredTemplates.length === 0 ? (
-        <div className="text-center py-12">
-          <Image className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            {searchTerm ? 'No templates found' : 'No mockup templates yet'}
-          </h3>
-          <p className="text-gray-500 dark:text-gray-400 mb-6">
-            {searchTerm
-              ? 'Try adjusting your search terms'
-              : 'Create your first mockup template to get started'
-            }
-          </p>
-          {!searchTerm && (
+          <div className="flex items-center space-x-3 mt-4 sm:mt-0">
             <Button
               onClick={createNewTemplate}
-              className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
+              variant="secondary"
+              className="flex items-center space-x-2"
             >
               <Plus className="h-4 w-4" />
-              <span>Create First Template</span>
+              <span>New Template</span>
             </Button>
+            <Button
+              onClick={saveTemplate}
+              className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
+              disabled={saving}
+            >
+              <Save className="h-4 w-4" />
+              <span>{saving ? 'Saving...' : 'Save Template'}</span>
+            </Button>
+          </div>
+        </div>
+      </div>
+      
+      {/* Error Display */}
+      {error && (
+        <div className="mx-6 mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <p className="text-red-700 dark:text-red-400">{error}</p>
+        </div>
+      )}
+      
+      {/* Main Content */}
+      <div className="flex-1 flex">
+        {/* Canvas */}
+        <div className="flex-1 p-6 flex items-center justify-center bg-gray-100 dark:bg-gray-900 overflow-auto">
+          {image ? (
+            <Stage
+              width={stageSize.width}
+              height={stageSize.height}
+              ref={stageRef}
+              onClick={handleStageClick}
+              className="bg-white shadow-lg"
+            >
+              <Layer>
+                <KonvaImage
+                  ref={imageRef}
+                  image={image}
+                  width={stageSize.width}
+                  height={stageSize.height}
+                />
+                
+                {/* Design Areas */}
+                {currentTemplate && showAreas && currentTemplate.design_areas.map((area) => (
+                  <Group
+                    key={area.id}
+                    id={area.id}
+                    x={area.x}
+                    y={area.y}
+                    width={area.width}
+                    height={area.height}
+                    rotation={area.rotation}
+                    draggable
+                    onClick={() => handleAreaClick(area.id)}
+                    onDragEnd={(e) => handleDragEnd(e, area.id)}
+                    onTransformEnd={(e) => handleTransformEnd(e, area.id)}
+                  >
+                    <Rect
+                      width={area.width}
+                      height={area.height}
+                      fill="rgba(255, 100, 50, 0.2)"
+                      stroke={selectedId === area.id ? "#FF6432" : "rgba(255, 100, 50, 0.8)"}
+                      strokeWidth={2}
+                      dash={[5, 5]}
+                    />
+                  </Group>
+                ))}
+                
+                {/* Text Areas */}
+                {currentTemplate && showAreas && currentTemplate.text_areas.map((area) => (
+                  <Group
+                    key={area.id}
+                    id={area.id}
+                    x={area.x}
+                    y={area.y}
+                    width={area.width}
+                    height={area.height}
+                    rotation={area.rotation}
+                    draggable
+                    onClick={() => handleAreaClick(area.id)}
+                    onDragEnd={(e) => handleDragEnd(e, area.id)}
+                    onTransformEnd={(e) => handleTransformEnd(e, area.id)}
+                  >
+                    <Rect
+                      width={area.width}
+                      height={area.height}
+                      fill="rgba(50, 100, 255, 0.2)"
+                      stroke={selectedId === area.id ? "#3264FF" : "rgba(50, 100, 255, 0.8)"}
+                      strokeWidth={2}
+                      dash={[5, 5]}
+                    />
+                  </Group>
+                ))}
+                
+                {/* Logo Area */}
+                {currentTemplate && showAreas && currentTemplate.logo_area && (
+                  <Group
+                    key={currentTemplate.logo_area.id}
+                    id={currentTemplate.logo_area.id}
+                    x={currentTemplate.logo_area.x}
+                    y={currentTemplate.logo_area.y}
+                    width={currentTemplate.logo_area.width}
+                    height={currentTemplate.logo_area.height}
+                    rotation={currentTemplate.logo_area.rotation}
+                    draggable
+                    onClick={() => handleAreaClick(currentTemplate.logo_area.id)}
+                    onDragEnd={(e) => handleDragEnd(e, currentTemplate.logo_area.id)}
+                    onTransformEnd={(e) => handleTransformEnd(e, currentTemplate.logo_area.id)}
+                  >
+                    <Rect
+                      width={currentTemplate.logo_area.width}
+                      height={currentTemplate.logo_area.height}
+                      fill="rgba(100, 255, 50, 0.2)"
+                      stroke={selectedId === currentTemplate.logo_area.id ? "#64FF32" : "rgba(100, 255, 50, 0.8)"}
+                      strokeWidth={2}
+                      dash={[5, 5]}
+                    />
+                  </Group>
+                )}
+                
+                {/* Transformer */}
+                {selectedId && (
+                  <Transformer
+                    ref={transformerRef}
+                    boundBoxFunc={(oldBox, newBox) => {
+                      // Limit minimum size
+                      if (newBox.width < 5 || newBox.height < 5) {
+                        return oldBox;
+                      }
+                      return newBox;
+                    }}
+                  />
+                )}
+              </Layer>
+            </Stage>
+          ) : (
+            <div className="text-center">
+              <div className="mb-4">
+                <Image className="h-16 w-16 text-gray-400 mx-auto" />
+              </div>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">
+                No image uploaded. Please upload an image to create a template.
+              </p>
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+              >
+                Upload Image
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+            </div>
           )}
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTemplates.map((template) => (
-            <Card key={template.id} className="hover:shadow-lg transition-shadow">
-              <CardContent className="p-4">
-                <div className="space-y-3">
-                  {/* Template Preview */}
-                  <div className="relative aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
-                    <img
-                      src={template.image_url}
-                      alt={template.name}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
+        
+        {/* Sidebar */}
+        <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 p-6 overflow-y-auto">
+          {/* Template Selection */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Template
+            </label>
+            <select
+              value={currentTemplate?.id || ''}
+              onChange={(e) => {
+                const selected = templates.find(t => t.id === e.target.value);
+                if (selected) {
+                  selectTemplate(selected);
+                } else {
+                  createNewTemplate();
+                }
+              }}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            >
+              <option value="">-- New Template --</option>
+              {templates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          {/* Template Name */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Template Name
+            </label>
+            <Input
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              placeholder="Enter template name"
+              className="w-full"
+            />
+          </div>
+          
+          {/* Design Type Selection */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Design Type
+            </label>
+            <div className="flex space-x-2">
+              <button
+                type="button"
+                onClick={() => setDesignType('black')}
+                className={`flex-1 px-3 py-2 rounded-lg border ${
+                  designType === 'black' 
+                    ? 'bg-gray-900 text-white border-gray-900' 
+                    : 'bg-white text-gray-900 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                Black
+              </button>
+              <button
+                type="button"
+                onClick={() => setDesignType('white')}
+                className={`flex-1 px-3 py-2 rounded-lg border ${
+                  designType === 'white' 
+                    ? 'bg-gray-100 text-gray-900 border-gray-900' 
+                    : 'bg-white text-gray-900 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                White
+              </button>
+              <button
+                type="button"
+                onClick={() => setDesignType('color')}
+                className={`flex-1 px-3 py-2 rounded-lg border ${
+                  designType === 'color' 
+                    ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white border-blue-500' 
+                    : 'bg-white text-gray-900 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                Color
+              </button>
+            </div>
+          </div>
+          
+          {/* Product Category */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Product Category
+            </label>
+            <select
+              value={productCategory}
+              onChange={(e) => setProductCategory(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            >
+              <option value="t-shirt">T-Shirt</option>
+              <option value="sweatshirt">Sweatshirt</option>
+              <option value="hoodie">Hoodie</option>
+              <option value="mug">Mug</option>
+              <option value="poster">Poster</option>
+              <option value="canvas">Canvas</option>
+              <option value="pillow">Pillow</option>
+              <option value="phone-case">Phone Case</option>
+              <option value="tote-bag">Tote Bag</option>
+              <option value="sticker">Sticker</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          
+          {/* Image Upload */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Template Image
+            </label>
+            <div className="flex items-center space-x-2">
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                variant="secondary"
+                className="flex-1"
+              >
+                {imageUrl ? 'Change Image' : 'Upload Image'}
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              {imageUrl && (
+                <Button
+                  onClick={() => {
+                    setImageUrl('');
+                    setImage(null);
+                  }}
+                  variant="danger"
+                  size="sm"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            {imageUrl && (
+              <div className="mt-2 relative">
+                <img
+                  src={imageUrl}
+                  alt="Template Preview"
+                  className="w-full h-auto rounded-lg border border-gray-200 dark:border-gray-700"
+                />
+              </div>
+            )}
+          </div>
+          
+          {/* Add Elements */}
+          <div className="mb-6">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+              Add Elements
+            </h3>
+            <div className="space-y-2">
+              <Button
+                onClick={addDesignArea}
+                variant="secondary"
+                className="w-full bg-orange-600 text-white hover:bg-orange-700"
+                disabled={!image}
+              >
+                <Square className="h-4 w-4 mr-2" />
+                Add Design Area
+              </Button>
+              <Button
+                onClick={addTextArea}
+                variant="secondary"
+                className="w-full"
+                disabled={!image}
+              >
+                <Type className="h-4 w-4 mr-2" />
+                Add Text Area
+              </Button>
+              <Button
+                onClick={addLogoArea}
+                variant="secondary"
+                className="w-full"
+                disabled={!image || (currentTemplate?.logo_area !== undefined && currentTemplate?.logo_area !== null)}
+              >
+                <Circle className="h-4 w-4 mr-2" />
+                Add Logo Area
+              </Button>
+            </div>
+          </div>
+          
+          {/* Visibility */}
+          <div className="mb-6">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+              Visibility
+            </h3>
+            <Button
+              onClick={() => setShowAreas(!showAreas)}
+              variant="secondary"
+              className="w-full"
+            >
+              {showAreas ? (
+                <>
+                  <EyeOff className="h-4 w-4 mr-2" />
+                  Hide Areas
+                </>
+              ) : (
+                <>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Show Areas
+                </>
+              )}
+            </Button>
+          </div>
+          
+          {/* Selected Area Properties */}
+          {selectedArea && (
+            <div className="mb-6">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                Selected Area Properties
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Position
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400">X</label>
+                      <Input
+                        type="number"
+                        value={Math.round(selectedArea.x)}
+                        onChange={(e) => updateSelectedArea({ x: Number(e.target.value) })}
+                        className="w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400">Y</label>
+                      <Input
+                        type="number"
+                        value={Math.round(selectedArea.y)}
+                        onChange={(e) => updateSelectedArea({ y: Number(e.target.value) })}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Size
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400">Width</label>
+                      <Input
+                        type="number"
+                        value={Math.round(selectedArea.width)}
+                        onChange={(e) => updateSelectedArea({ width: Number(e.target.value) })}
+                        className="w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400">Height</label>
+                      <Input
+                        type="number"
+                        value={Math.round(selectedArea.height)}
+                        onChange={(e) => updateSelectedArea({ height: Number(e.target.value) })}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Rotation
+                  </label>
+                  <Input
+                    type="number"
+                    value={Math.round(selectedArea.rotation)}
+                    onChange={(e) => updateSelectedArea({ rotation: Number(e.target.value) })}
+                    className="w-full"
+                  />
+                </div>
+                
+                {/* Text area specific properties */}
+                {selectedId && typeof selectedId === 'string' && selectedId.startsWith('text-') && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Font Size
+                    </label>
+                    <Input
+                      type="number"
+                      value={(selectedArea as TextArea).font_size || 16}
+                      onChange={(e) => updateSelectedArea({ font_size: Number(e.target.value) })}
+                      className="w-full"
                     />
-                    
-                    {/* Overlay with area indicators */}
-                    <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-30 transition-opacity flex items-center justify-center">
-                      <div className="opacity-0 hover:opacity-100 transition-opacity text-white text-center">
-                        <div className="text-sm">
-                          {template.design_areas?.length || 0} Design • {template.text_areas?.length || 0} Text
-                          {template.logo_area && ' • 1 Logo'}
-                        </div>
+                  </div>
+                )}
+                
+                <Button
+                  onClick={deleteSelectedArea}
+                  variant="danger"
+                  className="w-full"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Area
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          {/* Template List */}
+          {templates.length > 0 && (
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                Your Templates
+              </h3>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {templates.map((template) => (
+                  <div
+                    key={template.id}
+                    className={`p-2 rounded-lg cursor-pointer flex items-center justify-between ${
+                      currentTemplate?.id === template.id
+                        ? 'bg-orange-100 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800'
+                        : 'hover:bg-gray-100 dark:hover:bg-gray-700 border border-transparent'
+                    }`}
+                    onClick={() => selectTemplate(template)}
+                  >
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded overflow-hidden mr-2">
+                        {template.image_url && (
+                          <img
+                            src={template.image_url}
+                            alt={template.name}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {template.name}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {template.design_type || 'black'} • {template.product_category || 't-shirt'}
+                        </p>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Template Info */}
-                  <div className="space-y-2">
-                    <h3 className="font-medium text-gray-900 dark:text-white truncate">
-                      {template.name}
-                    </h3>
-                    
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center space-x-1">
-                        <Store className="h-3 w-3 text-orange-500" />
-                        <span className="text-xs text-gray-600 dark:text-gray-400 truncate">
-                          {getStoreName(template.store_id)}
-                        </span>
-                      </div>
-                      <span className="text-gray-500 dark:text-gray-400 text-xs">
-                        {formatDate(template.created_at)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex space-x-2">
                     <Button
-                      onClick={() => editTemplate(template)}
-                      size="sm"
-                      className="flex-1"
-                    >
-                      <Edit className="h-4 w-4 mr-1" />
-                      Edit
-                    </Button>
-                    <Button
-                      onClick={() => duplicateTemplate(template)}
-                      variant="secondary"
-                      size="sm"
-                      className="p-2"
-                      title="Duplicate"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      onClick={() => deleteTemplate(template.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteTemplate(template.id);
+                      }}
                       variant="danger"
                       size="sm"
-                      className="p-2"
-                      title="Delete"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 };
