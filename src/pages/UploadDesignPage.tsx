@@ -559,8 +559,8 @@ const UploadDesignPage: React.FC = () => {
                 </button>
               </div>
               
-              <div className="space-y-4">
-                {/* Store Images Folder */}
+                           <div className="space-y-4">
+                {/* Store Images Klasörü */}
                 <div>
                   <div className="flex items-center mb-2">
                     <span className="text-orange-500 mr-2">🗂️</span>
@@ -578,8 +578,20 @@ const UploadDesignPage: React.FC = () => {
                   </select>
                 </div>
                 
+                {/* Listeleme Şablonu */}
+                <div>
+                  <div className="flex items-center mb-2">
+                    <span className="text-orange-500 mr-2">📋</span>
+                    <span className="text-gray-700 dark:text-gray-300 text-sm">Listeleme Şablonu</span>
+                  </div>
+                  <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <option value="">Şablon seçin...</option>
+                    <option value="1">Vintage Poster Template</option>
+                    <option value="2">Modern Typography Template</option>
+                    <option value="3">Botanical Illustration Template</option>
+                  </select>
+                </div>
                 
-                <div className="space-y-4">
                 {/* Mockup Klasörü */}
                 <div>
                   <div className="flex items-center mb-2">
@@ -613,10 +625,7 @@ const UploadDesignPage: React.FC = () => {
                   </select>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
+
 
       {/* Hidden File Input */}
       <input
