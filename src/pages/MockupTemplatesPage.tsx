@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Image, Plus, Edit, Trash2, Copy, Search, Filter, Grid, List, Save, Download, FolderPlus, Folder, FolderOpen, ArrowLeft, AlertCircle, RefreshCw, CheckCircle, X } from 'lucide-react';
+import { Image, Plus, Edit, Trash2, Copy, Search, Filter, Grid, List, Save, Download, FolderPlus, Folder, FolderOpen, ArrowLeft, ChevronRight, MoreHorizontal } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
@@ -15,6 +15,7 @@ interface MockupTemplate {
   text_areas: any[];
   logo_area?: any;
   design_type: 'black' | 'white' | 'color';
+  store_id?: string;
   product_category: string;
   folder_path?: string;
   folder_name?: string;
@@ -24,31 +25,43 @@ interface MockupTemplate {
 }
 
 interface TemplateFolder {
-  id: string;
-  name: string;
-  path: string;
+  folder_path: string;
+  folder_name: string;
   template_count: number;
+  black_designs: number;
+  white_designs: number;
+  color_designs: number;
+  first_created: string;
+  last_updated: string;
+}
+
+interface EtsyStore {
+  id: string;
+  store_name: string;
+  is_active: boolean;
 }
 
 const MockupTemplatesPage: React.FC = () => {
-  const { user, isDemoMode } = useAuth();
+  const { user } = useAuth();
   const [templates, setTemplates] = useState<MockupTemplate[]>([]);
   const [folders, setFolders] = useState<TemplateFolder[]>([]);
+  const [stores, setStores] = useState<EtsyStore[]>([]);
+  const [selectedStore, setSelectedStore] = useState<string>('');
   const [currentFolder, setCurrentFolder] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showCreateTemplateModal, setShowCreateTemplateModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploadName, setUploadName] = useState('');
-  const [uploadDesignType, setUploadDesignType] = useState<'black' | 'white' | 'color'>('black');
-  const [uploadProductCategory, setUploadProductCategory] = useState('t-shirt');
+  const [newTemplateName, setNewTemplateName] = useState('');
+  const [newTemplateDesignType, setNewTemplateDesignType] = useState<'black' | 'white' | 'color'>('black');
+  const [newTemplateProductCategory, setNewTemplateProductCategory] = useState('t-shirt');
+  const [newTemplateFolder, setNewTemplateFolder] = useState('');
+  const [uploadedImage, setUploadedImage] = useState<File | null>(null);
+  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [demoMode, setDemoMode] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -56,389 +69,317 @@ const MockupTemplatesPage: React.FC = () => {
     if (user) {
       loadFolders();
       loadTemplates();
-      
-      // Check if we're in demo mode
-      if (isDemoMode) {
-        setDemoMode(true);
-      }
+      loadStores();
     }
-  }, [user, currentFolder, isDemoMode]);
+  }, [user, currentFolder]);
 
   const loadFolders = async () => {
     try {
-      console.log('🔄 Loading template folders...');
+      console.log('🔄 Loading mockup template folders...');
       
-      // If in demo mode, use mock data
-      if (isDemoMode) {
-        console.log('📋 Demo mode: Using mock folder data');
-        const mockFolders: TemplateFolder[] = [
-          { id: '1', name: 'T-Shirts', path: 't-shirts', template_count: 5 },
-          { id: '2', name: 'Mugs', path: 'mugs', template_count: 3 },
-          { id: '3', name: 'Posters', path: 'posters', template_count: 4 },
-          { id: '4', name: 'Hoodies', path: 'hoodies', template_count: 2 },
-          { id: '5', name: 'Default Templates', path: 'default', template_count: 6 }
-        ];
-        setFolders(mockFolders);
-        return;
+      const { data, error } = await supabase
+        .from('mockup_template_folders')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('folder_name', { ascending: true });
+
+      if (error) {
+        console.error('❌ Folder loading error:', error);
+        throw error;
       }
+
+      console.log(`✅ ${data?.length || 0} mockup template folders loaded`);
+      setFolders(data || []);
       
-      // Try to get real data from Supabase
-      try {
-        const { data, error } = await supabase
-          .from('mockup_template_folders')
-          .select('*')
-          .eq('user_id', user?.id)
-          .order('folder_name', { ascending: true });
-
-        if (error) {
-          console.error('❌ Folder loading error:', error);
-          throw error;
-        }
-
-        // Transform the data to match our interface
-        const transformedFolders: TemplateFolder[] = data.map(folder => ({
-          id: folder.folder_path, // Use folder_path as ID
-          name: folder.folder_name,
-          path: folder.folder_path,
-          template_count: folder.template_count
-        }));
-
-        console.log(`✅ ${transformedFolders.length} template folders loaded`);
-        setFolders(transformedFolders);
-      } catch (error) {
-        console.warn('⚠️ Error loading folders from Supabase, falling back to mock data:', error);
-        // Fall back to mock data
-        const mockFolders: TemplateFolder[] = [
-          { id: '1', name: 'T-Shirts', path: 't-shirts', template_count: 5 },
-          { id: '2', name: 'Mugs', path: 'mugs', template_count: 3 },
-          { id: '3', name: 'Posters', path: 'posters', template_count: 4 },
-          { id: '4', name: 'Hoodies', path: 'hoodies', template_count: 2 },
-          { id: '5', name: 'Default Templates', path: 'default', template_count: 6 }
-        ];
-        setFolders(mockFolders);
-        setDemoMode(true);
+      // If no folders exist, create a default folder
+      if (data && data.length === 0) {
+        createDefaultFolder();
       }
     } catch (error) {
       console.error('❌ Folder loading general error:', error);
-      setError('Failed to load folders. Please try again later.');
-      
-      // Fall back to mock data
+      // Create mock folders for demo
       const mockFolders: TemplateFolder[] = [
-        { id: '1', name: 'T-Shirts', path: 't-shirts', template_count: 5 },
-        { id: '2', name: 'Mugs', path: 'mugs', template_count: 3 },
-        { id: '3', name: 'Posters', path: 'posters', template_count: 4 },
-        { id: '4', name: 'Hoodies', path: 'hoodies', template_count: 2 },
-        { id: '5', name: 'Default Templates', path: 'default', template_count: 6 }
+        {
+          folder_path: 'default',
+          folder_name: 'Default Templates',
+          template_count: 1,
+          black_designs: 1,
+          white_designs: 0,
+          color_designs: 0,
+          first_created: new Date().toISOString(),
+          last_updated: new Date().toISOString()
+        }
       ];
       setFolders(mockFolders);
-      setDemoMode(true);
+    }
+  };
+
+  const createDefaultFolder = async () => {
+    try {
+      console.log('🔄 Creating default folder...');
+      
+      // First template will be created in the default folder
+      const defaultTemplate: Partial<MockupTemplate> = {
+        user_id: user?.id,
+        name: 'Default T-Shirt Template',
+        image_url: 'https://images.pexels.com/photos/1484807/pexels-photo-1484807.jpeg?auto=compress&cs=tinysrgb&w=600',
+        design_areas: [{ x: 200, y: 200, width: 300, height: 300 }],
+        text_areas: [],
+        design_type: 'black',
+        product_category: 't-shirt',
+        folder_path: 'default',
+        folder_name: 'Default Templates',
+        is_default: true
+      };
+      
+      const { error } = await supabase
+        .from('mockup_templates')
+        .insert(defaultTemplate);
+      
+      if (error) {
+        console.error('❌ Default template creation error:', error);
+        throw error;
+      }
+      
+      console.log('✅ Default folder and template created');
+      
+      // Reload folders and templates
+      await loadFolders();
+      await loadTemplates();
+    } catch (error) {
+      console.error('❌ Default folder creation error:', error);
     }
   };
 
   const loadTemplates = async () => {
     try {
       setLoading(true);
-      setError(null);
       console.log('🔄 Loading mockup templates...');
       
-      // If in demo mode, use mock data
-      if (isDemoMode) {
-        console.log('📋 Demo mode: Using mock template data');
-        loadMockTemplates();
-        return;
+      let query = supabase
+        .from('mockup_templates')
+        .select('*')
+        .eq('user_id', user?.id);
+      
+      // If folder is selected, filter by folder
+      if (currentFolder) {
+        query = query.eq('folder_path', currentFolder);
       }
       
-      // Try to get real data from Supabase
-      try {
-        let query = supabase
-          .from('mockup_templates')
-          .select('*')
-          .eq('user_id', user?.id);
-
-        // If folder is selected, filter by folder
-        if (currentFolder) {
-          query = query.eq('folder_path', currentFolder);
-        }
-
-        const { data, error } = await query.order('created_at', { ascending: false });
-
-        if (error) {
-          console.error('❌ Template loading error:', error);
-          throw error;
-        }
-
-        console.log(`✅ ${data?.length || 0} mockup templates loaded`);
-        setTemplates(data || []);
-      } catch (error) {
-        console.warn('⚠️ Error loading templates from Supabase, falling back to mock data:', error);
-        // Fall back to mock data
-        loadMockTemplates();
+      // If store is selected, filter by store
+      if (selectedStore) {
+        query = query.eq('store_id', selectedStore);
       }
+      
+      const { data, error } = await query.order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Template loading error:', error);
+        throw error;
+      }
+
+      console.log(`✅ ${data?.length || 0} mockup templates loaded`);
+      setTemplates(data || []);
     } catch (error) {
       console.error('❌ Template loading general error:', error);
-      setError('Failed to load templates. Please try again later.');
-      
-      // Fall back to mock data
-      loadMockTemplates();
+      // Create mock template for demo
+      if (templates.length === 0) {
+        const mockTemplate: MockupTemplate = {
+          id: '1',
+          user_id: user?.id || '',
+          name: 'Sample T-Shirt Template',
+          image_url: 'https://images.pexels.com/photos/1484807/pexels-photo-1484807.jpeg?auto=compress&cs=tinysrgb&w=600',
+          design_areas: [{ x: 200, y: 200, width: 300, height: 300 }],
+          text_areas: [],
+          design_type: 'black',
+          product_category: 't-shirt',
+          folder_path: 'default',
+          folder_name: 'Default Templates',
+          is_default: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        setTemplates([mockTemplate]);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const loadMockTemplates = () => {
-    // Generate mock templates based on current folder
-    const folderName = currentFolder ? 
-      folders.find(f => f.path === currentFolder)?.name || 'Unknown Folder' : 
-      'All Templates';
-    
-    const mockTemplates: MockupTemplate[] = [];
-    
-    // Number of templates to generate
-    const templateCount = currentFolder ? 
-      folders.find(f => f.path === currentFolder)?.template_count || 5 : 
-      12;
-    
-    // Generate mock templates
-    for (let i = 1; i <= templateCount; i++) {
-      // Determine design type (distribute evenly)
-      const designTypes: Array<'black' | 'white' | 'color'> = ['black', 'white', 'color'];
-      const designType = designTypes[i % 3];
+  const loadStores = async () => {
+    try {
+      console.log('🔄 Loading Etsy stores...');
       
-      // Generate random image URL from Pexels
-      const imageId = 1000000 + Math.floor(Math.random() * 1000000);
-      const imageUrl = `https://images.pexels.com/photos/${imageId}/pexels-photo-${imageId}.jpeg?auto=compress&cs=tinysrgb&w=400`;
-      
-      // Create mock template
-      mockTemplates.push({
-        id: `mock-${currentFolder || 'all'}-${i}`,
-        user_id: user?.id || 'mock-user',
-        name: `${folderName} Template ${i}`,
-        image_url: imageUrl,
-        design_areas: [{ x: 100, y: 100, width: 200, height: 200 }],
-        text_areas: [{ x: 100, y: 300, width: 200, height: 50 }],
-        logo_area: { x: 50, y: 50, width: 100, height: 100 },
-        design_type: designType,
-        product_category: currentFolder === 't-shirts' ? 't-shirt' : 
-                          currentFolder === 'mugs' ? 'mug' : 
-                          currentFolder === 'posters' ? 'poster' : 
-                          currentFolder === 'hoodies' ? 'hoodie' : 
-                          'other',
-        folder_path: currentFolder || 'default',
-        folder_name: folderName,
-        is_default: i === 1, // First template is default
-        created_at: new Date(Date.now() - i * 86400000).toISOString(), // i days ago
-        updated_at: new Date(Date.now() - i * 43200000).toISOString() // i/2 days ago
-      });
+      const { data, error } = await supabase
+        .from('stores')
+        .select('*')
+        .eq('user_id', user?.id)
+        .eq('platform', 'etsy')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Store loading error:', error);
+        throw error;
+      }
+
+      console.log(`✅ ${data?.length || 0} Etsy stores loaded`);
+      setStores(data || []);
+    } catch (error) {
+      console.error('❌ Store loading general error:', error);
     }
-    
-    setTemplates(mockTemplates);
-    setDemoMode(true);
-    console.log(`✅ ${mockTemplates.length} mock templates loaded`);
   };
 
   const createFolder = async () => {
     if (!newFolderName.trim()) {
-      setError('Folder name is required!');
+      alert('Folder name is required!');
       return;
     }
 
     try {
-      console.log('🔄 Creating new folder:', newFolderName);
+      console.log('🔄 Creating new folder...');
       
-      // Generate folder path from name (lowercase, replace spaces with hyphens)
+      // Generate a folder path from the name (lowercase, replace spaces with hyphens)
       const folderPath = newFolderName.toLowerCase().replace(/\s+/g, '-');
       
       // Check if folder already exists
-      if (folders.some(f => f.path === folderPath)) {
-        setError('A folder with this name already exists!');
+      const existingFolder = folders.find(f => f.folder_path === folderPath);
+      if (existingFolder) {
+        alert('A folder with this name already exists!');
         return;
       }
       
-      // If in demo mode, just update state
-      if (demoMode) {
-        console.log('📋 Demo mode: Creating folder in state only');
-        const newFolder: TemplateFolder = {
-          id: `folder-${Date.now()}`,
-          name: newFolderName,
-          path: folderPath,
-          template_count: 0
-        };
-        
-        setFolders(prev => [...prev, newFolder]);
-        setNewFolderName('');
-        setShowCreateFolderModal(false);
-        return;
-      }
+      // Create a template in the new folder to initialize it
+      const newTemplate: Partial<MockupTemplate> = {
+        user_id: user?.id,
+        name: `${newFolderName} Template`,
+        image_url: 'https://images.pexels.com/photos/1484807/pexels-photo-1484807.jpeg?auto=compress&cs=tinysrgb&w=600',
+        design_areas: [{ x: 200, y: 200, width: 300, height: 300 }],
+        text_areas: [],
+        design_type: 'black',
+        product_category: 't-shirt',
+        folder_path: folderPath,
+        folder_name: newFolderName,
+        is_default: false
+      };
       
-      // In real mode, create folder in Supabase
-      // This is a bit tricky since we're using a view for folders
-      // We'll create a dummy template in the new folder to make it appear
       const { error } = await supabase
         .from('mockup_templates')
-        .insert({
-          user_id: user?.id,
-          name: `${newFolderName} Template`,
-          image_url: 'https://via.placeholder.com/400x400?text=New+Template',
-          design_areas: [],
-          text_areas: [],
-          design_type: 'black',
-          product_category: 'other',
-          folder_path: folderPath,
-          folder_name: newFolderName,
-          is_default: false
-        });
-
+        .insert(newTemplate);
+      
       if (error) {
         console.error('❌ Folder creation error:', error);
         throw error;
       }
-
-      console.log('✅ Folder created successfully');
       
-      // Reload folders
-      await loadFolders();
+      console.log('✅ New folder created successfully');
       
-      // Reset form
+      // Reset form and close modal
       setNewFolderName('');
       setShowCreateFolderModal(false);
+      
+      // Reload folders and templates
+      await loadFolders();
+      
+      // Navigate to the new folder
+      setCurrentFolder(folderPath);
     } catch (error) {
       console.error('❌ Folder creation general error:', error);
-      setError('Failed to create folder. Please try again later.');
+      alert('Failed to create folder. Please try again.');
     }
   };
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      setError('Only image files are allowed!');
+      alert('Please upload an image file');
       return;
     }
     
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      setError('File size must be less than 5MB!');
+      alert('File size should not exceed 5MB');
       return;
     }
     
-    setUploadFile(file);
-    setUploadName(file.name.split('.')[0]); // Set default name from filename
-    setShowUploadModal(true);
+    setUploadedImage(file);
+    
+    // Create preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setUploadPreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
   };
 
-  const uploadTemplate = async () => {
-    if (!uploadFile || !uploadName.trim()) {
-      setError('File and template name are required!');
+  const createTemplate = async () => {
+    if (!newTemplateName.trim()) {
+      alert('Template name is required!');
       return;
     }
-
+    
+    if (!uploadedImage && !uploadPreview) {
+      alert('Please upload an image for the template!');
+      return;
+    }
+    
     try {
       setUploading(true);
-      console.log('🔄 Uploading template:', uploadName);
+      console.log('🔄 Creating new template...');
       
-      // If in demo mode, just update state
-      if (demoMode) {
-        console.log('📋 Demo mode: Creating template in state only');
-        
-        // Create a URL for the file
-        const imageUrl = URL.createObjectURL(uploadFile);
-        
-        // Create mock template
-        const newTemplate: MockupTemplate = {
-          id: `template-${Date.now()}`,
-          user_id: user?.id || 'mock-user',
-          name: uploadName,
-          image_url: imageUrl,
-          design_areas: [{ x: 100, y: 100, width: 200, height: 200 }],
-          text_areas: [{ x: 100, y: 300, width: 200, height: 50 }],
-          design_type: uploadDesignType,
-          product_category: uploadProductCategory,
-          folder_path: currentFolder || 'default',
-          folder_name: currentFolder ? 
-            folders.find(f => f.path === currentFolder)?.name || 'Unknown Folder' : 
-            'Default Templates',
-          is_default: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        
-        setTemplates(prev => [newTemplate, ...prev]);
-        
-        // Update folder template count
-        setFolders(prev => prev.map(folder => 
-          folder.path === (currentFolder || 'default') 
-            ? { ...folder, template_count: folder.template_count + 1 } 
-            : folder
-        ));
-        
-        // Reset form
-        setUploadFile(null);
-        setUploadName('');
-        setShowUploadModal(false);
-        
-        console.log('✅ Template created successfully (demo mode)');
-        return;
-      }
+      // In a real implementation, this would upload the image to Supabase Storage
+      // For now, we'll use the preview URL or a placeholder
+      const imageUrl = uploadPreview || 'https://images.pexels.com/photos/1484807/pexels-photo-1484807.jpeg?auto=compress&cs=tinysrgb&w=600';
       
-      // In real mode, upload file to Supabase Storage
-      const fileExt = uploadFile.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `${user?.id}/${fileName}`;
+      // Use selected folder or current folder
+      const folderPath = newTemplateFolder || currentFolder || 'default';
       
-      // Upload file to Supabase Storage
-      const { data: fileData, error: fileError } = await supabase.storage
-        .from('mockup-templates')
-        .upload(filePath, uploadFile);
+      // Find folder name from path
+      const folder = folders.find(f => f.folder_path === folderPath);
+      const folderName = folder?.folder_name || 'Default Templates';
       
-      if (fileError) {
-        console.error('❌ File upload error:', fileError);
-        throw fileError;
-      }
+      const newTemplate: Partial<MockupTemplate> = {
+        user_id: user?.id,
+        name: newTemplateName,
+        image_url: imageUrl,
+        design_areas: [{ x: 200, y: 200, width: 300, height: 300 }],
+        text_areas: [],
+        design_type: newTemplateDesignType,
+        product_category: newTemplateProductCategory,
+        store_id: selectedStore || undefined,
+        folder_path: folderPath,
+        folder_name: folderName,
+        is_default: false
+      };
       
-      // Get public URL for the uploaded file
-      const { data: urlData } = supabase.storage
-        .from('mockup-templates')
-        .getPublicUrl(filePath);
-      
-      const publicUrl = urlData.publicUrl;
-      
-      // Create template in database
-      const { error: templateError } = await supabase
+      const { error } = await supabase
         .from('mockup_templates')
-        .insert({
-          user_id: user?.id,
-          name: uploadName,
-          image_url: publicUrl,
-          design_areas: [],
-          text_areas: [],
-          design_type: uploadDesignType,
-          product_category: uploadProductCategory,
-          folder_path: currentFolder || 'default',
-          folder_name: currentFolder ? 
-            folders.find(f => f.path === currentFolder)?.name || 'Unknown Folder' : 
-            'Default Templates',
-          is_default: false
-        });
+        .insert(newTemplate);
       
-      if (templateError) {
-        console.error('❌ Template creation error:', templateError);
-        throw templateError;
+      if (error) {
+        console.error('❌ Template creation error:', error);
+        throw error;
       }
       
-      console.log('✅ Template created successfully');
+      console.log('✅ New template created successfully');
+      
+      // Reset form and close modal
+      setNewTemplateName('');
+      setNewTemplateDesignType('black');
+      setNewTemplateProductCategory('t-shirt');
+      setNewTemplateFolder('');
+      setUploadedImage(null);
+      setUploadPreview(null);
+      setShowCreateTemplateModal(false);
       
       // Reload templates
       await loadTemplates();
-      
-      // Reset form
-      setUploadFile(null);
-      setUploadName('');
-      setShowUploadModal(false);
     } catch (error) {
-      console.error('❌ Template upload general error:', error);
-      setError('Failed to upload template. Please try again later.');
+      console.error('❌ Template creation general error:', error);
+      alert('Failed to create template. Please try again.');
     } finally {
       setUploading(false);
     }
@@ -448,32 +389,8 @@ const MockupTemplatesPage: React.FC = () => {
     if (!window.confirm('Are you sure you want to delete this template?')) return;
 
     try {
-      console.log('🔄 Deleting template:', templateId);
+      console.log(`🗑️ Deleting template: ${templateId}`);
       
-      // If in demo mode, just update state
-      if (demoMode) {
-        console.log('📋 Demo mode: Deleting template from state only');
-        
-        // Get template to delete
-        const templateToDelete = templates.find(t => t.id === templateId);
-        
-        // Remove from state
-        setTemplates(prev => prev.filter(t => t.id !== templateId));
-        
-        // Update folder template count
-        if (templateToDelete) {
-          setFolders(prev => prev.map(folder => 
-            folder.path === templateToDelete.folder_path 
-              ? { ...folder, template_count: Math.max(0, folder.template_count - 1) } 
-              : folder
-          ));
-        }
-        
-        console.log('✅ Template deleted successfully (demo mode)');
-        return;
-      }
-      
-      // In real mode, delete from Supabase
       const { error } = await supabase
         .from('mockup_templates')
         .delete()
@@ -487,93 +404,36 @@ const MockupTemplatesPage: React.FC = () => {
 
       console.log('✅ Template deleted successfully');
       
-      // Reload templates and folders
-      await loadTemplates();
+      // Update local state
+      setTemplates(prev => prev.filter(t => t.id !== templateId));
+      setSelectedTemplates(prev => prev.filter(id => id !== templateId));
+      
+      // Reload folders to update counts
       await loadFolders();
     } catch (error) {
       console.error('❌ Template deletion general error:', error);
-      setError('Failed to delete template. Please try again later.');
+      alert('Failed to delete template. Please try again.');
     }
   };
 
   const deleteFolder = async (folderPath: string) => {
-    // Check if folder has templates
-    const folderTemplates = templates.filter(t => t.folder_path === folderPath);
+    // Find folder to get template count
+    const folder = folders.find(f => f.folder_path === folderPath);
+    if (!folder) return;
     
-    if (folderTemplates.length > 0) {
-      if (!window.confirm(`This folder contains ${folderTemplates.length} templates. Are you sure you want to delete it? All templates in this folder will be moved to the Default folder.`)) {
-        return;
-      }
-    } else {
-      if (!window.confirm('Are you sure you want to delete this empty folder?')) {
-        return;
-      }
-    }
+    // Confirm deletion with warning about templates
+    if (!window.confirm(`Are you sure you want to delete this folder and all ${folder.template_count} templates inside it?`)) return;
 
     try {
-      console.log('🔄 Deleting folder:', folderPath);
+      console.log(`🗑️ Deleting folder: ${folderPath}`);
       
-      // If in demo mode, just update state
-      if (demoMode) {
-        console.log('📋 Demo mode: Deleting folder from state only');
-        
-        // If folder has templates, move them to Default folder
-        if (folderTemplates.length > 0) {
-          setTemplates(prev => prev.map(template => 
-            template.folder_path === folderPath 
-              ? { 
-                  ...template, 
-                  folder_path: 'default', 
-                  folder_name: 'Default Templates' 
-                } 
-              : template
-          ));
-          
-          // Update folder template counts
-          setFolders(prev => prev.map(folder => 
-            folder.path === 'default' 
-              ? { ...folder, template_count: folder.template_count + folderTemplates.length } 
-              : folder
-          ));
-        }
-        
-        // Remove folder from state
-        setFolders(prev => prev.filter(f => f.path !== folderPath));
-        
-        // If we're in the deleted folder, go back to root
-        if (currentFolder === folderPath) {
-          setCurrentFolder('');
-        }
-        
-        console.log('✅ Folder deleted successfully (demo mode)');
-        return;
-      }
-      
-      // In real mode, update templates to move them to Default folder
-      if (folderTemplates.length > 0) {
-        const { error } = await supabase
-          .from('mockup_templates')
-          .update({ 
-            folder_path: 'default', 
-            folder_name: 'Default Templates' 
-          })
-          .eq('folder_path', folderPath)
-          .eq('user_id', user?.id);
-
-        if (error) {
-          console.error('❌ Template update error:', error);
-          throw error;
-        }
-      }
-      
-      // Delete the folder's dummy template if it exists
-      // This is a bit of a hack since we're using a view for folders
+      // Delete all templates in the folder
       const { error } = await supabase
         .from('mockup_templates')
         .delete()
         .eq('folder_path', folderPath)
         .eq('user_id', user?.id);
-      
+
       if (error) {
         console.error('❌ Folder deletion error:', error);
         throw error;
@@ -581,104 +441,61 @@ const MockupTemplatesPage: React.FC = () => {
 
       console.log('✅ Folder deleted successfully');
       
+      // Update local state
+      setFolders(prev => prev.filter(f => f.folder_path !== folderPath));
+      
       // If we're in the deleted folder, go back to root
       if (currentFolder === folderPath) {
         setCurrentFolder('');
       }
       
-      // Reload templates and folders
+      // Reload templates
       await loadTemplates();
-      await loadFolders();
     } catch (error) {
       console.error('❌ Folder deletion general error:', error);
-      setError('Failed to delete folder. Please try again later.');
+      alert('Failed to delete folder. Please try again.');
     }
   };
 
   const duplicateTemplate = async (template: MockupTemplate) => {
     try {
-      console.log('🔄 Duplicating template:', template.name);
+      console.log(`🔄 Duplicating template: ${template.id}`);
       
-      // If in demo mode, just update state
-      if (demoMode) {
-        console.log('📋 Demo mode: Duplicating template in state only');
-        
-        // Create duplicate template
-        const duplicateTemplate: MockupTemplate = {
-          ...template,
-          id: `template-${Date.now()}`,
-          name: `${template.name} (Copy)`,
-          is_default: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        
-        // Add to state
-        setTemplates(prev => [duplicateTemplate, ...prev]);
-        
-        // Update folder template count
-        setFolders(prev => prev.map(folder => 
-          folder.path === template.folder_path 
-            ? { ...folder, template_count: folder.template_count + 1 } 
-            : folder
-        ));
-        
-        console.log('✅ Template duplicated successfully (demo mode)');
-        return;
-      }
+      const newTemplate: Partial<MockupTemplate> = {
+        user_id: user?.id,
+        name: `${template.name} (Copy)`,
+        image_url: template.image_url,
+        design_areas: template.design_areas,
+        text_areas: template.text_areas,
+        logo_area: template.logo_area,
+        design_type: template.design_type,
+        product_category: template.product_category,
+        store_id: template.store_id,
+        folder_path: template.folder_path,
+        folder_name: template.folder_name,
+        is_default: false
+      };
       
-      // In real mode, duplicate in Supabase
       const { error } = await supabase
         .from('mockup_templates')
-        .insert({
-          user_id: user?.id,
-          name: `${template.name} (Copy)`,
-          image_url: template.image_url,
-          design_areas: template.design_areas,
-          text_areas: template.text_areas,
-          logo_area: template.logo_area,
-          design_type: template.design_type,
-          product_category: template.product_category,
-          folder_path: template.folder_path,
-          folder_name: template.folder_name,
-          is_default: false
-        });
-
+        .insert(newTemplate);
+      
       if (error) {
         console.error('❌ Template duplication error:', error);
         throw error;
       }
-
+      
       console.log('✅ Template duplicated successfully');
       
-      // Reload templates and folders
+      // Reload templates
       await loadTemplates();
+      
+      // Reload folders to update counts
       await loadFolders();
     } catch (error) {
       console.error('❌ Template duplication general error:', error);
-      setError('Failed to duplicate template. Please try again later.');
+      alert('Failed to duplicate template. Please try again.');
     }
-  };
-
-  const filteredTemplates = templates.filter(template =>
-    template.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-  const getDesignTypeColor = (type: string) => {
-    const colors = {
-      'black': 'bg-gray-900 text-white',
-      'white': 'bg-gray-100 text-gray-900 border border-gray-300',
-      'color': 'bg-gradient-to-r from-blue-500 to-purple-500 text-white'
-    };
-    return colors[type as keyof typeof colors] || colors.black;
   };
 
   const toggleTemplateSelection = (templateId: string) => {
@@ -703,80 +520,78 @@ const MockupTemplatesPage: React.FC = () => {
     if (!window.confirm(`Are you sure you want to delete ${selectedTemplates.length} selected template(s)?`)) return;
     
     try {
-      console.log(`🔄 Deleting ${selectedTemplates.length} templates...`);
+      console.log(`🗑️ Deleting ${selectedTemplates.length} templates...`);
       
-      // If in demo mode, just update state
-      if (demoMode) {
-        console.log('📋 Demo mode: Deleting templates from state only');
-        
-        // Get templates to delete
-        const templatesToDelete = templates.filter(t => selectedTemplates.includes(t.id));
-        
-        // Remove from state
-        setTemplates(prev => prev.filter(t => !selectedTemplates.includes(t.id)));
-        
-        // Update folder template counts
-        const folderCounts: Record<string, number> = {};
-        templatesToDelete.forEach(template => {
-          const folderPath = template.folder_path || 'default';
-          folderCounts[folderPath] = (folderCounts[folderPath] || 0) + 1;
-        });
-        
-        setFolders(prev => prev.map(folder => 
-          folderCounts[folder.path] 
-            ? { ...folder, template_count: Math.max(0, folder.template_count - folderCounts[folder.path]) } 
-            : folder
-        ));
-        
-        // Clear selection
-        setSelectedTemplates([]);
-        
-        console.log('✅ Templates deleted successfully (demo mode)');
-        return;
-      }
-      
-      // In real mode, delete from Supabase
       const { error } = await supabase
         .from('mockup_templates')
         .delete()
         .in('id', selectedTemplates)
         .eq('user_id', user?.id);
-
+      
       if (error) {
-        console.error('❌ Bulk template deletion error:', error);
+        console.error('❌ Bulk deletion error:', error);
         throw error;
       }
-
+      
       console.log('✅ Templates deleted successfully');
       
-      // Clear selection
+      // Update local state
+      setTemplates(prev => prev.filter(t => !selectedTemplates.includes(t.id)));
       setSelectedTemplates([]);
       
-      // Reload templates and folders
-      await loadTemplates();
+      // Reload folders to update counts
       await loadFolders();
     } catch (error) {
-      console.error('❌ Bulk template deletion general error:', error);
-      setError('Failed to delete templates. Please try again later.');
+      console.error('❌ Bulk deletion general error:', error);
+      alert('Failed to delete templates. Please try again.');
     }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getDesignTypeColor = (type: string) => {
+    const colors = {
+      'black': 'bg-gray-900 text-white',
+      'white': 'bg-gray-100 text-gray-900 border border-gray-300',
+      'color': 'bg-gradient-to-r from-blue-500 to-purple-500 text-white'
+    };
+    return colors[type as keyof typeof colors] || colors.black;
   };
 
   const getCurrentFolderName = () => {
-    if (!currentFolder) return 'All Templates';
-    const folder = folders.find(f => f.path === currentFolder);
-    return folder ? folder.name : currentFolder;
+    if (!currentFolder) return 'All Folders';
+    const folder = folders.find(f => f.folder_path === currentFolder);
+    return folder ? folder.folder_name : currentFolder;
   };
 
-  const breadcrumbs = () => {
-    const parts = [];
-    if (currentFolder) {
-      const folder = folders.find(f => f.path === currentFolder);
-      if (folder) {
-        parts.push(folder.name);
-      }
-    }
-    return parts;
-  };
+  // Filter templates based on search term
+  const filteredTemplates = templates.filter(template =>
+    template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    template.product_category.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Get product categories for dropdown
+  const productCategories = [
+    { value: 't-shirt', label: 'T-Shirt' },
+    { value: 'sweatshirt', label: 'Sweatshirt' },
+    { value: 'hoodie', label: 'Hoodie' },
+    { value: 'mug', label: 'Mug' },
+    { value: 'poster', label: 'Poster' },
+    { value: 'canvas', label: 'Canvas' },
+    { value: 'pillow', label: 'Pillow' },
+    { value: 'phone-case', label: 'Phone Case' },
+    { value: 'tote-bag', label: 'Tote Bag' },
+    { value: 'sticker', label: 'Sticker' },
+    { value: 'other', label: 'Other' }
+  ];
 
   if (loading) {
     return (
@@ -790,23 +605,6 @@ const MockupTemplatesPage: React.FC = () => {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Demo Mode Banner */}
-      {demoMode && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-          <div className="flex items-center space-x-3">
-            <AlertCircle className="h-5 w-5 text-blue-500" />
-            <div>
-              <h3 className="text-sm font-medium text-blue-700 dark:text-blue-400">
-                Demo Mode Active
-              </h3>
-              <p className="text-sm text-blue-600 dark:text-blue-300">
-                You're viewing sample mockup templates. Changes won't be saved to the database.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -815,7 +613,7 @@ const MockupTemplatesPage: React.FC = () => {
             Mockup Templates
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Organize your mockup templates in folders ({templates.length} templates)
+            Create and manage your mockup templates ({templates.length} templates)
           </p>
         </div>
         <div className="flex items-center space-x-3 mt-4 sm:mt-0">
@@ -828,47 +626,53 @@ const MockupTemplatesPage: React.FC = () => {
             <span>New Folder</span>
           </Button>
           <Button
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => setShowCreateTemplateModal(true)}
             className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2"
           >
             <Plus className="h-4 w-4" />
-            <span>Upload Template</span>
+            <span>Create Template</span>
           </Button>
         </div>
       </div>
-
-      {/* Error Display */}
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <div className="flex items-center space-x-3">
-            <AlertCircle className="h-5 w-5 text-red-500" />
-            <div>
-              <h3 className="text-sm font-medium text-red-700 dark:text-red-400">
-                Error
-              </h3>
-              <p className="text-sm text-red-600 dark:text-red-300 mt-1">
-                {error}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Breadcrumb Navigation */}
       <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
         <button
           onClick={() => setCurrentFolder('')}
-          className="hover:text-orange-500 flex items-center space-x-1"
+          className={`hover:text-orange-500 flex items-center space-x-1 ${!currentFolder ? 'font-medium text-orange-500' : ''}`}
         >
           <Folder className="h-4 w-4" />
-          <span>All Templates</span>
+          <span>All Folders</span>
         </button>
-        {breadcrumbs().map((part, index) => (
-          <React.Fragment key={index}>
-            <span>/</span>
-            <span className="text-gray-900 dark:text-white font-medium">{part}</span>
-          </React.Fragment>
-        ))}
+        {currentFolder && (
+          <>
+            <ChevronRight className="h-4 w-4" />
+            <span className="text-gray-900 dark:text-white font-medium">{getCurrentFolderName()}</span>
+          </>
+        )}
+      </div>
+
+      {/* Store Selection */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center space-x-4">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Filter by Store:
+            </label>
+            <select
+              value={selectedStore}
+              onChange={(e) => setSelectedStore(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+            >
+              <option value="">All Stores</option>
+              {stores.map((store) => (
+                <option key={store.id} value={store.id}>
+                  {store.store_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Search and Filters */}
@@ -922,55 +726,65 @@ const MockupTemplatesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Folders and Templates Display */}
-      <div className="space-y-6">
-        {/* Folders Section - Show when in root directory */}
-        {!currentFolder && (
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-              <Folder className="h-5 w-5 mr-2 text-orange-500" />
-              Folders ({folders.length})
-            </h2>
-            
-            {folders.length === 0 ? (
-              <div className="text-center py-8 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <FolderPlus className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500 dark:text-gray-400 mb-4">
-                  No folders created yet
-                </p>
-                <Button
-                  onClick={() => setShowCreateFolderModal(true)}
-                  variant="secondary"
-                  className="flex items-center space-x-2 mx-auto"
+      {/* Folders Display - Show when not in a specific folder */}
+      {!currentFolder && (
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+            <Folder className="h-5 w-5 mr-2 text-orange-500" />
+            Folders ({folders.length})
+          </h2>
+          
+          {folders.length === 0 ? (
+            <div className="text-center py-8 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <FolderPlus className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500 dark:text-gray-400 mb-4">
+                No folders created yet
+              </p>
+              <Button
+                onClick={() => setShowCreateFolderModal(true)}
+                variant="secondary"
+                className="flex items-center space-x-2 mx-auto"
+              >
+                <FolderPlus className="h-4 w-4" />
+                <span>Create First Folder</span>
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {folders.map((folder) => (
+                <div
+                  key={folder.folder_path}
+                  className="group relative bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow cursor-pointer"
+                  onClick={() => setCurrentFolder(folder.folder_path)}
                 >
-                  <FolderPlus className="h-4 w-4" />
-                  <span>Create First Folder</span>
-                </Button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {folders.map((folder) => (
-                  <div
-                    key={folder.id}
-                    className="group relative bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow cursor-pointer"
-                    onClick={() => setCurrentFolder(folder.path)}
-                  >
-                    <div className="text-center">
-                      <FolderOpen className="h-12 w-12 text-orange-500 mx-auto mb-2" />
-                      <h3 className="font-medium text-gray-900 dark:text-white truncate">
-                        {folder.name}
-                      </h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {folder.template_count} templates
-                      </p>
+                  <div className="text-center">
+                    <FolderOpen className="h-12 w-12 text-orange-500 mx-auto mb-2" />
+                    <h3 className="font-medium text-gray-900 dark:text-white truncate">
+                      {folder.folder_name}
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {folder.template_count} templates
+                    </p>
+                    <div className="flex justify-center space-x-2 mt-2">
+                      <span className="px-2 py-1 bg-gray-900 text-white text-xs rounded-full">
+                        {folder.black_designs} Black
+                      </span>
+                      <span className="px-2 py-1 bg-gray-100 text-gray-900 border border-gray-300 text-xs rounded-full">
+                        {folder.white_designs} White
+                      </span>
+                      <span className="px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs rounded-full">
+                        {folder.color_designs} Color
+                      </span>
                     </div>
-                    
-                    {/* Folder Actions */}
-                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  </div>
+                  
+                  {/* Folder Actions */}
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex space-x-1">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          deleteFolder(folder.path);
+                          deleteFolder(folder.folder_path);
                         }}
                         className="p-1 bg-red-500 text-white rounded hover:bg-red-600"
                         title="Delete folder"
@@ -979,292 +793,294 @@ const MockupTemplatesPage: React.FC = () => {
                       </button>
                     </div>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Back Button - Show when in folder */}
+      {currentFolder && (
+        <Button
+          onClick={() => setCurrentFolder('')}
+          variant="secondary"
+          className="flex items-center space-x-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span>Back to All Folders</span>
+        </Button>
+      )}
+
+      {/* Templates Display */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+          <Image className="h-5 w-5 mr-2 text-orange-500" />
+          {getCurrentFolderName()} - Templates ({filteredTemplates.length})
+        </h2>
+
+        {filteredTemplates.length === 0 ? (
+          <div className="text-center py-12">
+            <Image className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              {searchTerm ? 'No templates found' : 'No templates in this folder'}
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-6">
+              {searchTerm
+                ? 'Try adjusting your search terms'
+                : 'Start by creating your first template'
+              }
+            </p>
+            {!searchTerm && (
+              <Button
+                onClick={() => setShowCreateTemplateModal(true)}
+                className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Create First Template</span>
+              </Button>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Select All Checkbox */}
+            <div className="flex items-center space-x-2 pb-4 border-b border-gray-200 dark:border-gray-700">
+              <input
+                type="checkbox"
+                checked={selectedTemplates.length === filteredTemplates.length}
+                onChange={selectAllTemplates}
+                className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+              />
+              <label className="text-sm text-gray-700 dark:text-gray-300">
+                Select all ({filteredTemplates.length} templates)
+              </label>
+            </div>
+
+            {/* Grid View */}
+            {viewMode === 'grid' && (
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-4">
+                {filteredTemplates.map((template) => (
+                  <Card key={template.id} className="hover:shadow-lg transition-shadow">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedTemplates.includes(template.id)}
+                            onChange={() => toggleTemplateSelection(template.id)}
+                            className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                          />
+                          <CardTitle className="text-lg truncate">{template.name}</CardTitle>
+                        </div>
+                        <div className="flex space-x-1">
+                          <button
+                            onClick={() => duplicateTemplate(template)}
+                            className="text-blue-500 hover:text-blue-700 p-1"
+                            title="Duplicate template"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => deleteTemplate(template.id)}
+                            className="text-red-500 hover:text-red-700 p-1"
+                            title="Delete template"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {/* Template Preview */}
+                      <div className="relative aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden mb-4">
+                        <img
+                          src={template.image_url}
+                          alt={template.name}
+                          className="w-full h-full object-cover"
+                        />
+                        
+                        {/* Design Type Badge */}
+                        <div className="absolute top-2 left-2">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDesignTypeColor(template.design_type)}`}>
+                            {template.design_type.charAt(0).toUpperCase() + template.design_type.slice(1)}
+                          </span>
+                        </div>
+                        
+                        {/* Product Category Badge */}
+                        <div className="absolute top-2 right-2">
+                          <span className="px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400 rounded-full text-xs font-medium">
+                            {template.product_category.charAt(0).toUpperCase() + template.product_category.slice(1).replace('-', ' ')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Template Info */}
+                      <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                        <div className="flex justify-between">
+                          <span>Design Areas:</span>
+                          <span className="font-medium">{template.design_areas?.length || 0}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Text Areas:</span>
+                          <span className="font-medium">{template.text_areas?.length || 0}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Created:</span>
+                          <span>{formatDate(template.created_at)}</span>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex space-x-2 mt-4">
+                        <Button
+                          onClick={() => {
+                            // TODO: Implement edit functionality
+                            console.log('Edit template:', template);
+                          }}
+                          size="sm"
+                          className="flex-1"
+                        >
+                          <Edit className="h-4 w-4 mr-1" />
+                          Edit
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            // TODO: Use template functionality
+                            console.log('Use template:', template);
+                          }}
+                          variant="secondary"
+                          size="sm"
+                          className="flex-1"
+                        >
+                          Use
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             )}
-          </div>
-        )}
 
-        {/* Back Button - Show when in folder */}
-        {currentFolder && (
-          <Button
-            onClick={() => setCurrentFolder('')}
-            variant="secondary"
-            className="flex items-center space-x-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back to All Folders</span>
-          </Button>
-        )}
-
-        {/* Templates Section */}
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-            <Image className="h-5 w-5 mr-2 text-orange-500" />
-            {getCurrentFolderName()} - Templates ({filteredTemplates.length})
-          </h2>
-
-          {filteredTemplates.length === 0 ? (
-            <div className="text-center py-12">
-              <Image className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                {searchTerm ? 'No templates found' : 'No templates in this folder'}
-              </h3>
-              <p className="text-gray-500 dark:text-gray-400 mb-6">
-                {searchTerm
-                  ? 'Try adjusting your search terms'
-                  : 'Start by uploading your first template'
-                }
-              </p>
-              {!searchTerm && (
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="bg-orange-600 hover:bg-orange-700 text-white flex items-center space-x-2 mx-auto"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Upload First Template</span>
-                </Button>
-              )}
-            </div>
-          ) : (
-            <>
-              {/* Select All Checkbox */}
-              <div className="flex items-center space-x-2 pb-4 border-b border-gray-200 dark:border-gray-700">
-                <input
-                  type="checkbox"
-                  checked={selectedTemplates.length === filteredTemplates.length}
-                  onChange={selectAllTemplates}
-                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                />
-                <label className="text-sm text-gray-700 dark:text-gray-300">
-                  Select all ({filteredTemplates.length} templates)
-                </label>
-              </div>
-
-              {/* Grid View */}
-              {viewMode === 'grid' && (
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-4">
-                  {filteredTemplates.map((template) => (
-                    <Card key={template.id} className="hover:shadow-lg transition-shadow">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              checked={selectedTemplates.includes(template.id)}
-                              onChange={() => toggleTemplateSelection(template.id)}
-                              className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                            />
-                            <CardTitle className="text-lg truncate">{template.name}</CardTitle>
+            {/* List View */}
+            {viewMode === 'list' && (
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden mt-4">
+                <table className="w-full">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        <input
+                          type="checkbox"
+                          checked={selectedTemplates.length === filteredTemplates.length}
+                          onChange={selectAllTemplates}
+                          className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                        />
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Template
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Category
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Areas
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Created
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {filteredTemplates.map((template) => (
+                      <tr key={template.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={selectedTemplates.includes(template.id)}
+                            onChange={() => toggleTemplateSelection(template.id)}
+                            className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                          />
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center space-x-3">
+                            <div className="flex-shrink-0 h-10 w-10 rounded overflow-hidden">
+                              <img
+                                src={template.image_url}
+                                alt={template.name}
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                {template.name}
+                              </p>
+                            </div>
                           </div>
-                          <div className="flex space-x-1">
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDesignTypeColor(template.design_type)}`}>
+                            {template.design_type.charAt(0).toUpperCase() + template.design_type.slice(1)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white capitalize">
+                          {template.product_category.replace('-', ' ')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          <span className="text-gray-600 dark:text-gray-400">D:</span> {template.design_areas?.length || 0} 
+                          <span className="mx-1">|</span>
+                          <span className="text-gray-600 dark:text-gray-400">T:</span> {template.text_areas?.length || 0}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {formatDate(template.created_at)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => {
+                                // TODO: Implement edit functionality
+                                console.log('Edit template:', template);
+                              }}
+                              className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300"
+                              title="Edit template"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
                             <button
                               onClick={() => duplicateTemplate(template)}
-                              className="text-blue-500 hover:text-blue-700 p-1"
+                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                               title="Duplicate template"
                             >
                               <Copy className="h-4 w-4" />
                             </button>
                             <button
                               onClick={() => deleteTemplate(template.id)}
-                              className="text-red-500 hover:text-red-700 p-1"
+                              className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
                               title="Delete template"
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
+                            <button
+                              className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
+                              title="More actions"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
                           </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        {/* Template Preview */}
-                        <div className="aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden mb-4">
-                          <img
-                            src={template.image_url}
-                            alt={template.name}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                          />
-                        </div>
-
-                        {/* Template Info */}
-                        <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                          <div className="flex justify-between">
-                            <span>Design Type:</span>
-                            <span className={`px-2 py-1 rounded-full text-xs ${getDesignTypeColor(template.design_type)}`}>
-                              {template.design_type.charAt(0).toUpperCase() + template.design_type.slice(1)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Created:</span>
-                            <span>{formatDate(template.created_at)}</span>
-                          </div>
-                          {template.is_default && (
-                            <div className="flex justify-center">
-                              <span className="px-2 py-1 bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400 rounded-full text-xs">
-                                Default Template
-                              </span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex space-x-2 mt-4">
-                          <Button
-                            onClick={() => {
-                              // TODO: Implement edit functionality
-                              alert('Edit functionality will be implemented soon!');
-                            }}
-                            size="sm"
-                            className="flex-1"
-                          >
-                            <Edit className="h-4 w-4 mr-1" />
-                            Edit
-                          </Button>
-                          <Button
-                            onClick={() => {
-                              // TODO: Implement use functionality
-                              alert('Use template functionality will be implemented soon!');
-                            }}
-                            variant="secondary"
-                            size="sm"
-                            className="flex-1"
-                          >
-                            Use
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-
-              {/* List View */}
-              {viewMode === 'list' && (
-                <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden mt-4">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 dark:bg-gray-700">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          <input
-                            type="checkbox"
-                            checked={selectedTemplates.length === filteredTemplates.length}
-                            onChange={selectAllTemplates}
-                            className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                          />
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Template
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Design Type
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Created
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Actions
-                        </th>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                      {filteredTemplates.map((template) => (
-                        <tr key={template.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <input
-                              type="checkbox"
-                              checked={selectedTemplates.includes(template.id)}
-                              onChange={() => toggleTemplateSelection(template.id)}
-                              className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                            />
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center space-x-3">
-                              <div className="flex-shrink-0 h-10 w-10 rounded overflow-hidden">
-                                <img
-                                  src={template.image_url}
-                                  alt={template.name}
-                                  className="h-full w-full object-cover"
-                                />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                                  {template.name}
-                                </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
-                                  {template.folder_name || 'Default Templates'}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-1 rounded-full text-xs ${getDesignTypeColor(template.design_type)}`}>
-                              {template.design_type.charAt(0).toUpperCase() + template.design_type.slice(1)}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                            {formatDate(template.created_at)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {template.is_default ? (
-                              <span className="px-2 py-1 bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400 rounded-full text-xs">
-                                Default
-                              </span>
-                            ) : (
-                              <span className="px-2 py-1 bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 rounded-full text-xs">
-                                Normal
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex items-center space-x-2">
-                              <button
-                                onClick={() => {
-                                  // TODO: Implement edit functionality
-                                  alert('Edit functionality will be implemented soon!');
-                                }}
-                                className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300"
-                                title="Edit template"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => duplicateTemplate(template)}
-                                className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                                title="Duplicate template"
-                              >
-                                <Copy className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => deleteTemplate(template.id)}
-                                className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                                title="Delete template"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
       </div>
-
-      {/* Hidden File Input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/jpg"
-        onChange={handleFileSelect}
-        className="hidden"
-      />
 
       {/* Create Folder Modal */}
       {showCreateFolderModal && (
@@ -1313,111 +1129,192 @@ const MockupTemplatesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Upload Template Modal */}
-      {showUploadModal && (
+      {/* Create Template Modal */}
+      {showCreateTemplateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                Upload Template
+                Create New Template
               </h2>
             </div>
             
-            <div className="p-6 space-y-4">
-              {/* Template Preview */}
-              {uploadFile && (
-                <div className="aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden mb-4">
-                  <img
-                    src={URL.createObjectURL(uploadFile)}
-                    alt="Template Preview"
-                    className="w-full h-full object-contain"
+            <div className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-200px)]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Template Name:
+                    </label>
+                    <Input
+                      value={newTemplateName}
+                      onChange={(e) => setNewTemplateName(e.target.value)}
+                      placeholder="e.g. White T-Shirt Front"
+                      className="w-full"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Design Type:
+                    </label>
+                    <div className="flex space-x-4">
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          checked={newTemplateDesignType === 'black'}
+                          onChange={() => setNewTemplateDesignType('black')}
+                          className="text-orange-600 focus:ring-orange-500"
+                        />
+                        <span className="text-gray-700 dark:text-gray-300">Black</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          checked={newTemplateDesignType === 'white'}
+                          onChange={() => setNewTemplateDesignType('white')}
+                          className="text-orange-600 focus:ring-orange-500"
+                        />
+                        <span className="text-gray-700 dark:text-gray-300">White</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          checked={newTemplateDesignType === 'color'}
+                          onChange={() => setNewTemplateDesignType('color')}
+                          className="text-orange-600 focus:ring-orange-500"
+                        />
+                        <span className="text-gray-700 dark:text-gray-300">Color</span>
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Product Category:
+                    </label>
+                    <select
+                      value={newTemplateProductCategory}
+                      onChange={(e) => setNewTemplateProductCategory(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                    >
+                      {productCategories.map((category) => (
+                        <option key={category.value} value={category.value}>
+                          {category.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Folder:
+                    </label>
+                    <select
+                      value={newTemplateFolder || currentFolder}
+                      onChange={(e) => setNewTemplateFolder(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                    >
+                      {folders.map((folder) => (
+                        <option key={folder.folder_path} value={folder.folder_path}>
+                          {folder.folder_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Store (Optional):
+                    </label>
+                    <select
+                      value={selectedStore}
+                      onChange={(e) => setSelectedStore(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                    >
+                      <option value="">No Store</option>
+                      {stores.map((store) => (
+                        <option key={store.id} value={store.id}>
+                          {store.store_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Template Image:
+                  </label>
+                  <div 
+                    className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 h-64 flex flex-col items-center justify-center cursor-pointer hover:border-orange-500 dark:hover:border-orange-500 transition-colors"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {uploadPreview ? (
+                      <div className="relative w-full h-full">
+                        <img 
+                          src={uploadPreview} 
+                          alt="Preview" 
+                          className="w-full h-full object-contain"
+                        />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setUploadedImage(null);
+                            setUploadPreview(null);
+                          }}
+                          className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <Image className="h-12 w-12 text-gray-400 mb-4" />
+                        <p className="text-gray-500 dark:text-gray-400 text-center mb-2">
+                          Click to upload template image
+                        </p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 text-center">
+                          PNG, JPG or JPEG (max. 5MB)
+                        </p>
+                      </>
+                    )}
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg"
+                    onChange={handleImageUpload}
+                    className="hidden"
                   />
                 </div>
-              )}
-              
-              {/* Template Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Template Name:
-                </label>
-                <Input
-                  value={uploadName}
-                  onChange={(e) => setUploadName(e.target.value)}
-                  placeholder="e.g. T-Shirt Mockup Front View"
-                  className="w-full"
-                />
               </div>
-              
-              {/* Design Type */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Design Type:
-                </label>
-                <select
-                  value={uploadDesignType}
-                  onChange={(e) => setUploadDesignType(e.target.value as 'black' | 'white' | 'color')}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-                >
-                  <option value="black">Black Design</option>
-                  <option value="white">White Design</option>
-                  <option value="color">Color Design</option>
-                </select>
-              </div>
-              
-              {/* Folder Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Folder:
-                </label>
-                <select
-                  value={currentFolder || 'default'}
-                  disabled={!!currentFolder} // Disable if already in a folder
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
-                >
-                  <option value="default">Default Templates</option>
-                  {folders.map((folder) => (
-                    <option key={folder.id} value={folder.path}>
-                      {folder.name}
-                    </option>
-                  ))}
-                </select>
-                {currentFolder && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Template will be added to the current folder: {getCurrentFolderName()}
-                  </p>
-                )}
-              </div>
-              
-              <div className="flex space-x-3 pt-4">
+            </div>
+            
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex space-x-3">
                 <Button
-                  onClick={uploadTemplate}
+                  onClick={createTemplate}
                   className="flex-1"
-                  disabled={uploading || !uploadFile || !uploadName.trim()}
+                  disabled={uploading || !newTemplateName.trim() || (!uploadedImage && !uploadPreview)}
                 >
-                  {uploading ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-                      <span>Uploading...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      <span>Upload</span>
-                    </>
-                  )}
+                  {uploading ? 'Creating...' : 'Create Template'}
                 </Button>
                 <Button
                   onClick={() => {
-                    setShowUploadModal(false);
-                    setUploadFile(null);
-                    setUploadName('');
+                    setShowCreateTemplateModal(false);
+                    setNewTemplateName('');
+                    setNewTemplateDesignType('black');
+                    setNewTemplateProductCategory('t-shirt');
+                    setNewTemplateFolder('');
+                    setUploadedImage(null);
+                    setUploadPreview(null);
                   }}
                   variant="secondary"
                   className="flex-1"
                   disabled={uploading}
                 >
-                  <X className="h-4 w-4 mr-2" />
-                  <span>Cancel</span>
+                  Cancel
                 </Button>
               </div>
             </div>
