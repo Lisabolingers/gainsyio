@@ -3,7 +3,7 @@ import { Upload, Trash2, Download, Search, Filter, Grid, List, RefreshCw, AlertC
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
-import Input from '../components/ui/Input';
+import { Input } from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 
 interface DesignFile {

@@ -3,7 +3,7 @@ import { Store, Plus, Edit, Trash2, ExternalLink, RefreshCw, Search, CheckCircle
 import { useAuth } from '../context/AuthContext';
 import { supabase, executeWithTimeout, isConfigValid } from '../lib/supabase';
 import Button from '../components/ui/Button';
-import Input from '../components/ui/Input';
+import { Input } from '../components/ui/Input';
 
 interface StoreData {
   id: string;
