@@ -34,7 +34,7 @@ interface Folder {
 }
 
 const MockupTemplatesPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isDemoMode } = useAuth();
   const [templates, setTemplates] = useState<MockupTemplate[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,6 +58,38 @@ const MockupTemplatesPage: React.FC = () => {
     try {
       setLoading(true);
       console.log('🔄 Loading mockup template folders...');
+      
+      // Check if we're in demo mode or if Supabase is not available
+      if (isDemoMode) {
+        console.log('📁 Demo mode detected, using mock folders...');
+        
+        const mockFolders: Folder[] = [
+          {
+            id: 'default',
+            name: 'Default Templates',
+            path: 'default',
+            template_count: 1,
+            created_at: new Date().toISOString()
+          },
+          {
+            id: 'tshirts',
+            name: 'T-Shirts',
+            path: 'tshirts',
+            template_count: 1,
+            created_at: new Date().toISOString()
+          },
+          {
+            id: 'mugs',
+            name: 'Mugs',
+            path: 'mugs',
+            template_count: 1,
+            created_at: new Date().toISOString()
+          }
+        ];
+        
+        setFolders(mockFolders);
+        return;
+      }
       
       const { data, error } = await supabase
         .from('mockup_template_folders')
@@ -123,21 +155,21 @@ const MockupTemplatesPage: React.FC = () => {
           id: 'default',
           name: 'Default Templates',
           path: 'default',
-          template_count: 0,
+          template_count: 1,
           created_at: new Date().toISOString()
         },
         {
           id: 'tshirts',
           name: 'T-Shirts',
           path: 'tshirts',
-          template_count: 0,
+          template_count: 1,
           created_at: new Date().toISOString()
         },
         {
           id: 'mugs',
           name: 'Mugs',
           path: 'mugs',
-          template_count: 0,
+          template_count: 1,
           created_at: new Date().toISOString()
         }
       ];
@@ -152,6 +184,67 @@ const MockupTemplatesPage: React.FC = () => {
     try {
       setLoading(true);
       console.log('🔄 Loading mockup templates...');
+      
+      // Check if we're in demo mode or if Supabase is not available
+      if (isDemoMode) {
+        console.log('📝 Demo mode detected, using mock templates...');
+        
+        const mockTemplates: MockupTemplate[] = [
+          {
+            id: '1',
+            user_id: user?.id || '',
+            name: 'T-Shirt Mockup 1',
+            image_url: 'https://images.pexels.com/photos/1484516/pexels-photo-1484516.jpeg?auto=compress&cs=tinysrgb&w=600',
+            design_areas: [{ x: 200, y: 200, width: 300, height: 300 }],
+            text_areas: [{ x: 200, y: 500, width: 300, height: 100 }],
+            is_default: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            design_type: 'black',
+            product_category: 't-shirt',
+            folder_path: 'tshirts',
+            folder_name: 'T-Shirts'
+          },
+          {
+            id: '2',
+            user_id: user?.id || '',
+            name: 'Mug Mockup 1',
+            image_url: 'https://images.pexels.com/photos/1566308/pexels-photo-1566308.jpeg?auto=compress&cs=tinysrgb&w=600',
+            design_areas: [{ x: 200, y: 200, width: 200, height: 200 }],
+            text_areas: [],
+            is_default: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            design_type: 'white',
+            product_category: 'mug',
+            folder_path: 'mugs',
+            folder_name: 'Mugs'
+          },
+          {
+            id: '3',
+            user_id: user?.id || '',
+            name: 'Poster Mockup 1',
+            image_url: 'https://images.pexels.com/photos/1070945/pexels-photo-1070945.jpeg?auto=compress&cs=tinysrgb&w=600',
+            design_areas: [{ x: 200, y: 200, width: 400, height: 600 }],
+            text_areas: [{ x: 200, y: 800, width: 400, height: 100 }],
+            is_default: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            design_type: 'color',
+            product_category: 'poster',
+            folder_path: 'default',
+            folder_name: 'Default Templates'
+          }
+        ];
+        
+        // Filter mock templates by current folder if needed
+        const filteredMockTemplates = currentFolder 
+          ? mockTemplates.filter(t => t.folder_path === currentFolder)
+          : mockTemplates;
+        
+        setTemplates(filteredMockTemplates);
+        return;
+      }
       
       let query = supabase
         .from('mockup_templates')
@@ -237,8 +330,61 @@ const MockupTemplatesPage: React.FC = () => {
     } catch (error) {
       console.error('❌ Template loading general error:', error);
       
-      // Fallback to empty templates array
-      setTemplates([]);
+      // Fallback to mock templates if there's an error
+      const mockTemplates: MockupTemplate[] = [
+        {
+          id: '1',
+          user_id: user?.id || '',
+          name: 'T-Shirt Mockup 1',
+          image_url: 'https://images.pexels.com/photos/1484516/pexels-photo-1484516.jpeg?auto=compress&cs=tinysrgb&w=600',
+          design_areas: [{ x: 200, y: 200, width: 300, height: 300 }],
+          text_areas: [{ x: 200, y: 500, width: 300, height: 100 }],
+          is_default: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          design_type: 'black',
+          product_category: 't-shirt',
+          folder_path: 'tshirts',
+          folder_name: 'T-Shirts'
+        },
+        {
+          id: '2',
+          user_id: user?.id || '',
+          name: 'Mug Mockup 1',
+          image_url: 'https://images.pexels.com/photos/1566308/pexels-photo-1566308.jpeg?auto=compress&cs=tinysrgb&w=600',
+          design_areas: [{ x: 200, y: 200, width: 200, height: 200 }],
+          text_areas: [],
+          is_default: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          design_type: 'white',
+          product_category: 'mug',
+          folder_path: 'mugs',
+          folder_name: 'Mugs'
+        },
+        {
+          id: '3',
+          user_id: user?.id || '',
+          name: 'Poster Mockup 1',
+          image_url: 'https://images.pexels.com/photos/1070945/pexels-photo-1070945.jpeg?auto=compress&cs=tinysrgb&w=600',
+          design_areas: [{ x: 200, y: 200, width: 400, height: 600 }],
+          text_areas: [{ x: 200, y: 800, width: 400, height: 100 }],
+          is_default: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          design_type: 'color',
+          product_category: 'poster',
+          folder_path: 'default',
+          folder_name: 'Default Templates'
+        }
+      ];
+      
+      // Filter mock templates by current folder if needed
+      const filteredMockTemplates = currentFolder 
+        ? mockTemplates.filter(t => t.folder_path === currentFolder)
+        : mockTemplates;
+      
+      setTemplates(filteredMockTemplates);
     } finally {
       setLoading(false);
     }
@@ -547,6 +693,24 @@ const MockupTemplatesPage: React.FC = () => {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Demo Mode Notice */}
+      {isDemoMode && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-blue-700 dark:text-blue-400">
+                <strong>Demo Mode:</strong> You're viewing sample mockup templates. Connect to Supabase to manage your own templates.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
