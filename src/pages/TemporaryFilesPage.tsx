@@ -3,7 +3,7 @@ import { Clock, Trash2, Download, Search, Filter, Grid, List, RefreshCw, AlertCi
 import { useAuth } from '../context/AuthContext';
 import { supabase, executeWithTimeout } from '../lib/supabase';
 import Button from '../components/ui/Button';
-import Input from '../components/ui/Input';
+import { Input } from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 
 interface TemporaryFile {
@@ -528,7 +528,7 @@ const TemporaryFilesPage: React.FC = () => {
           )}
 
           {/* List View */}
-          {viewMode === 'list' && (
+          {viewMode === 'list'&& (
             <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-gray-700">

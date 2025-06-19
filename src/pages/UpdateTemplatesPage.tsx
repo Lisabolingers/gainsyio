@@ -3,7 +3,7 @@ import { Edit, Plus, Trash2, Copy, Search, Filter, Grid, List, Save, Download, S
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
-import Input from '../components/ui/Input';
+import { Input } from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 
 interface UpdateTemplate {

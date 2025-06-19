@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { AIService, AIProvider, AIRule } from '../lib/aiService';
 import Button from '../components/ui/Button';
-import Input from '../components/ui/Input';
+import { Input } from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 
 const AIAgentPage: React.FC = () => {

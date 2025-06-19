@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Konva from 'konva';
 import { Stage, Layer, Text as KonvaText, Transformer, Group, Image as KonvaImage } from 'react-konva';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
-import Input from '../ui/Input';
+import { Input } from '../ui/Input';
 import Button from '../ui/Button';
 import AccordionTextControls from './AccordionTextControls';
 import { renderTextByStyle } from './styleOption';
