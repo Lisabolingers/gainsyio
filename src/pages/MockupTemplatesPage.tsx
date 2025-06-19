@@ -1,5 +1,3 @@
-// EKLEMELER – Folder sistemini entegre etmek için yapılması gereken tüm eklemeler:
-
 // 📦 1. Ekstra useState tanımlamaları (üst kısma, diğer useState'lerle birlikte ekle)
 const [folders, setFolders] = useState<any[]>([]);
 const [selectedFolder, setSelectedFolder] = useState<string>('');
@@ -52,7 +50,7 @@ useEffect(() => {
 }, [user, isDemoMode, loadTemplates, loadStores, loadFolders]);
 
 // 💾 4. saveTemplate fonksiyonu içinde templateData'ya folder_id ekle
-folder_id: selectedFolder,
+templateData.folder_id = selectedFolder;
 
 // 🧩 5. Template oluşturma / düzenleme arayüzüne klasör seçme alanı ekle (templateName inputundan sonra)
 <div className="flex items-center space-x-2">
