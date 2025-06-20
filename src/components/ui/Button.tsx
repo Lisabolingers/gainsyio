@@ -42,4 +42,6 @@ const Button: React.FC<ButtonProps> = ({
   );
 };
 
+// Both default and named export to support different import styles
 export default Button;
+export { Button };
