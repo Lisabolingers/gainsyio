@@ -166,11 +166,11 @@ const MockupTemplatesPage: React.FC = () => {
         query = query.eq('folder_path', currentFolder);
       }
       
-      // Use executeWithTimeout for better error handling
+      // Use executeWithTimeout with increased timeout and retries
       const { data, error } = await executeWithTimeout(
         () => query.order('created_at', { ascending: false }),
-        15000, // 15 second timeout
-        2 // 2 retries
+        45000, // Increased timeout to 45 seconds
+        3 // Increased retries to 3
       );
 
       if (error) {
@@ -441,7 +441,7 @@ const MockupTemplatesPage: React.FC = () => {
 
       console.log('📡 Making request to Supabase for stores for user:', user.id);
       
-      // Use executeWithTimeout for better error handling
+      // Use executeWithTimeout with increased timeout and retries
       const { data, error } = await executeWithTimeout(
         () => supabase
           .from('stores')
@@ -450,8 +450,8 @@ const MockupTemplatesPage: React.FC = () => {
           .eq('platform', 'etsy')
           .eq('is_active', true)
           .order('created_at', { ascending: false }),
-        10000, // 10 second timeout
-        2 // 2 retries
+        30000, // Increased timeout to 30 seconds
+        3 // Increased retries to 3
       );
 
       if (error) {
